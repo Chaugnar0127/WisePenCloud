@@ -1,8 +1,8 @@
 package com.oriole.wisepen.user.controller;
 
-import cn.dev33.satoken.annotation.SaCheckLogin;
 import com.oriole.wisepen.common.core.context.SecurityContextHolder;
 import com.oriole.wisepen.common.core.domain.R;
+import com.oriole.wisepen.common.security.annotation.CheckLogin;
 import com.oriole.wisepen.user.api.domain.dto.*;
 import com.oriole.wisepen.user.service.GroupMemberService;
 import jakarta.validation.Valid;
@@ -21,31 +21,31 @@ public class GroupMemberController {
 
 	private final GroupMemberService groupMemberService;
 
-	@SaCheckLogin
+	@CheckLogin
 	@PostMapping("/join")
 	public R<Void> joinGroup(@RequestBody @Valid JoinGroupReq req) {
-		Long userId = SecurityContextHolder.getUserId();
+		Long userId = Long.valueOf(SecurityContextHolder.getUserId());
 		groupMemberService.joinGroup(userId, req.getInviteCode());
 		return R.ok();
 	}
 
-	@SaCheckLogin
+	@CheckLogin
 	@PostMapping("/quit")
 	public R<Void> quitGroup(@RequestBody @Valid QuitGroupReq req) {
-		Long userId = SecurityContextHolder.getUserId();
+		Long userId = Long.valueOf(SecurityContextHolder.getUserId());
 		groupMemberService.leaveGroup(userId, req.getGroupId());
 		return R.ok();
 	}
 
-	@SaCheckLogin
+	@CheckLogin
 	@PostMapping("/kick")
 	public R<Void> kickGroup(@RequestBody @Valid KickGroupReq req) {
-		Long userId = SecurityContextHolder.getUserId();
+		Long userId = Long.valueOf(SecurityContextHolder.getUserId());
 		groupMemberService.kickGroupMembers(userId, req.getGroupId(), req.getTargetUserIds());
 		return R.ok();
 	}
 
-	@SaCheckLogin
+	@CheckLogin
 	@PostMapping("/update-role")
 	public R<Void> updateRole(@RequestBody @Valid UpdateRoleReq req) {
 		groupMemberService.updateGroupMemberRole(req.getGroupId(), req.getTargetUserId(), req.getRole());
@@ -53,7 +53,7 @@ public class GroupMemberController {
 	}
 
 
-	@SaCheckLogin
+	@CheckLogin
 	@GetMapping("/info")
 	public R<PageResp<MemberListQueryResp>> getGroupMember(
 			@RequestParam("groupId") @NotNull Long groupId,

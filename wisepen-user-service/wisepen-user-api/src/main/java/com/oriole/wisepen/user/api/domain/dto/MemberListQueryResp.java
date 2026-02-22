@@ -1,5 +1,6 @@
 package com.oriole.wisepen.user.api.domain.dto;
 
+import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -11,6 +12,6 @@ public class MemberListQueryResp implements Serializable {
 	private Long userId;
 	private String realname;
 	private String nickname;
-	private Integer role;
+	private GroupRoleType role;
 	private LocalDateTime joinTime;
 }

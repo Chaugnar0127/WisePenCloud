@@ -1,8 +1,8 @@
 package com.oriole.wisepen.user.controller;
 
-import cn.dev33.satoken.annotation.SaCheckLogin;
 import com.oriole.wisepen.common.core.context.SecurityContextHolder;
 import com.oriole.wisepen.common.core.domain.R;
+import com.oriole.wisepen.common.security.annotation.CheckLogin;
 import com.oriole.wisepen.user.api.domain.dto.*;
 import com.oriole.wisepen.user.domain.entity.Group;
 import com.oriole.wisepen.user.service.GroupMemberService;
@@ -24,7 +24,7 @@ public class GroupController {
 	private final GroupService groupService;
 	private final GroupMemberService groupMemberService;
 
-	@SaCheckLogin
+	@CheckLogin
 	@PostMapping("/new")
 	public R<?> createGroup(@RequestBody @Valid CreateGroupReq req) {
 
@@ -34,16 +34,17 @@ public class GroupController {
 		group.setDescription(req.getDescription());
 		group.setCoverUrl(req.getCoverUrl());
 
-		group.setOwnerId(SecurityContextHolder.getUserId());
+		Long userId = Long.valueOf(SecurityContextHolder.getUserId());
+
+		group.setOwnerId(userId);
 		groupService.createGroup(group);
 
-		Long userId = SecurityContextHolder.getUserId();
 		groupMemberService.becomeGroupOwner(userId, group.getId());
 
 		return R.ok();
 	}
 
-	@SaCheckLogin
+	@CheckLogin
 	@PostMapping("/edit")
 	public R<?> updateGroup(@RequestBody @Valid UpdateGroupReq req) {
 		Group group = new Group();
@@ -55,7 +56,7 @@ public class GroupController {
 		return R.ok();
 	}
 
-	@SaCheckLogin
+	@CheckLogin
 	@PostMapping("/delete")
 	public R<?> deleteGroup(@RequestBody @Valid DeleteGroupReq req) {
 		groupService.deleteGroup(req.getGroupId());
@@ -63,14 +64,14 @@ public class GroupController {
 	}
 
 	// GET 不动
-	@SaCheckLogin
+	@CheckLogin
 	@GetMapping("/info")
 	public R<PageResp<GroupQueryResp>> getInfo(
 			@RequestParam("relationType") @NonNull Integer relationType,
 			@RequestParam("page") @NonNull @Min(1) Integer page,
 			@RequestParam("size") @NonNull @Min(1) Integer size
 	) {
-		Long userId = SecurityContextHolder.getUserId();
+		Long userId = Long.valueOf(SecurityContextHolder.getUserId());
 		return R.ok(groupService.getGroupIds(userId, relationType, page, size));
 	}
 }

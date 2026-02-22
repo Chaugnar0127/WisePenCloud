@@ -29,7 +29,7 @@ public class UserWallets implements Serializable {
 	@Serial
 	private static final long serialVersionUID = 1L;
 
-	@TableId(type = IdType.INPUT)
+	@TableId(value="Id", type = IdType.INPUT)
 	private Long userId;
 
 	private Integer quotaUsed;

@@ -11,7 +11,7 @@ public interface GroupMemberService {
 	void leaveGroup(Long userId, Long groupId);
 	void kickGroupMember(Long userId, Long groupId, Long targetUserId);
 
-	public void kickGroupMembers(Long operatorUserId, Long groupId, List<Long> targetUserIds);
+	void kickGroupMembers(Long operatorUserId, Long groupId, List<Long> targetUserIds);
 
 	PageResp<MemberListQueryResp> getMemberList(Long groupId, Integer page, Integer size);
 
