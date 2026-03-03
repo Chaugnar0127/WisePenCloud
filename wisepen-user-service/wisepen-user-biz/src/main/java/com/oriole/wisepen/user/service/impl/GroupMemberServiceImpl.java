@@ -93,6 +93,16 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 	}
 
 	@Override
+	public GroupRoleType getGroupRoleTypeByGroupId(Long groupId) {
+		Long userId = Long.valueOf(SecurityContextHolder.getUserId());
+		GroupMember groupMember = findGroupMemberByGroupId(userId,groupId);
+		if (groupMember==null) {
+			throw new ServiceException(GroupErrorCode.MEMBER_NOT_IN_GROUP);
+		}
+		return groupMember.getRole();
+	}
+
+	@Override
 	public void leaveGroup(Long userId, Long groupId) {
 		if (!validateIsExisted(groupId)) {
 			throw new ServiceException(GroupErrorCode.GROUP_NOT_EXIST);

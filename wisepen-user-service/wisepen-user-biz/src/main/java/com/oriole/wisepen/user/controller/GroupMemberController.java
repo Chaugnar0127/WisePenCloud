@@ -3,6 +3,7 @@ package com.oriole.wisepen.user.controller;
 import com.oriole.wisepen.common.core.context.SecurityContextHolder;
 import com.oriole.wisepen.common.core.domain.PageResult;
 import com.oriole.wisepen.common.core.domain.R;
+import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
 import com.oriole.wisepen.user.api.domain.dto.*;
 import com.oriole.wisepen.user.service.GroupMemberService;
@@ -55,12 +56,18 @@ public class GroupMemberController {
 
 
 	@CheckLogin
-	@GetMapping("/info")
+	@GetMapping("/list")
 	public R<PageResult<MemberListQueryResponse>> getGroupMember(
 			@RequestParam("groupId") @NotNull Long groupId,
 			@RequestParam("page") @NonNull @Min(1) Integer page,
 			@RequestParam("size") @NonNull @Min(1) Integer size
 	){
 		return R.ok(groupMemberService.getMemberList(groupId,page,size));
+	}
+
+	@CheckLogin
+	@GetMapping("/my-role")
+	public R<GroupRoleType> getGroupMember(@RequestParam("groupId") @NotNull Long groupId){
+		return R.ok(groupMemberService.getGroupRoleTypeByGroupId(groupId));
 	}
 }
