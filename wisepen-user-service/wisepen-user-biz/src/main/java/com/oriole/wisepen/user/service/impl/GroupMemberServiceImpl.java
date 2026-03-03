@@ -8,6 +8,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.oriole.wisepen.common.core.context.SecurityContextHolder;
 import com.oriole.wisepen.common.core.domain.PageResult;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
+import com.oriole.wisepen.common.core.domain.enums.GroupType;
+import com.oriole.wisepen.common.core.domain.enums.IdentityType;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.user.api.domain.dto.MemberListQueryResponse;
 import com.oriole.wisepen.user.domain.entity.*;
@@ -43,10 +45,10 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 		return groupMemberMapper.selectOne(queryWrapper);
 	}
 
-	private void insertGroupMember(GroupMember groupMember, Integer type){
+	private void insertGroupMember(GroupMember groupMember, GroupType type){
 		groupMemberMapper.insert(groupMember);
 
-		if (type==2||type==3) {
+		if (type!=GroupType.NORMAL_GROUP) {
 			GroupMemberQuotas groupMemberQuotas = new GroupMemberQuotas();
 			groupMemberQuotas.setId(groupMember.getId());
 			groupMemberQuotas.setQuotaUsed(0);
@@ -188,7 +190,7 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 				resp.setNickname(u.getNickname());
 			}
 			//普通组不显示 real_name
-			if (group.getType()!=1) {
+			if (group.getType()!= GroupType.NORMAL_GROUP) {
 				UserProfile uu = userProfileMap.get(uid);
 				if (uu != null) {
 					resp.setRealname(uu.getRealName());

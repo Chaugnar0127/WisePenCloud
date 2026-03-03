@@ -1,5 +1,6 @@
 package com.oriole.wisepen.user.api.domain.dto;
 
+import com.oriole.wisepen.common.core.domain.enums.GroupType;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
@@ -13,7 +14,7 @@ public class CreateGroupRequest implements Serializable {
 	private String groupName;
 
 	@NotNull(message = "groupType 不能为空")
-	private Integer groupType;
+	private GroupType groupType;
 
 	@NotBlank(message = "description 不能为空")
 	private String description;

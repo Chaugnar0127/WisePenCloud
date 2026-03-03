@@ -8,10 +8,11 @@ import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.oriole.wisepen.common.core.context.SecurityContextHolder;
 import com.oriole.wisepen.common.core.domain.PageResult;
+import com.oriole.wisepen.common.core.domain.enums.GroupType;
 import com.oriole.wisepen.common.core.domain.enums.IdentityType;
 import com.oriole.wisepen.common.core.exception.ServiceException;
+import com.oriole.wisepen.user.api.domain.dto.*;
 import com.oriole.wisepen.user.component.InviteCodeGenerator;
-import com.oriole.wisepen.user.api.domain.dto.GroupQueryResponse;
 import com.oriole.wisepen.user.domain.entity.Group;
 import com.oriole.wisepen.user.domain.entity.GroupMember;
 import com.oriole.wisepen.user.domain.entity.GroupWallets;
@@ -21,6 +22,7 @@ import com.oriole.wisepen.user.mapper.GroupMemberMapper;
 import com.oriole.wisepen.user.mapper.GroupMemberQuotasMapper;
 import com.oriole.wisepen.user.mapper.GroupWalletsMapper;
 import com.oriole.wisepen.user.service.GroupService;
+import com.oriole.wisepen.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -40,6 +42,7 @@ public class GroupServiceImpl implements GroupService {
     private final GroupWalletsMapper groupWalletsMapper;
     private final GroupMemberQuotasMapper groupMemberQuotasMapper;
     private final InviteCodeGenerator inviteCodeGenerator;
+    private final UserService userService;
 
     //组是否存在（被删除也算不存在）
     private Boolean validateIsExisted(Long groupId){
@@ -75,11 +78,11 @@ public class GroupServiceImpl implements GroupService {
         //校验权限
 
         IdentityType type= SecurityContextHolder.getIdentityType();
-        if (group.getType()==2&&type!=IdentityType.TEACHER&&type!=IdentityType.ADMIN) {
+        if (group.getType()==GroupType.ADVANCED_GROUP&&type!=IdentityType.TEACHER&&type!=IdentityType.ADMIN) {
             throw new ServiceException(GroupErrorCode.NO_PERMISSION);
         }
 
-        if (group.getType()==3&&type!=IdentityType.ADMIN) {
+        if (group.getType()==GroupType.MARKET_GROUP&&type!=IdentityType.ADMIN) {
             throw new ServiceException(GroupErrorCode.NO_PERMISSION);
         }
         // 保证 inviteCode 唯一
@@ -88,9 +91,9 @@ public class GroupServiceImpl implements GroupService {
         // 调用 MP 的 Mapper 方法
         groupMapper.insert(group);
 
-        if (group.getType()==2||group.getType()==3) {
+        if (group.getType()!=GroupType.NORMAL_GROUP) {
             GroupWallets groupWallets = new GroupWallets();
-            groupWallets.setGroupId(group.getId());
+            groupWallets.setId(group.getId());
             groupWallets.setQuotaUsed(0);
             groupWallets.setQuotaLimit(0);
             groupWalletsMapper.insert(groupWallets);
@@ -188,7 +191,11 @@ public class GroupServiceImpl implements GroupService {
         List<GroupQueryResponse> records = groupIds.stream()
                 .map(id2Group::get)
                 .filter(Objects::nonNull)
-                .map(g -> BeanUtil.copyProperties(g, GroupQueryResponse.class))
+                .map(g -> {
+                    GroupQueryResponse groupQueryResponse = BeanUtil.copyProperties(g, GroupQueryResponse.class);
+                    groupQueryResponse.setCreator(getCreatorByUserId(g.getOwnerId()));
+                    return groupQueryResponse;
+                })
                 .toList();
 
         PageResult<GroupQueryResponse> pr=new PageResult<>(memberPage.getTotal(), page, size);
@@ -196,8 +203,31 @@ public class GroupServiceImpl implements GroupService {
         return pr;
     }
 
+    private CreatorInfo transformUserDTOToCreator(UserInfoDTO user) {
+        if (user == null) {
+            return null;
+        }
+        CreatorInfo creator = new CreatorInfo();
+        creator.setAvatar(user.getAvatar());
+        creator.setNickname(user.getNickname());
+        creator.setName(user.getRealName());
+        return creator;
+    }
+
+    private CreatorInfo getCreatorByUserId(Long userId) {
+        UserInfoDTO creatorUser = userService.getUserInfoById(userId);
+        return transformUserDTOToCreator(creatorUser);
+    }
+
     @Override
-    public Group getGroupById(Long id) {
-        return groupMapper.selectById(id);
+    public GetGroupInfoResponse getGroupById(Long groupId) {
+        Group group = groupMapper.selectById(groupId);
+        if (group == null) {
+            return null;
+        }
+
+        GetGroupInfoResponse response = BeanUtil.copyProperties(group, GetGroupInfoResponse.class);
+        response.setCreator(getCreatorByUserId(group.getOwnerId()));
+        return response;
     }
 }

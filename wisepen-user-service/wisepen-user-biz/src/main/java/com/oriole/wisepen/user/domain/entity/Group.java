@@ -1,6 +1,7 @@
 package com.oriole.wisepen.user.domain.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.oriole.wisepen.common.core.domain.enums.GroupType;
 import lombok.Data;
 
 import java.io.Serial;
@@ -26,7 +27,7 @@ public class Group implements Serializable {
     /** 描述 */
     private String description;
 
-    private Integer type;
+    private GroupType type;
 
     private String coverUrl;
 

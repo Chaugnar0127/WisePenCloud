@@ -1,6 +1,7 @@
 package com.oriole.wisepen.user.service.impl;
 
 import com.oriole.wisepen.common.core.domain.PageResult;
+import com.oriole.wisepen.common.core.domain.enums.GroupType;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.user.api.domain.dto.GetGroupMemberQuotasResponse;
 import com.oriole.wisepen.user.api.domain.dto.GetMyGroupQuotasResponse;
@@ -33,7 +34,7 @@ public class GroupQuotasServiceImpl implements GroupQuotasService {
 	@Override
 	public PageResult<GetGroupMemberQuotasResponse> getGroupMemberQuotas(Long groupId, Integer page, Integer size) {
 		Group group = groupMapper.selectById(groupId);
-		if (group.getType()==1) {
+		if (group.getType()==GroupType.NORMAL_GROUP) {
 			throw new ServiceException(GroupErrorCode.NORMAL_GROUP);
 		}
 		return null;

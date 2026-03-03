@@ -1,5 +1,6 @@
 package com.oriole.wisepen.user.api.domain.dto;
 
+import com.oriole.wisepen.common.core.domain.enums.GroupType;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -8,9 +9,9 @@ import java.io.Serializable;
 public class GroupQueryResponse implements Serializable {
 	private Long id;
 	private String name;
-	private Long ownerId;
+	private CreatorInfo creator;
 	private String description;
-	private Integer type;
+	private GroupType type;
 	private String coverUrl;
 	private String inviteCode;
 	private Integer memberCount;

@@ -14,12 +14,8 @@ import java.time.LocalDateTime;
 @Data
 @TableName("sys_group_wallets")
 public class GroupWallets {
-
-	@Serial
-	private static final long serialVersionUID = 1L;
-
 	@TableId(type = IdType.INPUT)
-	private Long groupId;
+	private Long id;
 
 	private Integer quotaUsed;
 

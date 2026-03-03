@@ -1,5 +1,6 @@
 package com.oriole.wisepen.user.controller;
 
+import cn.hutool.core.bean.BeanUtil;
 import com.oriole.wisepen.common.core.context.SecurityContextHolder;
 import com.oriole.wisepen.common.core.domain.PageResult;
 import com.oriole.wisepen.common.core.domain.R;
@@ -12,6 +13,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.BeanUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -28,7 +30,7 @@ public class GroupController {
 	@PostMapping("/new")
 	public R<?> createGroup(@RequestBody @Valid CreateGroupRequest req) {
 
-		Group group = new Group();
+		Group group = BeanUtil.copyProperties(req,Group.class);
 		group.setName(req.getGroupName());
 		group.setType(req.getGroupType());
 		group.setDescription(req.getDescription());
@@ -65,7 +67,7 @@ public class GroupController {
 
 	// GET 不动
 	@CheckLogin
-	@GetMapping("/info")
+	@GetMapping("/list")
 	public R<PageResult<GroupQueryResponse>> getInfo(
 			@RequestParam("relationType") @NonNull Integer relationType,
 			@RequestParam("page") @NonNull @Min(1) Integer page,
@@ -73,5 +75,11 @@ public class GroupController {
 	) {
 		Long userId = Long.valueOf(SecurityContextHolder.getUserId());
 		return R.ok(groupService.getGroupIds(userId, relationType, page, size));
+	}
+
+	@CheckLogin
+	@GetMapping("info")
+	public R<GetGroupInfoResponse> getInfo(@RequestParam("groupId") Long groupId) {
+		return R.ok(groupService.getGroupById(groupId));
 	}
 }
