@@ -1,20 +1,33 @@
 package com.oriole.wisepen.user.service;
 
+import com.oriole.wisepen.common.core.domain.PageResult;
+import com.oriole.wisepen.user.api.domain.dto.GetGroupInfoResponse;
+import com.oriole.wisepen.user.api.domain.dto.GroupQueryResponse;
 import com.oriole.wisepen.user.domain.entity.Group;
 
 import java.util.List;
 import java.util.Map;
 
 public interface GroupService {
-    // 创建分组
+    // 创建分组 (业务方法)
     void createGroup(Group group);
 
     // 获取用户的所有组ID和角色
     Map<String, Integer> getGroupRoleMapByUserId(Long userId);
 
     // 获取用户的所有组ID
+    // 更新分组
+    void updateGroup(Group group);
+
+    // 删除分组（业务方法）
+    void deleteGroup(Long groupId);
+
+    // 获取用户的所有组ID (业务方法)
     List<Long> getGroupIdsByUserId(Long userId);
 
-    // 获取组的详情
-    Group getGroupById(Long id);
+    // 获取用户的不同类型组ID (业务方法) (Type= 1-我管理的，2-我加入的）
+    PageResult<GroupQueryResponse> getGroupIds(Long userId, Integer type, Integer page, Integer size);
+
+    // 获取组的详情 (业务方法)
+    GetGroupInfoResponse getGroupById(Long id);
 }

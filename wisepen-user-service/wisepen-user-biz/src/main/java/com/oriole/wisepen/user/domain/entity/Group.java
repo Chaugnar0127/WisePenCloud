@@ -1,6 +1,7 @@
 package com.oriole.wisepen.user.domain.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.oriole.wisepen.common.core.domain.enums.GroupType;
 import lombok.Data;
 
 import java.io.Serial;
@@ -26,9 +27,20 @@ public class Group implements Serializable {
     /** 描述 */
     private String description;
 
-    @TableField(fill = FieldFill.INSERT)
+    private GroupType type;
+
+    private String coverUrl;
+
+    private String inviteCode;
+
+    /** 逻辑删除 0:未删 1:已删 */
+    @TableLogic
+    @TableField("del_flag")
+    private Integer delFlag;
+
+    private Integer memberCount;
+
     private LocalDateTime createTime;
 
-    @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updateTime;
 }

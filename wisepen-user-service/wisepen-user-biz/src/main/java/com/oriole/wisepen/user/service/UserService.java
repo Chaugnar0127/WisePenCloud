@@ -1,9 +1,6 @@
 package com.oriole.wisepen.user.service;
 
-import com.oriole.wisepen.user.api.domain.dto.RegisterRequest;
-import com.oriole.wisepen.user.api.domain.dto.ResetExecuteRequest;
-import com.oriole.wisepen.user.api.domain.dto.ResetRequest;
-import com.oriole.wisepen.user.api.domain.dto.UserInfoDTO;
+import com.oriole.wisepen.user.api.domain.dto.*;
 import com.oriole.wisepen.user.domain.entity.User;
 
 public interface UserService {
