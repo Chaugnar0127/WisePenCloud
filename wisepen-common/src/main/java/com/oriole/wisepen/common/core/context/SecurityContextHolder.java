@@ -42,6 +42,12 @@ public class SecurityContextHolder {
         return map == null ? null : Convert.convert(clazz, map.get(key));
     }
 
+    // 设置当前用户认证令牌
+    public static void setUserAuthToken(String authToken) { set(SecurityConstants.COOKIE_AUTHORIZATION_TOKEN, authToken); }
+
+    // 获取当前用户认证令牌
+    public static String getUserAuthToken() { return get(SecurityConstants.COOKIE_AUTHORIZATION_TOKEN, String.class); }
+
     // 设置当前用户ID
     public static void setUserId(String userId) { set(SecurityConstants.HEADER_USER_ID, userId); }
 

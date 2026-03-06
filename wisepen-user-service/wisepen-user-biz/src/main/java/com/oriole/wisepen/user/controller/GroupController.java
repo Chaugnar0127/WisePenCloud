@@ -1,19 +1,25 @@
 package com.oriole.wisepen.user.controller;
 
-import cn.hutool.core.bean.BeanUtil;
 import com.oriole.wisepen.common.core.context.SecurityContextHolder;
 import com.oriole.wisepen.common.core.domain.PageResult;
 import com.oriole.wisepen.common.core.domain.R;
+import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
+import com.oriole.wisepen.common.core.domain.enums.GroupType;
+import com.oriole.wisepen.common.core.domain.enums.IdentityType;
+import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
-import com.oriole.wisepen.user.api.domain.dto.*;
-import com.oriole.wisepen.user.domain.entity.Group;
+import com.oriole.wisepen.common.security.exception.PermissionErrorCode;
+import com.oriole.wisepen.common.security.exception.PermissionException;
+import com.oriole.wisepen.user.api.domain.dto.req.GroupCreateRequest;
+import com.oriole.wisepen.user.api.domain.dto.req.GroupDeleteRequest;
+import com.oriole.wisepen.user.api.domain.dto.req.GroupUpdateRequest;
+import com.oriole.wisepen.user.api.domain.dto.res.GroupDetailInfoResponse;
+import com.oriole.wisepen.user.api.domain.dto.res.GroupItemInfoResponse;
+import com.oriole.wisepen.user.exception.GroupErrorCode;
 import com.oriole.wisepen.user.service.GroupMemberService;
 import com.oriole.wisepen.user.service.GroupService;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.Min;
-import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.BeanUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,65 +27,58 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/group")
 @RequiredArgsConstructor
 @Validated
+@CheckLogin
 public class GroupController {
 
 	private final GroupService groupService;
-	private final GroupMemberService groupMemberService;
 
-	@CheckLogin
-	@PostMapping("/new")
-	public R<?> createGroup(@RequestBody @Valid CreateGroupRequest req) {
+	@PostMapping("/addGroup")
+	public R<Void> createGroup(@RequestBody @Valid GroupCreateRequest req) {
 
-		Group group = BeanUtil.copyProperties(req,Group.class);
-		group.setName(req.getGroupName());
-		group.setType(req.getGroupType());
-		group.setDescription(req.getDescription());
-		group.setCoverUrl(req.getCoverUrl());
+		IdentityType userIdentityType= SecurityContextHolder.getIdentityType();
+		if (req.getGroupType() == GroupType.ADVANCED_GROUP && userIdentityType == IdentityType.STUDENT) {
+			throw new PermissionException(PermissionErrorCode.IDENTITY_UNAUTHORIZED);
+		}
 
-		Long userId = Long.valueOf(SecurityContextHolder.getUserId());
+		if (req.getGroupType()==GroupType.MARKET_GROUP && userIdentityType != IdentityType.ADMIN) {
+			throw new PermissionException(PermissionErrorCode.IDENTITY_UNAUTHORIZED);
+		}
 
-		group.setOwnerId(userId);
-		groupService.createGroup(group);
-
-		groupMemberService.becomeGroupOwner(userId, group.getId());
-
+		groupService.createGroup(req, SecurityContextHolder.getUserId());
 		return R.ok();
 	}
 
-	@CheckLogin
-	@PostMapping("/edit")
-	public R<?> updateGroup(@RequestBody @Valid UpdateGroupRequest req) {
-		Group group = new Group();
-		group.setId(req.getGroupId());
-		group.setName(req.getGroupName());
-		group.setDescription(req.getDescription());
-		group.setCoverUrl(req.getCoverUrl());
-		groupService.updateGroup(group);
+	@PostMapping("/changeGroup")
+	public R<Void> updateGroup(@RequestBody @Valid GroupUpdateRequest req) {
+		SecurityContextHolder.assertGroupRole(req.getGroupId(), GroupRoleType.OWNER, GroupRoleType.ADMIN);
+		groupService.updateGroup(req);
 		return R.ok();
 	}
 
-	@CheckLogin
-	@PostMapping("/delete")
-	public R<?> deleteGroup(@RequestBody @Valid DeleteGroupRequest req) {
-		groupService.deleteGroup(req.getGroupId());
+	@PostMapping("/removeGroup")
+	public R<Void> deleteGroup(@RequestBody @Valid GroupDeleteRequest req) {
+		SecurityContextHolder.assertGroupRole(req.getGroupId(), GroupRoleType.OWNER);
+		groupService.deleteGroup(req);
 		return R.ok();
 	}
 
-	// GET 不动
-	@CheckLogin
 	@GetMapping("/list")
-	public R<PageResult<GroupQueryResponse>> getInfo(
-			@RequestParam("relationType") @NonNull Integer relationType,
-			@RequestParam("page") @NonNull @Min(1) Integer page,
-			@RequestParam("size") @NonNull @Min(1) Integer size
+	public R<PageResult<GroupItemInfoResponse>> listGroups(
+			@RequestParam GroupRoleType groupRoleType,
+			@RequestParam(value = "page", defaultValue = "1") int page,
+			@RequestParam(value = "size", defaultValue = "20") int size
 	) {
-		Long userId = Long.valueOf(SecurityContextHolder.getUserId());
-		return R.ok(groupService.getGroupIds(userId, relationType, page, size));
+		return R.ok(groupService.listGroups(SecurityContextHolder.getUserId(), groupRoleType, page, size));
 	}
 
-	@CheckLogin
-	@GetMapping("info")
-	public R<GetGroupInfoResponse> getInfo(@RequestParam("groupId") Long groupId) {
-		return R.ok(groupService.getGroupById(groupId));
+	@GetMapping("/getGroupBaseInfo")
+	public R<GroupItemInfoResponse> getGroupBaseInfo(@RequestParam("groupId") String groupId) {
+		return R.ok(groupService.getGroupBaseInfoById(groupId));
+	}
+
+	@GetMapping("/getGroupDetailInfo")
+	public R<GroupDetailInfoResponse> getGroupDetailInfo(@RequestParam("groupId") String groupId) {
+		SecurityContextHolder.assertGroupRole(groupId, GroupRoleType.OWNER, GroupRoleType.ADMIN);
+		return R.ok(groupService.getGroupDetailInfoById(groupId));
 	}
 }

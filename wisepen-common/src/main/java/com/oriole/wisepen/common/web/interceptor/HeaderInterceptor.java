@@ -31,6 +31,7 @@ public class HeaderInterceptor implements HandlerInterceptor {
         }
 
         // 从 Header 中获取 APISIX 透传的明文信息
+        String userAuthTokenStr = request.getHeader(SecurityConstants.COOKIE_AUTHORIZATION_TOKEN);
         String userIdStr = request.getHeader(SecurityConstants.HEADER_USER_ID);
         String identityTypeStr = request.getHeader(SecurityConstants.HEADER_IDENTITY_TYPE);
         String groupRoleMapJson = request.getHeader(SecurityConstants.HEADER_GROUP_ROLE_MAP);
@@ -38,6 +39,7 @@ public class HeaderInterceptor implements HandlerInterceptor {
         // 如果 Header 里有 UserID，说明网关已认证通过
         if (StrUtil.isNotBlank(userIdStr)) {
             SecurityContextHolder.setUserId(userIdStr);
+            SecurityContextHolder.setUserAuthToken(userAuthTokenStr);
 
             if (StrUtil.isNotBlank(identityTypeStr)) {
                 SecurityContextHolder.setIdentityType(Integer.parseInt(identityTypeStr));

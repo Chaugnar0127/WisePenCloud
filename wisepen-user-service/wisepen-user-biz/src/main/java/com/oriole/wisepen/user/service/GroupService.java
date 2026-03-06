@@ -1,33 +1,41 @@
 package com.oriole.wisepen.user.service;
 
 import com.oriole.wisepen.common.core.domain.PageResult;
-import com.oriole.wisepen.user.api.domain.dto.GetGroupInfoResponse;
-import com.oriole.wisepen.user.api.domain.dto.GroupQueryResponse;
-import com.oriole.wisepen.user.domain.entity.Group;
+import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
+import com.oriole.wisepen.user.api.domain.dto.req.GroupCreateRequest;
+import com.oriole.wisepen.user.api.domain.dto.req.GroupDeleteRequest;
+import com.oriole.wisepen.user.api.domain.dto.req.GroupUpdateRequest;
+import com.oriole.wisepen.user.api.domain.dto.res.GroupDetailInfoResponse;
+import com.oriole.wisepen.user.api.domain.dto.res.GroupItemInfoResponse;
 
-import java.util.List;
 import java.util.Map;
 
 public interface GroupService {
-    // 创建分组 (业务方法)
-    void createGroup(Group group);
 
-    // 获取用户的所有组ID和角色
-    Map<String, Integer> getGroupRoleMapByUserId(Long userId);
+    // 创建群组
+    void createGroup(GroupCreateRequest req, String userId);
 
-    // 获取用户的所有组ID
-    // 更新分组
-    void updateGroup(Group group);
+    // 更新群组基础信息
+    void updateGroup(GroupUpdateRequest req);
 
-    // 删除分组（业务方法）
-    void deleteGroup(Long groupId);
+    // 删除群组
+    void deleteGroup(GroupDeleteRequest req);
 
-    // 获取用户的所有组ID (业务方法)
-    List<Long> getGroupIdsByUserId(Long userId);
+    // 获取指定用户的群组分页列表
+    PageResult<GroupItemInfoResponse> listGroups(String userId, GroupRoleType groupRoleType, int page, int size);
 
-    // 获取用户的不同类型组ID (业务方法) (Type= 1-我管理的，2-我加入的）
-    PageResult<GroupQueryResponse> getGroupIds(Long userId, Integer type, Integer page, Integer size);
+    // 获取群组的公开基础信息
+    GroupItemInfoResponse getGroupBaseInfoById(String groupId);
 
-    // 获取组的详情 (业务方法)
-    GetGroupInfoResponse getGroupById(Long id);
+    // 获取群组的详细信息
+    GroupDetailInfoResponse getGroupDetailInfoById(String groupId);
+
+    // 根据邀请码获取用户组ID
+    Long getGroupIdByInviteCode(String inviteCode);
+
+    // 充值Token余额
+    void refillGroupTokenBalance(Long groupId, Integer rechargedToken);
+
+    // 更新组Token用量
+    void updateGroupTokenUsed(Long groupId, Integer usedToken);
 }

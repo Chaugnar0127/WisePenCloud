@@ -1,240 +1,196 @@
 package com.oriole.wisepen.user.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.util.IdUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
-import com.baomidou.mybatisplus.core.metadata.IPage;
-import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
+import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.oriole.wisepen.common.core.context.SecurityContextHolder;
 import com.oriole.wisepen.common.core.domain.PageResult;
+import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.domain.enums.GroupType;
 import com.oriole.wisepen.common.core.domain.enums.IdentityType;
 import com.oriole.wisepen.common.core.exception.ServiceException;
-import com.oriole.wisepen.user.api.domain.dto.*;
-import com.oriole.wisepen.user.component.InviteCodeGenerator;
-import com.oriole.wisepen.user.component.RedisSaver;
-import com.oriole.wisepen.user.domain.entity.Group;
-import com.oriole.wisepen.user.domain.entity.GroupMember;
-import com.oriole.wisepen.user.domain.entity.GroupWallets;
+import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
+import com.oriole.wisepen.user.api.domain.dto.req.GroupCreateRequest;
+import com.oriole.wisepen.user.api.domain.dto.req.GroupDeleteRequest;
+import com.oriole.wisepen.user.api.domain.dto.req.GroupUpdateRequest;
+import com.oriole.wisepen.user.api.domain.dto.res.GroupDetailInfoResponse;
+import com.oriole.wisepen.user.api.domain.dto.res.GroupItemInfoResponse;
+import com.oriole.wisepen.user.cache.RedisCacheManager;
+import com.oriole.wisepen.user.domain.entity.GroupEntity;
+import com.oriole.wisepen.user.domain.entity.GroupMemberEntity;
 import com.oriole.wisepen.user.exception.GroupErrorCode;
 import com.oriole.wisepen.user.mapper.GroupMapper;
 import com.oriole.wisepen.user.mapper.GroupMemberMapper;
-import com.oriole.wisepen.user.mapper.GroupMemberQuotasMapper;
-import com.oriole.wisepen.user.mapper.GroupWalletsMapper;
+import com.oriole.wisepen.user.service.GroupMemberService;
 import com.oriole.wisepen.user.service.GroupService;
 import com.oriole.wisepen.user.service.UserService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class GroupServiceImpl implements GroupService {
 
     private final GroupMapper groupMapper;
     private final GroupMemberMapper groupMemberMapper;
-    private final GroupWalletsMapper groupWalletsMapper;
-    private final GroupMemberQuotasMapper groupMemberQuotasMapper;
-    private final InviteCodeGenerator inviteCodeGenerator;
     private final UserService userService;
-    private final RedisSaver redisSaver;
+    private final GroupMemberService groupMemberService;
+    private final RedisCacheManager redisCacheManager;
 
-    //组是否存在（被删除也算不存在）
-    private Boolean validateIsExisted(Long groupId){
-        Group res=groupMapper.selectOne(new LambdaQueryWrapper<Group>()
-                .eq(Group::getId,groupId));
-        return res!=null&&res.getDelFlag()==0;
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void createGroup(GroupCreateRequest req, String userId) {
+        GroupEntity group = GroupEntity.builder()
+                .ownerId(Long.valueOf(userId))
+                .inviteCode(IdUtil.fastSimpleUUID().substring(0, 8)) // 确保ID唯一
+                .tokenUsed(0).tokenBalance(0)
+                .build();
+
+        BeanUtil.copyProperties(req, group, "ownerId", "inviteCode", "tokenUsed", "tokenPoolBalance");
+        groupMapper.insert(group);
+        groupMemberService.joinGroup(group.getGroupId(), Long.valueOf(userId), GroupRoleType.OWNER); // 用户加入群组
+        redisCacheManager.blockGroupChat(group.getGroupId().toString()); // 刚成立的组都是没Chat权限的，必须要充值
     }
-    //当前是否是 group 的owner
-    private Boolean validatePermission (Long groupId){
-        IdentityType type= SecurityContextHolder.getIdentityType();
-        if (type==IdentityType.ADMIN) {
-            return true;
+
+    @Override
+    public void updateGroup(GroupUpdateRequest req) {
+        GroupEntity group = BeanUtil.copyProperties(req, GroupEntity.class);
+        group.setUpdateTime(new Date());
+        int rows = groupMapper.updateById(group);
+        if (rows == 0) {
+            throw new ServiceException(GroupErrorCode.GROUP_NOT_EXIST);
+        }
+    }
+
+    @Override
+    public void deleteGroup(GroupDeleteRequest req) {
+        Long groupId = Long.valueOf(req.getGroupId());
+
+        int rows = groupMapper.deleteById(groupId);
+        if (rows == 0) {
+            throw new ServiceException(GroupErrorCode.GROUP_NOT_EXIST);
+        }
+        groupMemberService.removeAllGroupMembers(groupId);
+    }
+
+    @Override
+    public PageResult<GroupItemInfoResponse> listGroups(String userId, GroupRoleType groupRoleType, int page, int size) {
+        Page<GroupMemberEntity> memberPage = new Page<>(page, size);
+
+        // 先查出该用户符合条件的所在组ID
+        LambdaQueryWrapper<GroupMemberEntity> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(GroupMemberEntity::getUserId, Long.valueOf(userId));
+        if (groupRoleType != null) {
+            wrapper.eq(GroupMemberEntity::getRole, groupRoleType.getCode());
+        }
+        Page<GroupMemberEntity> resultPage = groupMemberMapper.selectPage(memberPage, wrapper);
+
+        List<Long> groupIds = resultPage.getRecords().stream()
+                .map(GroupMemberEntity::getGroupId)
+                .collect(Collectors.toList());
+
+        PageResult<GroupItemInfoResponse> pageResult = new PageResult<>(resultPage.getTotal(), page, size);
+        if (groupIds.isEmpty()) {
+            return pageResult;
         }
 
-        Group res=groupMapper.selectOne(new LambdaQueryWrapper<Group>()
-                .eq(Group::getId,groupId));
+        // 再批量获取群组信息
+        List<GroupEntity> groups = groupMapper.selectBatchIds(groupIds);
 
-        Long userid= Long.valueOf(SecurityContextHolder.getUserId());
-        return res.getOwnerId().equals(userid);
+        // 提取所有不重复的 ownerId (用 Set 去重)
+        Set<Long> ownerIds = groups.stream().map(GroupEntity::getOwnerId).collect(Collectors.toSet());
+        Map<Long, UserDisplayBase> ownerMap = userService.getUserDisplayInfoByIds(ownerIds); // 获取这些用户信息
+
+        List<GroupItemInfoResponse> responses = groups.stream().map(g -> {
+            GroupItemInfoResponse resp = BeanUtil.copyProperties(g, GroupItemInfoResponse.class);
+            resp.setOwnerInfo(ownerMap.get(g.getOwnerId())); // 从 ownerMap 中快速匹配对应的群主信息
+            return resp;
+        }).collect(Collectors.toList());
+
+        pageResult.addAll(responses);
+        return pageResult;
+    }
+
+    public GroupEntity getGroupInfoById(String groupId) {
+        GroupEntity group = groupMapper.selectById(groupId);
+        if (group == null) {
+            throw new ServiceException(GroupErrorCode.GROUP_NOT_EXIST);
+        }
+        return group;
+    }
+
+    @Override
+    public GroupItemInfoResponse getGroupBaseInfoById(String groupId) {
+        GroupEntity group = getGroupInfoById(groupId);
+        GroupItemInfoResponse resp = BeanUtil.copyProperties(group, GroupItemInfoResponse.class);
+        resp.setOwnerInfo(userService.getUserDisplayInfoById(group.getOwnerId()));
+        return resp;
+    }
+
+    @Override
+    public GroupDetailInfoResponse getGroupDetailInfoById(String groupId) {
+        GroupEntity group = getGroupInfoById(groupId);
+        GroupDetailInfoResponse resp = BeanUtil.copyProperties(group, GroupDetailInfoResponse.class);
+        resp.setOwnerInfo(userService.getUserDisplayInfoById(group.getOwnerId()));
+        return resp;
+    }
+
+
+    @Override
+    public Long getGroupIdByInviteCode(String inviteCode){
+        LambdaQueryWrapper<GroupEntity> queryWrapper = new LambdaQueryWrapper<GroupEntity>().eq(GroupEntity::getInviteCode, inviteCode);
+        GroupEntity group=groupMapper.selectOne(queryWrapper);
+        if (group == null) {
+            throw new ServiceException(GroupErrorCode.GROUP_NOT_EXIST);
+        }
+        return group.getGroupId();
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void createGroup(Group group) {
-        // 可以在这里加业务逻辑，比如：校验组名重复
-        //校验组名重复
-        Group res=groupMapper.selectOne(new LambdaQueryWrapper<Group>().eq(Group::getName,group.getName()));
+    public void refillGroupTokenBalance(Long groupId, Integer rechargedToken) {
+        GroupEntity group = groupMapper.selectById(groupId);
+        if (group == null) throw new ServiceException(GroupErrorCode.GROUP_NOT_EXIST);
 
-        //因为删除是软删除，所以暂时不考虑删除以后也能添加相同的组名
-        if (res!=null) {
-            throw new ServiceException(GroupErrorCode.GROUP_IS_EXISTED);
-        }
-        //校验权限
-
-        IdentityType type= SecurityContextHolder.getIdentityType();
-        if (group.getType()==GroupType.ADVANCED_GROUP&&type!=IdentityType.TEACHER&&type!=IdentityType.ADMIN) {
-            throw new ServiceException(GroupErrorCode.NO_PERMISSION);
+        if (!GroupType.ADVANCED_GROUP.equals(group.getGroupType())) {
+            throw new ServiceException(GroupErrorCode.GROUP_HAS_NO_QUOTA);
         }
 
-        if (group.getType()==GroupType.MARKET_GROUP&&type!=IdentityType.ADMIN) {
-            throw new ServiceException(GroupErrorCode.NO_PERMISSION);
-        }
-        // 保证 inviteCode 唯一
-        String inviteCode=inviteCodeGenerator.generate16();
-        group.setInviteCode(inviteCode);
-        // 调用 MP 的 Mapper 方法
-        groupMapper.insert(group);
+        // 原子累加余额 (UPDATE sys_group SET token_balance = token_balance + ? WHERE id = ?)
+        UpdateWrapper<GroupEntity> wrapper = new UpdateWrapper<>();
+        wrapper.eq("id", groupId)
+                .setSql("token_balance = token_balance + " + rechargedToken);
 
-        if (group.getType()!=GroupType.NORMAL_GROUP) {
-            GroupWallets groupWallets = new GroupWallets();
-            groupWallets.setId(group.getId());
-            groupWallets.setQuotaUsed(0);
-            groupWallets.setQuotaLimit(0);
-            groupWalletsMapper.insert(groupWallets);
-        }
+        groupMapper.update(null, wrapper);
+
+        // [架构预留] 这里通常需要 insert 一条充值流水记录到 sys_token_record 表
+
+        redisCacheManager.unblockGroupChat(groupId.toString());
     }
 
     @Override
-    public Map<String, Integer> getGroupRoleMapByUserId(Long userId) {
-        List<GroupMember> members = groupMemberMapper.selectList(
-                new LambdaQueryWrapper<GroupMember>()
-                        .eq(GroupMember::getUserId, userId)
-                        .select(GroupMember::getGroupId, GroupMember::getRole)
-        );
-        if (CollectionUtils.isEmpty(members)) {
-            return Collections.emptyMap();
+    @Transactional(rollbackFor = Exception.class)
+    public void updateGroupTokenUsed(Long groupId, Integer usedToken) {
+        UpdateWrapper<GroupEntity> wrapper = new UpdateWrapper<>();
+        wrapper.eq("id", groupId)
+                .setSql("token_used = token_used + " + usedToken)
+                .setSql("token_balance = token_balance - " + usedToken);
+
+        groupMapper.update(null, wrapper);
+
+        GroupEntity group = groupMapper.selectById(groupId);
+        // 如果余额降到 0 或负数
+        if (group != null && group.getTokenBalance() <= 0) {
+            redisCacheManager.blockGroupChat(groupId.toString());
+            log.warn("群组 {} 余额已欠费透支，当前余额: {}，已触发 Redis 熔断", groupId, group.getTokenBalance());
         }
-        return members.stream()
-                .collect(Collectors.toMap(
-                        member -> String.valueOf(member.getGroupId()),
-                        member -> member.getRole().getCode()
-                ));
-    }
-
-    @Override
-    public void updateGroup(Group group) {
-        //这个不存在
-        if (!validateIsExisted(group.getId())) {
-            throw new ServiceException(GroupErrorCode.GROUP_NOT_EXIST);
-        }
-
-        //不是 owner 修改的
-        if (!validatePermission(group.getId())) {
-            throw new ServiceException(GroupErrorCode.NO_PERMISSION);
-        }
-
-        groupMapper.updateById(group);
-    }
-
-    @Override
-    public void deleteGroup(Long groupId) {
-
-        //这个不存在
-        if (!validateIsExisted(groupId)) {
-            throw new ServiceException(GroupErrorCode.GROUP_NOT_EXIST);
-        }
-        //没有
-        if (!validatePermission(groupId)) {
-            throw new ServiceException(GroupErrorCode.NO_PERMISSION);
-        }
-
-        LambdaUpdateWrapper<Group> wrapper = new LambdaUpdateWrapper<Group>()
-                .eq(Group::getId, groupId)
-                .set(Group::getDelFlag, 1);
-        groupMapper.update(wrapper);
-
-        LambdaUpdateWrapper<GroupMember> wrapper1 = new LambdaUpdateWrapper<GroupMember>().eq(GroupMember::getGroupId, groupId);
-        List<GroupMember> groupMembers = groupMemberMapper.selectList(wrapper1);
-        groupMemberMapper.delete(wrapper1);
-        for (GroupMember groupMember : groupMembers) {
-            Long userId = groupMember.getUserId();
-            redisSaver.updateGroupRoleMap(userId,getGroupRoleMapByUserId(userId));
-        }
-    }
-
-    @Override
-    public List<Long> getGroupIdsByUserId(Long userId) {
-        return groupMemberMapper.selectGroupIdsByUserId(userId);
-    }
-
-    @Override
-    public PageResult<GroupQueryResponse> getGroupIds(Long userId, Integer type, Integer page, Integer size) {
-
-        Page<GroupMember> mpPage = new Page<>(page, size);
-
-        LambdaQueryWrapper<GroupMember> w = new LambdaQueryWrapper<GroupMember>()
-                .eq(GroupMember::getUserId, userId)
-                .select(GroupMember::getGroupId);
-
-        if (type==1) {
-            w.in(GroupMember::getRole, 1,2);
-        }
-
-        IPage<GroupMember> memberPage = groupMemberMapper.selectPage(mpPage, w);
-
-        if (memberPage.getRecords().isEmpty()) {
-			return new PageResult<>(memberPage.getTotal(), page, size);
-        }
-        List<Long> groupIds = memberPage.getRecords().stream()
-                .map(GroupMember::getGroupId)
-                .distinct()
-                .toList();
-
-
-        List<Group> groups = groupMapper.selectBatchIds(groupIds);
-
-        // 按 groupIds 顺序重排
-        Map<Long, Group> id2Group = groups.stream()
-                .collect(Collectors.toMap(Group::getId, g -> g, (a, b) -> a));
-
-        List<GroupQueryResponse> records = groupIds.stream()
-                .map(id2Group::get)
-                .filter(Objects::nonNull)
-                .map(g -> {
-                    GroupQueryResponse groupQueryResponse = BeanUtil.copyProperties(g, GroupQueryResponse.class);
-                    groupQueryResponse.setCreator(getCreatorByUserId(g.getOwnerId()));
-                    return groupQueryResponse;
-                })
-                .toList();
-
-        PageResult<GroupQueryResponse> pr=new PageResult<>(memberPage.getTotal(), page, size);
-        pr.setList(records);
-        return pr;
-    }
-
-    private CreatorInfo transformUserDTOToCreator(UserInfoDTO user) {
-        if (user == null) {
-            return null;
-        }
-        CreatorInfo creator = new CreatorInfo();
-        creator.setAvatar(user.getAvatar());
-        creator.setNickname(user.getNickname());
-        creator.setName(user.getRealName());
-        return creator;
-    }
-
-    private CreatorInfo getCreatorByUserId(Long userId) {
-        UserInfoDTO creatorUser = userService.getUserInfoById(userId);
-        return transformUserDTOToCreator(creatorUser);
-    }
-
-    @Override
-    public GetGroupInfoResponse getGroupById(Long groupId) {
-        Group group = groupMapper.selectById(groupId);
-        if (group == null) {
-            return null;
-        }
-
-        GetGroupInfoResponse response = BeanUtil.copyProperties(group, GetGroupInfoResponse.class);
-        response.setCreator(getCreatorByUserId(group.getOwnerId()));
-        return response;
     }
 }
