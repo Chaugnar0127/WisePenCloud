@@ -64,8 +64,8 @@ public class SecurityContextHolder {
     public static void setGroupRoleMap(String groupRoleMapJson) {
         Map<String, Integer> rawMap = JSONUtil.toBean(groupRoleMapJson, new TypeReference<Map<String, Integer>>() {}, false);
         if (CollUtil.isNotEmpty(rawMap)) {
-            Map<String, GroupRoleType> typedMap = rawMap.entrySet().stream().map(e -> new AbstractMap.SimpleEntry<>(
-                    e.getKey(),
+            Map<Long, GroupRoleType> typedMap = rawMap.entrySet().stream().map(e -> new AbstractMap.SimpleEntry<>(
+                    Long.valueOf(e.getKey()),
                     GroupRoleType.getByCode(e.getValue())
             )).collect(Collectors.toMap(AbstractMap.SimpleEntry::getKey, AbstractMap.SimpleEntry::getValue));
             set(SecurityConstants.HEADER_GROUP_ROLE_MAP, typedMap);

@@ -92,7 +92,6 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 	public void kickGroupMembers(GroupMemberKickRequest req, Long opUserId, GroupRoleType opGroupRoleType) {
 		Set<Long> targetUserIdSet = req.getTargetUserIds().stream()
 				.filter(id -> !id.equals(opUserId))
-				.map(Long::valueOf)
 				.collect(Collectors.toSet()); // 不能踢自己
 
 		if (targetUserIdSet.isEmpty()) {
@@ -189,7 +188,6 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 	public void updateGroupMemberRole(GroupMemberRoleUpdateRequest req, Long opUserId) {
 		Set<Long> targetUserIdSet = req.getTargetUserIds().stream()
 				.filter(id -> !id.equals(opUserId))
-				.map(Long::valueOf)
 				.collect(Collectors.toSet()); // 不能更新自己的权限
 
 		if (targetUserIdSet.isEmpty()) {

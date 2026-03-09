@@ -72,13 +72,13 @@ public class RedisCacheManager {
 		if (sessionData == null) return;
 
 		@SuppressWarnings("unchecked")
-		Map<Long, Integer> groupRoleMap = (Map<Long, Integer>) sessionData.get("groupRoleMap");
+		Map<String, Integer> groupRoleMap = (Map<String, Integer>) sessionData.get("groupRoleMap");
 		if (groupRoleMap == null) groupRoleMap = new HashMap<>();
 
 		if (groupRoleType.equals(GroupRoleType.NOT_MEMBER)) {
-			groupRoleMap.remove(groupId);
+			groupRoleMap.remove(groupId.toString());
 		} else {
-			groupRoleMap.put(groupId, groupRoleType.getCode());
+			groupRoleMap.put(groupId.toString(), groupRoleType.getCode());
 		}
 		sessionData.put("groupRoleMap", groupRoleMap);
 
