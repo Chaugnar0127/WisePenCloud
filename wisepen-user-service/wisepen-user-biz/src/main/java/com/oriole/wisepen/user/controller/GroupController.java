@@ -12,6 +12,7 @@ import com.oriole.wisepen.common.security.exception.PermissionErrorCode;
 import com.oriole.wisepen.common.security.exception.PermissionException;
 import com.oriole.wisepen.user.api.domain.dto.req.GroupCreateRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.GroupDeleteRequest;
+import com.oriole.wisepen.user.api.domain.dto.req.GroupMemberJoinRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.GroupUpdateRequest;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupDetailInfoResponse;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupItemInfoResponse;
@@ -31,6 +32,13 @@ import org.springframework.web.bind.annotation.*;
 public class GroupController {
 
 	private final GroupService groupService;
+
+	@PostMapping("/joinGroup")
+	public R<Void> joinGroup(@RequestBody @Valid GroupMemberJoinRequest req) {
+		groupService.joinGroup(req, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap().keySet());
+		// SecurityContextHolder.getGroupRoleMap().keySet()防止用户重复加群
+		return R.ok();
+	}
 
 	@PostMapping("/addGroup")
 	public R<Void> createGroup(@RequestBody @Valid GroupCreateRequest req) {

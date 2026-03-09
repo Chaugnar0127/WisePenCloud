@@ -5,21 +5,21 @@ import cn.hutool.core.util.IdUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.oriole.wisepen.common.core.context.SecurityContextHolder;
 import com.oriole.wisepen.common.core.domain.PageResult;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.domain.enums.GroupType;
-import com.oriole.wisepen.common.core.domain.enums.IdentityType;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
 import com.oriole.wisepen.user.api.domain.dto.req.GroupCreateRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.GroupDeleteRequest;
+import com.oriole.wisepen.user.api.domain.dto.req.GroupMemberJoinRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.GroupUpdateRequest;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupDetailInfoResponse;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupItemInfoResponse;
 import com.oriole.wisepen.user.cache.RedisCacheManager;
 import com.oriole.wisepen.user.domain.entity.GroupEntity;
 import com.oriole.wisepen.user.domain.entity.GroupMemberEntity;
+import com.oriole.wisepen.user.event.GroupTokenConsumeEvent;
 import com.oriole.wisepen.user.exception.GroupErrorCode;
 import com.oriole.wisepen.user.mapper.GroupMapper;
 import com.oriole.wisepen.user.mapper.GroupMemberMapper;
@@ -28,6 +28,7 @@ import com.oriole.wisepen.user.service.GroupService;
 import com.oriole.wisepen.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -46,7 +47,21 @@ public class GroupServiceImpl implements GroupService {
     private final RedisCacheManager redisCacheManager;
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
+    public void joinGroup(GroupMemberJoinRequest req, String userId, Set<String> userJoinedGroupIds) {
+        LambdaQueryWrapper<GroupEntity> queryWrapper = new LambdaQueryWrapper<GroupEntity>().eq(GroupEntity::getInviteCode, req.getInviteCode());
+        GroupEntity group=groupMapper.selectOne(queryWrapper);
+        if (group == null) {
+            throw new ServiceException(GroupErrorCode.GROUP_NOT_EXIST);
+        }
+
+        if (userJoinedGroupIds.contains(group.getGroupId().toString())) { // 检查是否在群内
+            throw new ServiceException(GroupErrorCode.MEMBER_IS_EXISTED);
+        }
+
+        groupMemberService.joinGroup(group.getGroupId(), Long.valueOf(userId), GroupRoleType.MEMBER);
+    }
+
+    @Override
     public void createGroup(GroupCreateRequest req, String userId) {
         GroupEntity group = GroupEntity.builder()
                 .ownerId(Long.valueOf(userId))
@@ -143,19 +158,7 @@ public class GroupServiceImpl implements GroupService {
         return resp;
     }
 
-
     @Override
-    public Long getGroupIdByInviteCode(String inviteCode){
-        LambdaQueryWrapper<GroupEntity> queryWrapper = new LambdaQueryWrapper<GroupEntity>().eq(GroupEntity::getInviteCode, inviteCode);
-        GroupEntity group=groupMapper.selectOne(queryWrapper);
-        if (group == null) {
-            throw new ServiceException(GroupErrorCode.GROUP_NOT_EXIST);
-        }
-        return group.getGroupId();
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
     public void refillGroupTokenBalance(Long groupId, Integer rechargedToken) {
         GroupEntity group = groupMapper.selectById(groupId);
         if (group == null) throw new ServiceException(GroupErrorCode.GROUP_NOT_EXIST);
@@ -177,7 +180,6 @@ public class GroupServiceImpl implements GroupService {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void updateGroupTokenUsed(Long groupId, Integer usedToken) {
         UpdateWrapper<GroupEntity> wrapper = new UpdateWrapper<>();
         wrapper.eq("id", groupId)
@@ -192,5 +194,11 @@ public class GroupServiceImpl implements GroupService {
             redisCacheManager.blockGroupChat(groupId.toString());
             log.warn("群组 {} 余额已欠费透支，当前余额: {}，已触发 Redis 熔断", groupId, group.getTokenBalance());
         }
+    }
+
+    @EventListener
+    public void handleGroupTokenConsumeEvent(GroupTokenConsumeEvent event) {
+        // 直接复用原有的扣除大盘额度方法
+        this.updateGroupTokenUsed(event.getGroupId(), event.getUsedToken());
     }
 }

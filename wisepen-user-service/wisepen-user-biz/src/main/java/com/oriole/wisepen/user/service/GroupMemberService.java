@@ -14,9 +14,6 @@ public interface GroupMemberService {
 	// 获取用户的所有组ID和角色
 	Map<String, Integer> getGroupRoleMapByUserId(Long userId);
 
-	// 加入群组
-	void joinGroup(GroupMemberJoinRequest req, String userId, Set<String> userJoinedGroupIds);
-
    // 主动退出群组
    void quitGroup(GroupMemberQuitRequest req, String userId, GroupRoleType opGroupRoleType);
 

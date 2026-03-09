@@ -4,16 +4,21 @@ import com.oriole.wisepen.common.core.domain.PageResult;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.user.api.domain.dto.req.GroupCreateRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.GroupDeleteRequest;
+import com.oriole.wisepen.user.api.domain.dto.req.GroupMemberJoinRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.GroupUpdateRequest;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupDetailInfoResponse;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupItemInfoResponse;
 
 import java.util.Map;
+import java.util.Set;
 
 public interface GroupService {
 
     // 创建群组
     void createGroup(GroupCreateRequest req, String userId);
+
+    // 加入群组
+    void joinGroup(GroupMemberJoinRequest req, String userId, Set<String> userJoinedGroupIds);
 
     // 更新群组基础信息
     void updateGroup(GroupUpdateRequest req);
@@ -29,9 +34,6 @@ public interface GroupService {
 
     // 获取群组的详细信息
     GroupDetailInfoResponse getGroupDetailInfoById(String groupId);
-
-    // 根据邀请码获取用户组ID
-    Long getGroupIdByInviteCode(String inviteCode);
 
     // 充值Token余额
     void refillGroupTokenBalance(Long groupId, Integer rechargedToken);

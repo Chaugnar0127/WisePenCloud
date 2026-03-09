@@ -17,6 +17,7 @@ import com.oriole.wisepen.user.api.domain.dto.req.*;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberDetailResponse;
 import com.oriole.wisepen.user.cache.RedisCacheManager;
 import com.oriole.wisepen.user.domain.entity.*;
+import com.oriole.wisepen.user.event.GroupTokenConsumeEvent;
 import com.oriole.wisepen.user.exception.GroupErrorCode;
 import com.oriole.wisepen.user.mapper.*;
 import com.oriole.wisepen.user.service.GroupMemberService;
@@ -24,6 +25,7 @@ import com.oriole.wisepen.user.service.GroupService;
 import com.oriole.wisepen.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,9 +37,10 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class GroupMemberServiceImpl implements GroupMemberService {
 
+	private final ApplicationEventPublisher eventPublisher;
+
 	private final GroupMapper groupMapper;
 	private final GroupMemberMapper groupMemberMapper;
-	private final GroupService groupService;
 	private final UserService userService;
 	private final RedisCacheManager redisCacheManager;
 
@@ -56,16 +59,6 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 						member -> String.valueOf(member.getGroupId()),
 						member -> member.getRole().getCode()
 				));
-	}
-
-	@Override
-	public void joinGroup(GroupMemberJoinRequest req, String userId, Set<String> userJoinedGroupIds) {
-		Long groupId = groupService.getGroupIdByInviteCode(req.getInviteCode());
-		if (userJoinedGroupIds.contains(groupId.toString())) { // 检查是否在群内
-			throw new ServiceException(GroupErrorCode.MEMBER_IS_EXISTED);
-		}
-
-		this.joinGroup(groupId, Long.valueOf(userId), GroupRoleType.MEMBER);
 	}
 
 	@Override
@@ -247,7 +240,7 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 	@Transactional(rollbackFor = Exception.class)
 	public void updateGroupMemberTokenUsed(Long groupId, Long userId, Integer usedToken) {
 		// 联动扣除群组大盘资金池
-		groupService.updateGroupTokenUsed(groupId, usedToken);
+		eventPublisher.publishEvent(new GroupTokenConsumeEvent(this, groupId, usedToken));
 
 		UpdateWrapper<GroupMemberEntity> wrapper = new UpdateWrapper<>();
 		wrapper.eq("group_id", groupId)

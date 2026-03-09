@@ -4,14 +4,11 @@ import com.oriole.wisepen.common.core.context.SecurityContextHolder;
 import com.oriole.wisepen.common.core.domain.PageResult;
 import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
-import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
-import com.oriole.wisepen.user.api.domain.dto.req.GroupMemberJoinRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.GroupMemberKickRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.GroupMemberRoleUpdateRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.GroupMemberQuitRequest;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberDetailResponse;
-import com.oriole.wisepen.user.exception.GroupErrorCode;
 import com.oriole.wisepen.user.service.GroupMemberService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
@@ -27,13 +24,6 @@ import org.springframework.web.bind.annotation.*;
 public class GroupMemberController {
 
 	private final GroupMemberService groupMemberService;
-
-	@PostMapping("/join")
-	public R<Void> joinGroup(@RequestBody @Valid GroupMemberJoinRequest req) {
-		groupMemberService.joinGroup(req, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap().keySet());
-		// SecurityContextHolder.getGroupRoleMap().keySet()防止用户重复加群
-		return R.ok();
-	}
 
 	@PostMapping("/quit")
 	public R<Void> quitGroup(@RequestBody @Valid GroupMemberQuitRequest req) {
