@@ -12,7 +12,7 @@ import java.util.Date;
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class GroupMemberDetailResponse extends GroupMemberBase {
-	private String groupId; // 组ID
-	private String memberId; // 成员 UID
+	private Long groupId; // 组ID
+	private Long memberId; // 成员 UID
 	private UserDisplayBase memberInfo; // 成员信息
 }

@@ -15,22 +15,22 @@ public interface GroupMemberService {
 	Map<String, Integer> getGroupRoleMapByUserId(Long userId);
 
    // 主动退出群组
-   void quitGroup(GroupMemberQuitRequest req, String userId, GroupRoleType opGroupRoleType);
+   void quitGroup(GroupMemberQuitRequest req, Long userId, GroupRoleType opGroupRoleType);
 
 	// 踢出群成员 (不能踢出比自己权限高的人)
-	void kickGroupMembers(GroupMemberKickRequest req, String opUserId, GroupRoleType opGroupRoleType);
+	void kickGroupMembers(GroupMemberKickRequest req, Long opUserId, GroupRoleType opGroupRoleType);
 
 	// 更新组成员角色
-	void updateGroupMemberRole(GroupMemberRoleUpdateRequest req, String opUserId);
+	void updateGroupMemberRole(GroupMemberRoleUpdateRequest req, Long opUserId);
 
 	// 更新组成员Token配额
 	void updateGroupMemberTokenLimit(GroupMemberTokenLimitUpdateRequest req);
 
 	// 获取成员详情
-	GroupMemberDetailResponse getGroupMemberInfoByUserId(String groupId, String userId);
+	GroupMemberDetailResponse getGroupMemberInfoByUserId(Long groupId, Long userId);
 
 	// 获取群组成员分页列表
-	PageResult<GroupMemberDetailResponse> getGroupMemberList(String groupId, int page, int size);
+	PageResult<GroupMemberDetailResponse> getGroupMemberList(Long groupId, int page, int size);
 
 	// 内部业务方法
 

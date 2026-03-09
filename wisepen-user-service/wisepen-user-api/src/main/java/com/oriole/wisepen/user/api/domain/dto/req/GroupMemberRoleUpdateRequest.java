@@ -16,8 +16,8 @@ import java.util.List;
 @Data
 public class GroupMemberRoleUpdateRequest extends GroupIdentityBase {
 
-	@NotBlank(message = GroupValidationMsg.TARGET_USER_IDS_NOT_EMPTY)
-	private List<String> targetUserIds;
+	@NotNull(message = GroupValidationMsg.TARGET_USER_IDS_NOT_NULL)
+	private List<Long> targetUserIds;
 
 	@NotNull(message = GroupValidationMsg.ROLE_NOT_NULL)
 	private GroupRoleType role;

@@ -1,9 +1,7 @@
 package com.oriole.wisepen.user.service;
 
-import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.crypto.digest.BCrypt;
-import cn.hutool.json.JSONUtil;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.user.api.enums.Status;
 import com.oriole.wisepen.user.cache.RedisCacheManager;
@@ -49,7 +47,7 @@ public class AuthService {
 
         Map<String, Integer> groupRoleMap = groupMemberService.getGroupRoleMapByUserId(user.getUserId());
 
-        String sessionId = redisCacheManager.setSession(user.getUserId().toString(), user.getIdentityType(), groupRoleMap);
+        String sessionId = redisCacheManager.setSession(user.getUserId(), user.getIdentityType(), groupRoleMap);
         log.info("用户登录成功: sessionId={}, account={}, userId={}, groupRoleMap={}", sessionId, account, user.getUserId(), groupRoleMap);
         return sessionId;
     }
@@ -57,7 +55,7 @@ public class AuthService {
     /**
      * 注销
      */
-    public void logout(String sessionId, String userId) {
+    public void logout(String sessionId, Long userId) {
         if (StrUtil.isBlank(sessionId)) {
             return;
         }

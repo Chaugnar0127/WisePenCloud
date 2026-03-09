@@ -8,5 +8,5 @@ import lombok.Data;
 @Data
 public class GroupUpdateRequest extends GroupDisplayBase {
 	@NotNull(message = GroupValidationMsg.GROUP_ID_NOT_NULL)
-	private String groupId;
+	private Long groupId;
 }

@@ -14,7 +14,7 @@ public interface GroupValidationMsg {
      */
     String INVITE_CODE_NOT_BLANK = "邀请码不能为空";
     String TARGET_USER_ID_NOT_NULL = "目标用户ID不能为空";
-    String TARGET_USER_IDS_NOT_EMPTY = "目标用户列表不能为空";
+    String TARGET_USER_IDS_NOT_NULL = "目标用户列表不能为空";
     String ROLE_NOT_NULL = "成员角色不能为空";
     String TOKEN_LIMIT_NOT_NULL = "TOKEN限额不能为空";
 }

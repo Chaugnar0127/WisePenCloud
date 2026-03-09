@@ -11,9 +11,9 @@ import java.util.List;
 @Data
 
 public class GroupMemberTokenLimitUpdateRequest extends GroupIdentityBase {
-	@NotBlank(message = GroupValidationMsg.TARGET_USER_IDS_NOT_EMPTY)
-	private List<String> targetUserIds;
+	@NotNull(message = GroupValidationMsg.TARGET_USER_IDS_NOT_NULL)
+	private List<Long> targetUserIds;
 
 	@NotNull(message = GroupValidationMsg.TOKEN_LIMIT_NOT_NULL)
-	private String newTokenLimit;
+	private Integer newTokenLimit;
 }

@@ -15,10 +15,10 @@ import java.util.Set;
 public interface GroupService {
 
     // 创建群组
-    void createGroup(GroupCreateRequest req, String userId);
+    void createGroup(GroupCreateRequest req, Long userId);
 
     // 加入群组
-    void joinGroup(GroupMemberJoinRequest req, String userId, Set<String> userJoinedGroupIds);
+    void joinGroup(GroupMemberJoinRequest req, Long userId, Set<Long> userJoinedGroupIds);
 
     // 更新群组基础信息
     void updateGroup(GroupUpdateRequest req);
@@ -27,13 +27,13 @@ public interface GroupService {
     void deleteGroup(GroupDeleteRequest req);
 
     // 获取指定用户的群组分页列表
-    PageResult<GroupItemInfoResponse> listGroups(String userId, GroupRoleType groupRoleType, int page, int size);
+    PageResult<GroupItemInfoResponse> listGroups(Long userId, GroupRoleType groupRoleType, int page, int size);
 
     // 获取群组的公开基础信息
-    GroupItemInfoResponse getGroupBaseInfoById(String groupId);
+    GroupItemInfoResponse getGroupBaseInfoById(Long groupId);
 
     // 获取群组的详细信息
-    GroupDetailInfoResponse getGroupDetailInfoById(String groupId);
+    GroupDetailInfoResponse getGroupDetailInfoById(Long groupId);
 
     // 充值Token余额
     void refillGroupTokenBalance(Long groupId, Integer rechargedToken);

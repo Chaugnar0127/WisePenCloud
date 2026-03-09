@@ -6,7 +6,6 @@ import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.domain.enums.GroupType;
 import com.oriole.wisepen.common.core.domain.enums.IdentityType;
-import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
 import com.oriole.wisepen.common.security.exception.PermissionErrorCode;
 import com.oriole.wisepen.common.security.exception.PermissionException;
@@ -80,12 +79,12 @@ public class GroupController {
 	}
 
 	@GetMapping("/getGroupBaseInfo")
-	public R<GroupItemInfoResponse> getGroupBaseInfo(@RequestParam("groupId") String groupId) {
+	public R<GroupItemInfoResponse> getGroupBaseInfo(@RequestParam("groupId") Long groupId) {
 		return R.ok(groupService.getGroupBaseInfoById(groupId));
 	}
 
 	@GetMapping("/getGroupDetailInfo")
-	public R<GroupDetailInfoResponse> getGroupDetailInfo(@RequestParam("groupId") String groupId) {
+	public R<GroupDetailInfoResponse> getGroupDetailInfo(@RequestParam("groupId") Long groupId) {
 		SecurityContextHolder.assertGroupRole(groupId, GroupRoleType.OWNER, GroupRoleType.ADMIN);
 		return R.ok(groupService.getGroupDetailInfoById(groupId));
 	}

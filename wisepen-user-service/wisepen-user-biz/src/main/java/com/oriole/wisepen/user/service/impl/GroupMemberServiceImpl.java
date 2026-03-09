@@ -21,7 +21,6 @@ import com.oriole.wisepen.user.event.GroupTokenConsumeEvent;
 import com.oriole.wisepen.user.exception.GroupErrorCode;
 import com.oriole.wisepen.user.mapper.*;
 import com.oriole.wisepen.user.service.GroupMemberService;
-import com.oriole.wisepen.user.service.GroupService;
 import com.oriole.wisepen.user.service.UserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -71,18 +70,18 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 		groupMemberMapper.insert(member);
 
 		// 更新 Redis
-		redisCacheManager.updateGroupRoleMapInSession(userId.toString(), groupId.toString(), GroupRoleType.MEMBER);
+		redisCacheManager.updateGroupRoleMapInSession(userId, groupId, GroupRoleType.MEMBER);
 	}
 
 	@Override
-	public void quitGroup(GroupMemberQuitRequest req, String userId, GroupRoleType opGroupRoleType) {
+	public void quitGroup(GroupMemberQuitRequest req, Long userId, GroupRoleType opGroupRoleType) {
 		if (GroupRoleType.OWNER.equals(opGroupRoleType)) {
 			throw new ServiceException(GroupErrorCode.OWNER_QUIT_GROUP); // 群主不可直接退群
 		}
 
 		LambdaQueryWrapper<GroupMemberEntity> deleteWrapper = new LambdaQueryWrapper<>();
 		deleteWrapper.eq(GroupMemberEntity::getGroupId, req.getGroupId())
-				.eq(GroupMemberEntity::getUserId, Long.valueOf(userId));
+				.eq(GroupMemberEntity::getUserId, userId);
 		groupMemberMapper.delete(deleteWrapper);
 
 		// 更新 Redis
@@ -90,7 +89,7 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 	}
 
 	@Override
-	public void kickGroupMembers(GroupMemberKickRequest req, String opUserId, GroupRoleType opGroupRoleType) {
+	public void kickGroupMembers(GroupMemberKickRequest req, Long opUserId, GroupRoleType opGroupRoleType) {
 		Set<Long> targetUserIdSet = req.getTargetUserIds().stream()
 				.filter(id -> !id.equals(opUserId))
 				.map(Long::valueOf)
@@ -101,7 +100,7 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 		}
 
 		LambdaQueryWrapper<GroupMemberEntity> wrapper = new LambdaQueryWrapper<>();
-		wrapper.eq(GroupMemberEntity::getGroupId, Long.valueOf(req.getGroupId()))
+		wrapper.eq(GroupMemberEntity::getGroupId, req.getGroupId())
 				.in(GroupMemberEntity::getUserId, targetUserIdSet);
 		List<GroupMemberEntity> targetMembers = groupMemberMapper.selectList(wrapper);
 
@@ -129,15 +128,15 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 
 		// 更新 Redis
 		validUserIdsToDelete.forEach(targetId ->
-				redisCacheManager.updateGroupRoleMapInSession(targetId.toString(), req.getGroupId(), GroupRoleType.NOT_MEMBER)
+				redisCacheManager.updateGroupRoleMapInSession(targetId, req.getGroupId(), GroupRoleType.NOT_MEMBER)
 		);
 	}
 
 	@Override
-	public GroupMemberDetailResponse getGroupMemberInfoByUserId(String groupId, String userId){
+	public GroupMemberDetailResponse getGroupMemberInfoByUserId(Long groupId, Long userId){
 		LambdaQueryWrapper<GroupMemberEntity> wrapper = new LambdaQueryWrapper<>();
-		wrapper.eq(GroupMemberEntity::getGroupId, Long.valueOf(groupId))
-				.eq(GroupMemberEntity::getUserId, Long.valueOf(userId));
+		wrapper.eq(GroupMemberEntity::getGroupId, groupId)
+				.eq(GroupMemberEntity::getUserId, userId);
 
 		GroupMemberEntity memberEntity = groupMemberMapper.selectOne(wrapper);
 
@@ -145,20 +144,20 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 			throw new ServiceException(GroupErrorCode.TARGET_MEMBER_NOT_EXIST);
 		}
 
-		UserDisplayBase userInfo = userService.getUserDisplayInfoById(Long.valueOf(userId));
+		UserDisplayBase userInfo = userService.getUserDisplayInfoById(userId);
 
 		GroupMemberDetailResponse resp = new GroupMemberDetailResponse();
 		BeanUtil.copyProperties(memberEntity, resp);
-		resp.setMemberId(memberEntity.getUserId().toString());
+		resp.setMemberId(memberEntity.getUserId());
 		resp.setMemberInfo(userInfo);
 		return resp;
 	}
 
 	@Override
-	public PageResult<GroupMemberDetailResponse> getGroupMemberList(String groupId, int page, int size) {
+	public PageResult<GroupMemberDetailResponse> getGroupMemberList(Long groupId, int page, int size) {
 		Page<GroupMemberEntity> pageParam = new Page<>(page, size);
 		LambdaQueryWrapper<GroupMemberEntity> wrapper = new LambdaQueryWrapper<>();
-		wrapper.eq(GroupMemberEntity::getGroupId, Long.valueOf(groupId))
+		wrapper.eq(GroupMemberEntity::getGroupId, groupId)
 				// 按角色升序(OWNER排前面)，再按加入时间降序(新入群的在前面)
 				.orderByAsc(GroupMemberEntity::getRole)
 				.orderByDesc(GroupMemberEntity::getJoinTime);
@@ -177,7 +176,7 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 		List<GroupMemberDetailResponse> records = memberPage.getRecords().stream().map(memberEntity -> {
 			GroupMemberDetailResponse resp = new GroupMemberDetailResponse();
 			BeanUtil.copyProperties(memberEntity, resp);
-			resp.setMemberId(memberEntity.getUserId().toString());
+			resp.setMemberId(memberEntity.getUserId());
 			resp.setMemberInfo(userMap.get(memberEntity.getUserId()));
 			return resp;
 		}).collect(Collectors.toList());
@@ -187,7 +186,7 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 	}
 
 	@Override
-	public void updateGroupMemberRole(GroupMemberRoleUpdateRequest req, String opUserId) {
+	public void updateGroupMemberRole(GroupMemberRoleUpdateRequest req, Long opUserId) {
 		Set<Long> targetUserIdSet = req.getTargetUserIds().stream()
 				.filter(id -> !id.equals(opUserId))
 				.map(Long::valueOf)
@@ -198,7 +197,7 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 		}
 
 		LambdaQueryWrapper<GroupMemberEntity> queryWrapper = new LambdaQueryWrapper<>();
-		queryWrapper.eq(GroupMemberEntity::getGroupId, Long.valueOf(req.getGroupId()))
+		queryWrapper.eq(GroupMemberEntity::getGroupId, req.getGroupId())
 				.in(GroupMemberEntity::getUserId, targetUserIdSet);
 		List<GroupMemberEntity> existMembers = groupMemberMapper.selectList(queryWrapper);
 
@@ -211,14 +210,14 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 				.collect(Collectors.toList());
 
 		LambdaUpdateWrapper<GroupMemberEntity> wrapper = new LambdaUpdateWrapper<>();
-		wrapper.eq(GroupMemberEntity::getGroupId, Long.valueOf(req.getGroupId()))
+		wrapper.eq(GroupMemberEntity::getGroupId, req.getGroupId())
 				.in(GroupMemberEntity::getUserId, actualUserIdsToUpdate)
 				.set(GroupMemberEntity::getRole, req.getRole());
 
 		groupMemberMapper.update(null, wrapper);
 
 		actualUserIdsToUpdate.forEach(targetId ->
-						redisCacheManager.updateGroupRoleMapInSession(targetId.toString(), req.getGroupId(), req.getRole())
+						redisCacheManager.updateGroupRoleMapInSession(targetId, req.getGroupId(), req.getRole())
 		);
 	}
 
@@ -232,7 +231,7 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 
 		// 3. 精准同步：遍历所有被踢出的成员，将他们的 Redis 状态置为 NOT_MEMBER
 		allMembers.forEach(member ->
-				redisCacheManager.updateGroupRoleMapInSession(member.getUserId().toString(), groupId.toString(), GroupRoleType.NOT_MEMBER)
+				redisCacheManager.updateGroupRoleMapInSession(member.getUserId(), groupId, GroupRoleType.NOT_MEMBER)
 		);
 	}
 
@@ -257,7 +256,7 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 
 		// 如果个人已用量超过了上限，触发个人熔断
 		if (member != null && member.getTokenUsed() >= member.getTokenLimit()) {
-			redisCacheManager.blockGroupMemberChat(groupId.toString(), userId.toString());
+			redisCacheManager.blockGroupMemberChat(groupId, userId);
 			log.warn("用户 {} 在群组 {} 的个人配额已爆仓，已用: {}, 上限: {}。已触发 Redis 熔断",
 					userId, groupId, member.getTokenUsed(), member.getTokenLimit());
 		}
@@ -296,7 +295,7 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 		List<GroupMemberEntity> validMembersToUnblock = groupMemberMapper.selectList(queryWrapper);
 
 		validMembersToUnblock.forEach(member ->
-				redisCacheManager.unblockGroupMemberChat(req.getGroupId(), member.getUserId().toString())
+				redisCacheManager.unblockGroupMemberChat(req.getGroupId(), member.getUserId())
 		);
 
 

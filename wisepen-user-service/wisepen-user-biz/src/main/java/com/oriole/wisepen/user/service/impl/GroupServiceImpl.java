@@ -30,7 +30,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -47,32 +46,32 @@ public class GroupServiceImpl implements GroupService {
     private final RedisCacheManager redisCacheManager;
 
     @Override
-    public void joinGroup(GroupMemberJoinRequest req, String userId, Set<String> userJoinedGroupIds) {
+    public void joinGroup(GroupMemberJoinRequest req, Long userId, Set<Long> userJoinedGroupIds) {
         LambdaQueryWrapper<GroupEntity> queryWrapper = new LambdaQueryWrapper<GroupEntity>().eq(GroupEntity::getInviteCode, req.getInviteCode());
         GroupEntity group=groupMapper.selectOne(queryWrapper);
         if (group == null) {
             throw new ServiceException(GroupErrorCode.GROUP_NOT_EXIST);
         }
 
-        if (userJoinedGroupIds.contains(group.getGroupId().toString())) { // 检查是否在群内
+        if (userJoinedGroupIds.contains(group.getGroupId())) { // 检查是否在群内
             throw new ServiceException(GroupErrorCode.MEMBER_IS_EXISTED);
         }
 
-        groupMemberService.joinGroup(group.getGroupId(), Long.valueOf(userId), GroupRoleType.MEMBER);
+        groupMemberService.joinGroup(group.getGroupId(), userId, GroupRoleType.MEMBER);
     }
 
     @Override
-    public void createGroup(GroupCreateRequest req, String userId) {
+    public void createGroup(GroupCreateRequest req, Long userId) {
         GroupEntity group = GroupEntity.builder()
-                .ownerId(Long.valueOf(userId))
+                .ownerId(userId)
                 .inviteCode(IdUtil.fastSimpleUUID().substring(0, 8)) // 确保ID唯一
                 .tokenUsed(0).tokenBalance(0)
                 .build();
 
         BeanUtil.copyProperties(req, group, "ownerId", "inviteCode", "tokenUsed", "tokenPoolBalance");
         groupMapper.insert(group);
-        groupMemberService.joinGroup(group.getGroupId(), Long.valueOf(userId), GroupRoleType.OWNER); // 用户加入群组
-        redisCacheManager.blockGroupChat(group.getGroupId().toString()); // 刚成立的组都是没Chat权限的，必须要充值
+        groupMemberService.joinGroup(group.getGroupId(), userId, GroupRoleType.OWNER); // 用户加入群组
+        redisCacheManager.blockGroupChat(group.getGroupId()); // 刚成立的组都是没Chat权限的，必须要充值
     }
 
     @Override
@@ -87,7 +86,7 @@ public class GroupServiceImpl implements GroupService {
 
     @Override
     public void deleteGroup(GroupDeleteRequest req) {
-        Long groupId = Long.valueOf(req.getGroupId());
+        Long groupId = req.getGroupId();
 
         int rows = groupMapper.deleteById(groupId);
         if (rows == 0) {
@@ -97,12 +96,12 @@ public class GroupServiceImpl implements GroupService {
     }
 
     @Override
-    public PageResult<GroupItemInfoResponse> listGroups(String userId, GroupRoleType groupRoleType, int page, int size) {
+    public PageResult<GroupItemInfoResponse> listGroups(Long userId, GroupRoleType groupRoleType, int page, int size) {
         Page<GroupMemberEntity> memberPage = new Page<>(page, size);
 
         // 先查出该用户符合条件的所在组ID
         LambdaQueryWrapper<GroupMemberEntity> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(GroupMemberEntity::getUserId, Long.valueOf(userId));
+        wrapper.eq(GroupMemberEntity::getUserId, userId);
         if (groupRoleType != null) {
             wrapper.eq(GroupMemberEntity::getRole, groupRoleType.getCode());
         }
@@ -134,7 +133,7 @@ public class GroupServiceImpl implements GroupService {
         return pageResult;
     }
 
-    public GroupEntity getGroupInfoById(String groupId) {
+    public GroupEntity getGroupInfoById(Long groupId) {
         GroupEntity group = groupMapper.selectById(groupId);
         if (group == null) {
             throw new ServiceException(GroupErrorCode.GROUP_NOT_EXIST);
@@ -143,7 +142,7 @@ public class GroupServiceImpl implements GroupService {
     }
 
     @Override
-    public GroupItemInfoResponse getGroupBaseInfoById(String groupId) {
+    public GroupItemInfoResponse getGroupBaseInfoById(Long groupId) {
         GroupEntity group = getGroupInfoById(groupId);
         GroupItemInfoResponse resp = BeanUtil.copyProperties(group, GroupItemInfoResponse.class);
         resp.setOwnerInfo(userService.getUserDisplayInfoById(group.getOwnerId()));
@@ -151,7 +150,7 @@ public class GroupServiceImpl implements GroupService {
     }
 
     @Override
-    public GroupDetailInfoResponse getGroupDetailInfoById(String groupId) {
+    public GroupDetailInfoResponse getGroupDetailInfoById(Long groupId) {
         GroupEntity group = getGroupInfoById(groupId);
         GroupDetailInfoResponse resp = BeanUtil.copyProperties(group, GroupDetailInfoResponse.class);
         resp.setOwnerInfo(userService.getUserDisplayInfoById(group.getOwnerId()));
@@ -176,7 +175,7 @@ public class GroupServiceImpl implements GroupService {
 
         // [架构预留] 这里通常需要 insert 一条充值流水记录到 sys_token_record 表
 
-        redisCacheManager.unblockGroupChat(groupId.toString());
+        redisCacheManager.unblockGroupChat(groupId);
     }
 
     @Override
@@ -191,7 +190,7 @@ public class GroupServiceImpl implements GroupService {
         GroupEntity group = groupMapper.selectById(groupId);
         // 如果余额降到 0 或负数
         if (group != null && group.getTokenBalance() <= 0) {
-            redisCacheManager.blockGroupChat(groupId.toString());
+            redisCacheManager.blockGroupChat(groupId);
             log.warn("群组 {} 余额已欠费透支，当前余额: {}，已触发 Redis 熔断", groupId, group.getTokenBalance());
         }
     }

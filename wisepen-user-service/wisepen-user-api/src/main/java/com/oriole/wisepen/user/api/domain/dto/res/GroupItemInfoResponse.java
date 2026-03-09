@@ -10,8 +10,8 @@ import java.util.Date;
 @EqualsAndHashCode(callSuper = true)
 @Data
 public class GroupItemInfoResponse extends GroupDisplayBase {
-	private String groupId;
-	private String ownerId;
+	private Long groupId;
+	private Long ownerId;
 	private UserDisplayBase ownerInfo;
 	private Integer memberCount;
 	private Date createTime;

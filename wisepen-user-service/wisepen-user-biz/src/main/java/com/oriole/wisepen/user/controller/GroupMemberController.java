@@ -48,7 +48,7 @@ public class GroupMemberController {
 
 	@GetMapping("/list")
 	public R<PageResult<GroupMemberDetailResponse>> listGroupMembers(
-			@RequestParam("groupId") String groupId,
+			@RequestParam("groupId") Long groupId,
 			@RequestParam(value = "page", defaultValue = "1") @Min(1) int page,
 			@RequestParam(value = "size", defaultValue = "20") @Min(1) int size
 	){
@@ -57,12 +57,12 @@ public class GroupMemberController {
 	}
 
 	@GetMapping("/getMyGroupMemberInfo")
-	public R<GroupMemberDetailResponse> getMyGroupMemberInfo(@RequestParam("groupId") String groupId){
+	public R<GroupMemberDetailResponse> getMyGroupMemberInfo(@RequestParam("groupId") Long groupId){
 		return R.ok(groupMemberService.getGroupMemberInfoByUserId(groupId, SecurityContextHolder.getUserId()));
 	}
 
 	@GetMapping("/getMyRole")
-	public R<GroupRoleType> getMyRole(@RequestParam("groupId") String groupId){
+	public R<GroupRoleType> getMyRole(@RequestParam("groupId") Long groupId){
 		return R.ok(SecurityContextHolder.getGroupRole(groupId));
 	}
 }
