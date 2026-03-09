@@ -38,7 +38,7 @@ public class HeaderInterceptor implements HandlerInterceptor {
 
         // 如果 Header 里有 UserID，说明网关已认证通过
         if (StrUtil.isNotBlank(userIdStr)) {
-            SecurityContextHolder.setUserId(userIdStr);
+            SecurityContextHolder.setUserId(Long.valueOf(userIdStr));
             SecurityContextHolder.setUserAuthToken(userAuthTokenStr);
 
             if (StrUtil.isNotBlank(identityTypeStr)) {

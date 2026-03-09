@@ -1,5 +1,9 @@
 package com.oriole.wisepen.common.config;
 
+import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.databind.ser.std.ToStringSerializer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
@@ -14,15 +18,30 @@ public class RedisConfiguration {
         RedisTemplate<String, Object> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
 
-        // 使用 String 序列化器来处理 Redis 的 Key 和 HashKey
-        StringRedisSerializer stringRedisSerializer;
-        stringRedisSerializer = new StringRedisSerializer();
+        // Key 使用 String 序列化器
+        StringRedisSerializer stringRedisSerializer = new StringRedisSerializer();
         template.setKeySerializer(stringRedisSerializer);
         template.setHashKeySerializer(stringRedisSerializer);
 
-        // 使用 GenericJackson2JsonRedisSerializer 来处理 Redis 的 Value 和 HashValue
-        // 它会在序列化的 JSON 中自动带上 @class 属性，反序列化时就能准确还原原本的类型
-        GenericJackson2JsonRedisSerializer jsonRedisSerializer = new GenericJackson2JsonRedisSerializer();
+        // 定制 ObjectMapper
+        ObjectMapper objectMapper = new ObjectMapper();
+
+        // 开启类型指纹，在 JSON 里面加入 @class 属性用于反序列化
+        objectMapper.activateDefaultTyping(
+                objectMapper.getPolymorphicTypeValidator(),
+                ObjectMapper.DefaultTyping.NON_FINAL,
+                JsonTypeInfo.As.PROPERTY
+        );
+
+        // 在序列化对象时，调用 ToStringSerializer 把 Long 转化为字符串
+        SimpleModule simpleModule = new SimpleModule();
+        simpleModule.addSerializer(Long.class, ToStringSerializer.instance);
+        simpleModule.addSerializer(Long.TYPE, ToStringSerializer.instance); // 兼容基本类型 long
+
+        objectMapper.registerModule(simpleModule);
+
+        GenericJackson2JsonRedisSerializer jsonRedisSerializer = new GenericJackson2JsonRedisSerializer(objectMapper);
+
         template.setValueSerializer(jsonRedisSerializer);
         template.setHashValueSerializer(jsonRedisSerializer);
 

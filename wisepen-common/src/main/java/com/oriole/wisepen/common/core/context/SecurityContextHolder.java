@@ -49,10 +49,10 @@ public class SecurityContextHolder {
     public static String getUserAuthToken() { return get(SecurityConstants.COOKIE_AUTHORIZATION_TOKEN, String.class); }
 
     // 设置当前用户ID
-    public static void setUserId(String userId) { set(SecurityConstants.HEADER_USER_ID, userId); }
+    public static void setUserId(Long userId) { set(SecurityConstants.HEADER_USER_ID, userId); }
 
     // 获取当前用户ID
-    public static String getUserId() { return get(SecurityConstants.HEADER_USER_ID, String.class); }
+    public static Long getUserId() { return get(SecurityConstants.HEADER_USER_ID, Long.class); }
 
     // 设置用户身份类型
     public static void setIdentityType(Integer code) { set(SecurityConstants.HEADER_IDENTITY_TYPE, IdentityType.getByCode(code)); }
@@ -74,12 +74,12 @@ public class SecurityContextHolder {
 
     // 获取用户所在的Group与Role
     @SuppressWarnings("unchecked")
-    public static Map<String, GroupRoleType> getGroupRoleMap() {
-        Map<String, GroupRoleType> map = get(SecurityConstants.HEADER_GROUP_ROLE_MAP, Map.class);
+    public static Map<Long, GroupRoleType> getGroupRoleMap() {
+        Map<Long, GroupRoleType> map = get(SecurityConstants.HEADER_GROUP_ROLE_MAP, Map.class);
         return map != null ? map : Collections.emptyMap();
     }
 
-    public static GroupRoleType getGroupRole(String targetGroupId) {
+    public static GroupRoleType getGroupRole(Long targetGroupId) {
         if (targetGroupId == null) {
             return GroupRoleType.NOT_MEMBER;
         }
@@ -87,13 +87,13 @@ public class SecurityContextHolder {
         return groupRole != null ? groupRole : GroupRoleType.NOT_MEMBER;
     }
 
-    public static void assertUserId(String userId) {
+    public static void assertUserId(Long userId) {
         if (!userId.equals(getUserId())){
             throw new PermissionException(PermissionErrorCode.OPERATION_UNAUTHORIZED);
         }
     }
 
-    public static GroupRoleType assertInGroup(String targetGroupId) {
+    public static GroupRoleType assertInGroup(Long targetGroupId) {
         GroupRoleType currentRole = getGroupRole(targetGroupId);
         if (currentRole == GroupRoleType.NOT_MEMBER){
             throw new PermissionException(PermissionErrorCode.OPERATION_UNAUTHORIZED);
@@ -101,7 +101,7 @@ public class SecurityContextHolder {
         return currentRole;
     }
 
-    public static void assertGroupRole(String targetGroupId, List<GroupRoleType> requiredRoles) {
+    public static void assertGroupRole(Long targetGroupId, List<GroupRoleType> requiredRoles) {
         if (targetGroupId == null || CollUtil.isEmpty(requiredRoles)) {
             throw new ServiceException(ResultCode.SYSTEM_ERROR);
         }
@@ -111,7 +111,7 @@ public class SecurityContextHolder {
         }
     }
 
-    public static void assertGroupRole(String targetGroupId, GroupRoleType... requiredRoles) {
+    public static void assertGroupRole(Long targetGroupId, GroupRoleType... requiredRoles) {
         assertGroupRole(targetGroupId, Arrays.asList(requiredRoles));
     }
 
