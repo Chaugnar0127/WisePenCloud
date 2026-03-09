@@ -26,13 +26,6 @@ public class RedisConfiguration {
         // 定制 ObjectMapper
         ObjectMapper objectMapper = new ObjectMapper();
 
-        // 开启类型指纹，在 JSON 里面加入 @class 属性用于反序列化
-        objectMapper.activateDefaultTyping(
-                objectMapper.getPolymorphicTypeValidator(),
-                ObjectMapper.DefaultTyping.NON_FINAL,
-                JsonTypeInfo.As.PROPERTY
-        );
-
         // 在序列化对象时，调用 ToStringSerializer 把 Long 转化为字符串
         SimpleModule simpleModule = new SimpleModule();
         simpleModule.addSerializer(Long.class, ToStringSerializer.instance);
