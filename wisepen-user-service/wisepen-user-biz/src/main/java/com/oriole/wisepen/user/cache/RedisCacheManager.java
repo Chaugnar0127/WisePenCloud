@@ -20,14 +20,26 @@ public class RedisCacheManager {
 	private final RedisTemplate<String, Object> redisTemplate;
 	private final StringRedisTemplate stringRedisTemplate;
 
+	private static final String REDIS_PWD_RESET_TOKEN_PREFIX = "wisepen:user:auth:reset:";
 	private static final String REDIS_SESSION_PREFIX = "wisepen:user:auth:session:";
 	private static final String REDIS_SESSION_TO_USER_PREFIX = "wisepen:user:auth:user2session:";
 	private static final String REDIS_GROUP_CHAT_BLOCK_PREFIX = "wisepen:chat:block:group:";
 	private static final String REDIS_GROUP_MEMBER_CHAT_BLOCK_PREFIX = "wisepen:chat:block:member:";
 	private static final long SESSION_TIMEOUT_DAYS = 7;
 
+	public String setPwdResetToken(Long userId){
+		String token = IdUtil.fastSimpleUUID();
+		redisTemplate.opsForValue().set(REDIS_PWD_RESET_TOKEN_PREFIX + token, userId, 15, TimeUnit.MINUTES);
+		return token;
+	}
 
-	public String setSession(String userId, IdentityType identityType, Map<String, Integer> groupRoleMap) {
+	public Long getPwdResetUser(String token){
+		String userId = stringRedisTemplate.opsForValue().get(REDIS_PWD_RESET_TOKEN_PREFIX + token);
+		redisTemplate.delete(REDIS_PWD_RESET_TOKEN_PREFIX + token); // 立即删除
+		return  StrUtil.isNotBlank(userId) ? Long.parseLong(userId) : null;
+	}
+
+	public String setSession(Long userId, IdentityType identityType, Map<String, Integer> groupRoleMap) {
 		// 构建 Session 上下文数据
 		Map<String, Object> sessionData = new HashMap<>();
 		sessionData.put("userId", userId);
@@ -46,12 +58,12 @@ public class RedisCacheManager {
 		return sessionId;
 	}
 
-	public void deleteSession(String sessionId, String userId) {
+	public void deleteSession(String sessionId, Long userId) {
 		stringRedisTemplate.delete(REDIS_SESSION_PREFIX + sessionId);
 		stringRedisTemplate.delete(REDIS_SESSION_TO_USER_PREFIX + userId);
 	}
 
-	public void updateGroupRoleMapInSession(String userId, String groupId, GroupRoleType groupRoleType) {
+	public void updateGroupRoleMapInSession(Long userId, Long groupId, GroupRoleType groupRoleType) {
 		String sessionId = stringRedisTemplate.opsForValue().get(REDIS_SESSION_TO_USER_PREFIX + userId);
 		if (StrUtil.isBlank(sessionId)) return; // 用户未登录则直接返回
 
@@ -60,7 +72,7 @@ public class RedisCacheManager {
 		if (sessionData == null) return;
 
 		@SuppressWarnings("unchecked")
-		Map<String, Integer> groupRoleMap = (Map<String, Integer>) sessionData.get("groupRoleMap");
+		Map<Long, Integer> groupRoleMap = (Map<Long, Integer>) sessionData.get("groupRoleMap");
 		if (groupRoleMap == null) groupRoleMap = new HashMap<>();
 
 		if (groupRoleType.equals(GroupRoleType.NOT_MEMBER)) {
@@ -75,18 +87,18 @@ public class RedisCacheManager {
 	}
 
 	// 封印/解封 群组Chat
-	public void blockGroupChat(String groupId) {
+	public void blockGroupChat(Long groupId) {
 		stringRedisTemplate.opsForValue().set(REDIS_GROUP_CHAT_BLOCK_PREFIX + groupId, "1");
 	}
-	public void unblockGroupChat(String groupId) {
+	public void unblockGroupChat(Long groupId) {
 		stringRedisTemplate.delete(REDIS_GROUP_CHAT_BLOCK_PREFIX + groupId);
 	}
 
 	// 封印/解封 组成员Chat
-	public void blockGroupMemberChat(String groupId, String userId) {
+	public void blockGroupMemberChat(Long groupId, Long userId) {
 		stringRedisTemplate.opsForValue().set(REDIS_GROUP_MEMBER_CHAT_BLOCK_PREFIX + groupId + ":" + userId, "1");
 	}
-	public void unblockGroupMemberChat(String groupId, String userId) {
+	public void unblockGroupMemberChat(Long groupId, Long userId) {
 		stringRedisTemplate.delete(REDIS_GROUP_MEMBER_CHAT_BLOCK_PREFIX + groupId + ":" + userId);
 	}
 }

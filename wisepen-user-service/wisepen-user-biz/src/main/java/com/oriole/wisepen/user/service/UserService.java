@@ -17,7 +17,7 @@ public interface UserService {
     UserDisplayBase getUserDisplayInfoById(Long userId);
     Map<Long, UserDisplayBase> getUserDisplayInfoByIds(Set<Long> userIds);
 
-    void register(AuthRegisterRequest registerRequest);
-    void sendResetMail(AuthPwdResetVerifyRequest resetRequest);
-    void resetPassword(AuthPwdResetRequest resetExecuteRequest);
+    void register(AuthRegisterRequest req);
+    void sendResetMail(AuthPwdResetVerifyRequest req);
+    void resetPassword(AuthPwdResetRequest req);
 }
