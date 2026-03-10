@@ -162,7 +162,7 @@ public class GroupServiceImpl implements GroupService {
         GroupEntity group = groupMapper.selectById(groupId);
         if (group == null) throw new ServiceException(GroupErrorCode.GROUP_NOT_EXIST);
 
-        if (!GroupType.ADVANCED_GROUP.equals(group.getGroupType())) {
+        if (GroupType.NORMAL_GROUP.equals(group.getGroupType())) {
             throw new ServiceException(GroupErrorCode.GROUP_HAS_NO_QUOTA);
         }
 
