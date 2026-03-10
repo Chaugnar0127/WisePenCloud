@@ -18,6 +18,7 @@
         <module>wisepen-system-service</module>
         <module>wisepen-common-log</module>
         <module>wisepen-resource-service</module>
+        <module>wisepen-file-service</module>
     </modules>
 
     <properties>
@@ -117,6 +118,13 @@
                     <target>${java.version}</target>
                     <encoding>${project.build.sourceEncoding}</encoding>
                     <parameters>true</parameters>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
                 </configuration>
             </plugin>
         </plugins>
