@@ -15,6 +15,8 @@ import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
 import com.oriole.wisepen.user.api.domain.dto.req.*;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberDetailResponse;
+import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberGetGroupTokenResponse;
+import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberGetTokenResponse;
 import com.oriole.wisepen.user.cache.RedisCacheManager;
 import com.oriole.wisepen.user.domain.entity.*;
 import com.oriole.wisepen.user.event.GroupTokenConsumeEvent;
@@ -185,6 +187,40 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 	}
 
 	@Override
+	public PageResult<GroupMemberGetGroupTokenResponse> getAllGroupToken(Long userId, Integer page, Integer size) {
+		Page<GroupMemberEntity> pageParam = new Page<>(page, size);
+		LambdaQueryWrapper<GroupMemberEntity> wrapper = new LambdaQueryWrapper<>();
+		wrapper.eq(GroupMemberEntity::getUserId, userId)
+				.orderByAsc(GroupMemberEntity::getRole)
+				.orderByDesc(GroupMemberEntity::getJoinTime);
+		IPage<GroupMemberEntity> memberPage = groupMemberMapper.selectPage(pageParam, wrapper);
+
+		List<Long> groupIds = memberPage.getRecords().stream()
+				.map(GroupMemberEntity::getGroupId)
+				.collect(Collectors.toList());
+		PageResult<GroupMemberGetGroupTokenResponse> pageResult = new PageResult<>(memberPage.getTotal(), page, size);
+		if (groupIds.isEmpty()) {
+			return pageResult;
+		}
+
+		Map<Long, GroupEntity> groupMap = groupMapper.selectBatchIds(groupIds).stream()
+				.collect(Collectors.toMap(GroupEntity::getGroupId, group -> group));
+
+		List<GroupMemberGetGroupTokenResponse> records = memberPage.getRecords().stream().map(memberEntity -> {
+			GroupMemberGetGroupTokenResponse resp = new GroupMemberGetGroupTokenResponse();
+			BeanUtil.copyProperties(memberEntity, resp);
+			GroupEntity group = groupMap.get(memberEntity.getGroupId());
+			if (group != null) {
+				BeanUtil.copyProperties(group, resp);
+			}
+			return resp;
+		}).collect(Collectors.toList());
+
+		pageResult.addAll(records);
+		return pageResult;
+	}
+
+	@Override
 	public void updateGroupMemberRole(GroupMemberRoleUpdateRequest req, Long opUserId) {
 		Set<Long> targetUserIdSet = req.getTargetUserIds().stream()
 				.filter(id -> !id.equals(opUserId))
@@ -297,5 +333,13 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 		);
 
 
+	}
+
+	@Override
+	public GroupMemberGetTokenResponse getGroupToken(Long userId, Long groupId) {
+		LambdaQueryWrapper<GroupMemberEntity> queryWrapper = new LambdaQueryWrapper<GroupMemberEntity>()
+				.eq(GroupMemberEntity::getGroupId,groupId).eq(GroupMemberEntity::getUserId,userId);
+		GroupMemberEntity groupMember=groupMemberMapper.selectOne(queryWrapper);
+		return BeanUtil.copyProperties(groupMember, GroupMemberGetTokenResponse.class);
 	}
 }

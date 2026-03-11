@@ -4,6 +4,8 @@ import com.oriole.wisepen.common.core.domain.PageResult;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.user.api.domain.dto.req.*;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberDetailResponse;
+import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberGetGroupTokenResponse;
+import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberGetTokenResponse;
 
 import java.util.List;
 import java.util.Map;
@@ -42,4 +44,8 @@ public interface GroupMemberService {
 
 	// 移除全部组成员
 	void removeAllGroupMembers(Long groupId);
+
+	GroupMemberGetTokenResponse getGroupToken(Long userId, Long groupId);
+
+	PageResult<GroupMemberGetGroupTokenResponse> getAllGroupToken(Long userId,Integer page,Integer size);
 }
