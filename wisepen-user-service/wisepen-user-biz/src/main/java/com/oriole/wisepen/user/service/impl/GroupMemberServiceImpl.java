@@ -33,6 +33,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static java.lang.Math.min;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -44,6 +46,7 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 	private final GroupMemberMapper groupMemberMapper;
 	private final UserService userService;
 	private final RedisCacheManager redisCacheManager;
+	private final UserWalletsMapper userWalletsMapper;
 
 	@Override
 	public Map<String, Integer> getGroupRoleMapByUserId(Long userId) {
@@ -341,5 +344,42 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 				.eq(GroupMemberEntity::getGroupId,groupId).eq(GroupMemberEntity::getUserId,userId);
 		GroupMemberEntity groupMember=groupMemberMapper.selectOne(queryWrapper);
 		return BeanUtil.copyProperties(groupMember, GroupMemberGetTokenResponse.class);
+	}
+
+	public void calculateToken(TokenCalculateMessage message) {
+		int tokenRest=message.getUsageTokens()*message.getModelType().getRatio();
+		if (message.getGroupId()!=null) {
+			// 因为用户可能没有登录，所以不查 redis
+			GroupEntity group = groupMapper.selectById(message.getGroupId());
+			if (group.getGroupType()!=GroupType.NORMAL_GROUP) {
+				LambdaQueryWrapper<GroupMemberEntity> queryWrapper = new LambdaQueryWrapper<GroupMemberEntity>()
+						.eq(GroupMemberEntity::getGroupId,message.getGroupId()).eq(GroupMemberEntity::getUserId,message.getUserId());
+				GroupMemberEntity groupMember = groupMemberMapper.selectOne(queryWrapper);
+
+
+				int usage=min(group.getTokenLimit()-group.getTokenUsed(),message.getUsageTokens());
+				usage=min(usage,groupMember.getTokenLimit()-groupMember.getTokenUsed());
+
+				tokenRest-=usage;
+				groupMember.setTokenUsed(groupMember.getTokenUsed() + usage);
+				groupMemberMapper.updateById(groupMember);
+				group.setTokenUsed(group.getTokenUsed() + usage);
+				groupMapper.updateById(group);
+				if (groupMember.getTokenUsed().equals(groupMember.getTokenLimit())) {
+					redisCacheManager.blockGroupMemberChat(groupMember.getGroupId(), groupMember.getUserId());
+				}
+			}
+		}
+
+		if (tokenRest<=0) {
+			return;
+		}
+		//传入的时候要做对用户是否还有余额的检查？
+		UserTokenPoolEntity user=userWalletsMapper.selectById(message.getUserId());
+		user.setTokenUsed(user.getTokenUsed()+tokenRest);
+		userWalletsMapper.updateById(user);
+
+		// TODO：消费流水记录
+		// TODO：对 traceId 做幂等
 	}
 }

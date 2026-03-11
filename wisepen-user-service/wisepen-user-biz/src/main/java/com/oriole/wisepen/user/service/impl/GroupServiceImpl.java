@@ -65,7 +65,7 @@ public class GroupServiceImpl implements GroupService {
         GroupEntity group = GroupEntity.builder()
                 .ownerId(userId)
                 .inviteCode(IdUtil.fastSimpleUUID().substring(0, 8)) // 确保ID唯一
-                .tokenUsed(0).tokenBalance(0)
+                .tokenUsed(0).tokenLimit(0)
                 .build();
 
         BeanUtil.copyProperties(req, group, "ownerId", "inviteCode", "tokenUsed", "tokenPoolBalance");
@@ -189,9 +189,9 @@ public class GroupServiceImpl implements GroupService {
 
         GroupEntity group = groupMapper.selectById(groupId);
         // 如果余额降到 0 或负数
-        if (group != null && group.getTokenBalance() <= 0) {
+        if (group != null && group.getTokenLimit() <= group.getTokenUsed()) {
             redisCacheManager.blockGroupChat(groupId);
-            log.warn("群组 {} 余额已欠费透支，当前余额: {}，已触发 Redis 熔断", groupId, group.getTokenBalance());
+            log.warn("群组 {} 余额已欠费透支，当前余额: {}，已触发 Redis 熔断", groupId, group.getTokenLimit() - group.getTokenUsed());
         }
     }
 

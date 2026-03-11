@@ -35,6 +35,18 @@
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="wisepen-cloud" options="-parameters -parameters" />
+      <module name="wisepen-common" options="-parameters -parameters" />
+      <module name="wisepen-common-log" options="-parameters -parameters" />
+      <module name="wisepen-resource-api" options="-parameters -parameters" />
+      <module name="wisepen-resource-biz" options="-parameters -parameters" />
+      <module name="wisepen-resource-service" options="-parameters -parameters" />
+      <module name="wisepen-system-api" options="-parameters -parameters" />
+      <module name="wisepen-system-biz" options="-parameters -parameters" />
+      <module name="wisepen-system-service" options="-parameters -parameters" />
+      <module name="wisepen-user-api" options="-parameters -parameters" />
+      <module name="wisepen-user-biz" options="-parameters -parameters" />
+      <module name="wisepen-user-service" options="-parameters -parameters" />
       <module name="wisepen-cloud" options="-parameters" />
       <module name="wisepen-common" options="-parameters" />
       <module name="wisepen-common-log" options="-parameters" />

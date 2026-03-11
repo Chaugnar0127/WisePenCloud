@@ -6,6 +6,7 @@ import com.oriole.wisepen.user.api.domain.dto.req.*;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberDetailResponse;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberGetGroupTokenResponse;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberGetTokenResponse;
+import com.oriole.wisepen.user.domain.entity.TokenCalculateMessage;
 
 import java.util.List;
 import java.util.Map;
@@ -48,4 +49,6 @@ public interface GroupMemberService {
 	GroupMemberGetTokenResponse getGroupToken(Long userId, Long groupId);
 
 	PageResult<GroupMemberGetGroupTokenResponse> getAllGroupToken(Long userId,Integer page,Integer size);
+
+	void calculateToken(TokenCalculateMessage message);
 }
