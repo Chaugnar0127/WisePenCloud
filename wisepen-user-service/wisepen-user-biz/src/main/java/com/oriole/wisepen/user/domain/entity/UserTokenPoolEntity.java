@@ -23,7 +23,7 @@ public class UserTokenPoolEntity implements Serializable {
 	@TableId(value="Id", type = IdType.INPUT)
 	private Long userId;
 
-	private Integer tokenLimit;
+	private Integer tokenBalance;
 	private Integer tokenUsed;
 
 	private Date updateTime;
