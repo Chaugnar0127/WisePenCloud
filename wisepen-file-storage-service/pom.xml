@@ -9,11 +9,11 @@
         <version>1.0.0</version>
     </parent>
 
-    <artifactId>wisepen-file-service</artifactId>
+    <artifactId>wisepen-file-storage-service</artifactId>
     <packaging>pom</packaging>
     <modules>
-        <module>wisepen-file-api</module>
-        <module>wisepen-file-biz</module>
+        <module>wisepen-file-storage-api</module>
+        <module>wisepen-file-storage-biz</module>
     </modules>
 
     <properties>

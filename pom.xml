@@ -18,7 +18,8 @@
         <module>wisepen-system-service</module>
         <module>wisepen-common-log</module>
         <module>wisepen-resource-service</module>
-        <module>wisepen-file-service</module>
+        <module>wisepen-file-storage-service</module>
+        <module>wisepen-document-service</module>
     </modules>
 
     <properties>

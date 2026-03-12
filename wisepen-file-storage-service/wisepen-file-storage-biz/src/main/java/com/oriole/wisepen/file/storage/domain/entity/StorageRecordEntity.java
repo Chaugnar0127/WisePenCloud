@@ -1,0 +1,42 @@
+package com.oriole.wisepen.file.storage.domain.entity;
+
+import com.baomidou.mybatisplus.annotation.*;
+import com.oriole.wisepen.file.storage.api.domain.base.StorageRecordBase;
+import com.oriole.wisepen.file.storage.api.enums.StorageStatusEnum;
+import lombok.*;
+import lombok.experimental.SuperBuilder;
+
+import java.io.Serial;
+import java.io.Serializable;
+import java.time.LocalDateTime;
+
+/**
+ * 物理存储记录实体类
+ */
+@EqualsAndHashCode(callSuper = true)
+@Data
+@SuperBuilder
+@NoArgsConstructor
+@AllArgsConstructor
+@TableName("sys_storage_record")
+public class StorageRecordEntity extends StorageRecordBase implements Serializable {
+
+    @Serial
+    private static final long serialVersionUID = 1L;
+
+    @TableId(value = "id", type = IdType.ASSIGN_ID)
+    private Long fileId;
+
+    /**
+     * 该文件所在的供应商配置源
+     */
+    private Long configId;
+
+    private StorageStatusEnum status;
+
+    @TableField(value = "create_time", fill = FieldFill.INSERT)
+    private LocalDateTime createTime;
+
+    @TableField(value = "update_time", fill = FieldFill.INSERT_UPDATE)
+    private LocalDateTime updateTime;
+}
