@@ -17,5 +17,5 @@ public class ResourceCheckPermissionDTO {
     private String userId;
     // 用户所属的群组及对应角色
     @NotNull(message = ResourceValidationMsg.USER_GROUP_ROLES_NOT_NULL)
-    private Map<String, GroupRoleType> groupRoles;
+    private Map<Long, GroupRoleType> groupRoles;
 }

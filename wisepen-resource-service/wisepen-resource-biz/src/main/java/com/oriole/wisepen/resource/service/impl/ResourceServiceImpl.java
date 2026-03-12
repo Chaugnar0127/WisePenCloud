@@ -292,7 +292,7 @@ public class ResourceServiceImpl implements IResourceService {
                 }
 
                 // 提取首标并查询
-                String primaryTagId = groupBind.getTagIds().get(0);
+                String primaryTagId = groupBind.getTagIds().getFirst();
                 TagEntity primaryTag = tagRepository.findById(primaryTagId).orElse(null);
 
                 if (primaryTag == null) continue;
@@ -344,7 +344,7 @@ public class ResourceServiceImpl implements IResourceService {
             return false;
         }
         for (GroupTagBind groupBind : entity.getGroupBinds()) {
-            String groupId = groupBind.getGroupId();
+            Long groupId = Long.valueOf(groupBind.getGroupId());
             if (!dto.getGroupRoles().containsKey(groupId)) { // 用户不在该组，跳过
                 continue;
             }
@@ -356,7 +356,7 @@ public class ResourceServiceImpl implements IResourceService {
             List<String> specifiedUsers = Collections.emptyList();
 
             // 同组认首标 (取列表里的第一个 Tag)
-            String primaryTagId = groupBind.getTagIds().get(0);
+            String primaryTagId = groupBind.getTagIds().getFirst();
             TagEntity primaryTag = tagRepository.findById(primaryTagId).orElse(null); // 查 Tag 节点
             // 向上溯源找有效权限配置
             TagEntity effectiveTag = findEffectiveTagWithPermission(primaryTag);
