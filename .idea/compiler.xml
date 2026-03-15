@@ -7,6 +7,15 @@
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
+      </profile>
+      <profile name="Annotation profile for wisepen-cloud" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <processorPath useClasspath="false">
+          <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.30/lombok-1.18.30.jar" />
+        </processorPath>
+
         <module name="wisepen-common" />
         <module name="wisepen-system-api" />
         <module name="wisepen-system-biz" />
@@ -17,6 +26,10 @@
         <module name="wisepen-resource-biz" />
         <module name="wisepen-file-api" />
         <module name="wisepen-file-biz" />
+        <module name="wisepen-document-api" />
+        <module name="wisepen-document-biz" />
+        <module name="wisepen-file-storage-api" />
+        <module name="wisepen-file-storage-biz" />
       </profile>
     </annotationProcessing>
   </component>
@@ -25,9 +38,12 @@
       <module name="wisepen-cloud" options="-parameters" />
       <module name="wisepen-common" options="-parameters" />
       <module name="wisepen-common-log" options="-parameters" />
-      <module name="wisepen-file-api" options="-parameters" />
-      <module name="wisepen-file-biz" options="-parameters" />
-      <module name="wisepen-file-service" options="-parameters" />
+      <module name="wisepen-document-api" options="-parameters" />
+      <module name="wisepen-document-biz" options="-parameters" />
+      <module name="wisepen-document-service" options="-parameters" />
+      <module name="wisepen-file-storage-api" options="-parameters" />
+      <module name="wisepen-file-storage-biz" options="-parameters" />
+      <module name="wisepen-file-storage-service" options="-parameters" />
       <module name="wisepen-resource-api" options="-parameters" />
       <module name="wisepen-resource-biz" options="-parameters" />
       <module name="wisepen-resource-service" options="-parameters" />
