@@ -54,7 +54,7 @@ public class DocumentController {
      *   <li>Range 落在附录段：内存生成 ~10 KB 增量附录（含真实 userId + 时间戳）后切片返回。</li>
      * </ul>
      *
-     * <p>明水印：userId + 预览时间戳，45° 斜向；暗水印：AES-128 二值矩阵 3×3 平铺，透明度 3%。<br>
+     * <p>明水印：userId + 预览时间戳，45° 斜向；暗水印：AES-128 二值矩阵 9×9 平铺，透明度 1%。<br>
      * 仅 {@code READY} 状态的文档可预览。
      */
     @GetMapping("/{documentId}/preview")

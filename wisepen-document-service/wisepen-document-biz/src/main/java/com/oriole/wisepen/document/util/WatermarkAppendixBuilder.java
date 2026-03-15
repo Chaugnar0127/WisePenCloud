@@ -18,7 +18,7 @@ import java.util.List;
  * 并在每页 Content Stream 末尾追加了 {@code q /WisepenWM Do Q} 调用指令。
  * 预览时，本构建器仅在文件尾部追加 2 个新对象：
  * <ol>
- *   <li>暗水印 Image XObject（128×64 Raw 灰度，固定 8192 字节）</li>
+ *   <li>暗水印 Image XObject（32×16 Raw 灰度，固定 512 字节）</li>
  *   <li>Form XObject（覆盖 preHookObjNum，含明/暗水印绘制指令）</li>
  * </ol>
  * PDF 阅读器加载文件时，XREF 增量段的记录会覆盖旧对象定义，
@@ -27,7 +27,7 @@ import java.util.List;
  * <h3>O(1) 保证</h3>
  * <ul>
  *   <li>不修改任何 Page Dict 或 Content Stream。</li>
- *   <li>userId 固定长度 → AES 密文固定 16 字节 → Raw 像素固定 8192 字节。</li>
+ *   <li>userId 固定长度 → AES 密文固定 16 字节 → Raw 像素固定 512 字节（32×16）。</li>
  *   <li>时间戳格式 {@code yyyy-MM-dd HH:mm:ss} 固定 19 字符。</li>
  *   <li>浮点数以 {@code %.3f} 格式输出，位数仅取决于存储的页面尺寸（Stage 3 固定）。</li>
  *   <li>附录大小只与文档的页面尺寸有关，与用户无关，可在 Stage 3 预量。</li>
@@ -68,8 +68,8 @@ public final class WatermarkAppendixBuilder {
 
         float pageW = meta.getPages().get(0).getWidthPt();
         float pageH = meta.getPages().get(0).getHeightPt();
-        float tw = pageW / 3f;
-        float th = pageH / 3f;
+        float tw = pageW / WatermarkCodec.TILE_GRID_X;
+        float th = pageH / WatermarkCodec.TILE_GRID_Y;
         float cx = pageW / 2f;
         float cy = pageH / 2f;
 
@@ -122,7 +122,7 @@ public final class WatermarkAppendixBuilder {
 
     /** 构建 Image XObject 的完整 PDF 对象字节（header + raw pixels + footer）。 */
     private static byte[] buildImageXObject(int objNum, byte[] rawPixels) throws IOException {
-        // rawPixels.length 始终为 WatermarkCodec.TILE_W * WatermarkCodec.TILE_H = 8192
+        // rawPixels.length 始终为 WatermarkCodec.TILE_W * WatermarkCodec.TILE_H = 512
         String header = objNum + " 0 obj\n" +
                 "<< /Type /XObject /Subtype /Image" +
                 " /Width " + WatermarkCodec.TILE_W +
@@ -158,9 +158,9 @@ public final class WatermarkAppendixBuilder {
                 "   /Resources <<\n" +
                 "     /XObject << /DarkImg " + darkImgObjNum + " 0 R >>\n" +
                 "     /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >> >>\n" +
-                // GS1: 明水印 25% 透明度；GS2: 暗水印 3% 透明度
+                // GS1: 明水印 25% 透明度；GS2: 暗水印 1% 透明度
                 "     /ExtGState << /GS1 << /Type /ExtGState /ca 0.250 /CA 0.250 >>\n" +
-                "                   /GS2 << /Type /ExtGState /ca 0.030 /CA 0.030 >> >>\n" +
+                "                   /GS2 << /Type /ExtGState /ca 0.010 /CA 0.010 >> >>\n" +
                 "   >>\n" +
                 "   /Length " + csBytes.length + "\n" +
                 ">>\nstream\n";
@@ -179,7 +179,7 @@ public final class WatermarkAppendixBuilder {
      * <p>结构：
      * <ol>
      *   <li>明水印：GS1（25% 透明度），45° 旋转文字居中。</li>
-     *   <li>暗水印：GS2（3% 透明度），DarkImg 3×3 平铺覆盖全页。</li>
+     *   <li>暗水印：GS2（1% 透明度），DarkImg {@link WatermarkCodec#TILE_GRID_X}×{@link WatermarkCodec#TILE_GRID_Y} 平铺覆盖全页。</li>
      * </ol>
      * 所有浮点数统一格式 {@code %.3f}，字符数恒定。
      */
@@ -199,12 +199,12 @@ public final class WatermarkAppendixBuilder {
         sb.append("ET\n");
         sb.append("Q\n");
 
-        // 暗水印：3×3 平铺，3% 透明度
+        // 暗水印：TILE_GRID_X×TILE_GRID_Y 平铺，1% 透明度
         // 每个 tile 用 q...Q 包裹，cm 矩阵不累积
         sb.append("q\n");
         sb.append("/GS2 gs\n");
-        for (int row = 0; row < 3; row++) {
-            for (int col = 0; col < 3; col++) {
+        for (int row = 0; row < WatermarkCodec.TILE_GRID_Y; row++) {
+            for (int col = 0; col < WatermarkCodec.TILE_GRID_X; col++) {
                 sb.append("q ")
                         .append(ff(tw)).append(" 0 0 ").append(ff(th))
                         .append(' ').append(ff(col * tw)).append(' ').append(ff(row * th))

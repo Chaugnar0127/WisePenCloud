@@ -17,34 +17,43 @@ import java.util.Base64;
  *   <li>使用 AES-128-ECB 对该 16 字节进行加密，得到确定性密文（16 字节 = 128 bits）。</li>
  *   <li>将 128 bits 排列为 16×8 二值矩阵（列 = 字节索引，行 = bit 索引，MSB first）。</li>
  *   <li>每个 cell 渲染为 {@value #CELL_PX}×{@value #CELL_PX} 像素的深/浅灰块，生成
- *       {@value #TILE_W}×{@value #TILE_H} 像素的基础 tile。</li>
- *   <li>将 tile 以 3×3 网格平铺到整页，形成 9 份冗余副本。</li>
+ *       {@value #TILE_W}×{@value #TILE_H} 像素的基础 tile（仅影响 XObject 体积）。</li>
+ *   <li>将 tile 以 {@value #TILE_GRID_X}×{@value #TILE_GRID_Y} 网格平铺到整页，
+ *       形成 81 份冗余副本；格子越密，肉眼可见的块尺寸越小。</li>
  *   <li>最终图像以极低透明度（约 2–4%）叠加到 PDF 页面上，肉眼几乎不可见。</li>
  * </ol>
  *
  * <p>算法流程（解码）：
  * <ol>
  *   <li>将页面渲染为 BufferedImage（建议 150 dpi 以保证采样精度）。</li>
- *   <li>将页面划分为 3×3 共 9 个区域，分别提取该区域内的 128 bits。</li>
- *   <li>对应位置的 9 个 bit 做多数投票（≥5 票取 1）以抵抗截图噪声。</li>
+ *   <li>将页面划分为 {@value #TILE_GRID_X}×{@value #TILE_GRID_Y} 共 81 个区域，
+ *       分别提取该区域内的 128 bits。</li>
+ *   <li>对应位置的 81 个 bit 做多数投票（≥41 票取 1）以抵抗截图噪声。</li>
  *   <li>AES-128-ECB 解密得到原始 16 字节，去除尾部零填充还原 userId。</li>
  * </ol>
  *
- * <p>抗干扰性：9 份冗余副本 + 多数投票可抵抗截图压缩、局部遮挡等干扰；
+ * <p>抗干扰性：81 份冗余副本 + 多数投票可抵抗截图压缩、局部遮挡等干扰；
  * AES 密文保证无密钥情况下无法伪造。
  */
 public final class WatermarkCodec {
 
-    /** 每个 bit cell 的像素边长 */
-    private static final int CELL_PX = 8;
+    /** 每个 bit cell 的像素边长（仅影响 Image XObject 体积，视觉块尺寸由平铺密度决定） */
+    private static final int CELL_PX = 2;
     /** 矩阵列数（字节数） */
     private static final int MATRIX_COLS = 16;
     /** 矩阵行数（bit 数/字节） */
     private static final int MATRIX_ROWS = 8;
     /** 基础 tile 像素宽度 */
-    public static final int TILE_W = MATRIX_COLS * CELL_PX; // 128
+    public static final int TILE_W = MATRIX_COLS * CELL_PX; // 32
     /** 基础 tile 像素高度 */
-    public static final int TILE_H = MATRIX_ROWS * CELL_PX; // 64
+    public static final int TILE_H = MATRIX_ROWS * CELL_PX; // 16
+
+    /** 平铺网格列数（每行 tile 数），增大可缩小可见块尺寸 */
+    public static final int TILE_GRID_X = 9;
+    /** 平铺网格行数（每列 tile 数），增大可缩小可见块尺寸 */
+    public static final int TILE_GRID_Y = 9;
+    /** 多数投票阈值（总票数 TILE_GRID_X × TILE_GRID_Y 的过半） */
+    private static final int VOTE_THRESHOLD = TILE_GRID_X * TILE_GRID_Y / 2 + 1; // 41
 
     /** bit=1 对应的灰度值（深灰） */
     private static final int GRAY_ONE = 30;
@@ -61,7 +70,8 @@ public final class WatermarkCodec {
     // -------------------------------------------------------------------------
 
     /**
-     * 将 userId 加密后生成 {@value #TILE_W}×{@value #TILE_H} 原始灰度字节数组（始终 8192 字节）。
+     * 将 userId 加密后生成 {@value #TILE_W}×{@value #TILE_H} 原始灰度字节数组
+     * （始终 {@value #TILE_W} × {@value #TILE_H} = 512 字节）。
      * 每字节对应一个像素的灰度值：bit=1 → {@value #GRAY_ONE}，bit=0 → {@value #GRAY_ZERO}。
      * <p>
      * 此格式可直接作为 PDF Image XObject 的 Raw（无压缩）流数据写入文件，
@@ -69,9 +79,10 @@ public final class WatermarkCodec {
      *
      * @param userId    要嵌入的用户标识
      * @param aesKeyB64 Base64 编码的 AES-128 密钥（同 {@link #buildTile}）
-     * @return 固定 {@value #TILE_W} × {@value #TILE_H} = 8192 字节的原始灰度数据
+     * @return 固定 {@value #TILE_W} × {@value #TILE_H} 字节的原始灰度数据
      */
     public static byte[] buildRawTileBytes(String userId, String aesKeyB64) {
+        System.out.println(userId);
         byte[] payload = encrypt(userId, decodeKey(aesKeyB64));
         byte[] raw = new byte[TILE_W * TILE_H];
         for (int byteIdx = 0; byteIdx < MATRIX_COLS; byteIdx++) {
@@ -106,7 +117,8 @@ public final class WatermarkCodec {
     }
 
     /**
-     * 将基础 tile 以 3×3 网格平铺到目标尺寸，返回整页水印图像（TYPE_ARGB）。
+     * 将基础 tile 以 {@value #TILE_GRID_X}×{@value #TILE_GRID_Y} 网格平铺到目标尺寸，
+     * 返回整页水印图像（TYPE_ARGB）。
      * 调用方在通过 PDFBox 叠加时应将 GraphicsState 的透明度设置为 0.02–0.04。
      *
      * @param tile        {@link #buildTile} 返回的基础 tile
@@ -118,10 +130,10 @@ public final class WatermarkCodec {
         Graphics2D g = page.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
 
-        int sectionW = pageWidthPx / 3;
-        int sectionH = pageHeightPx / 3;
-        for (int row = 0; row < 3; row++) {
-            for (int col = 0; col < 3; col++) {
+        int sectionW = pageWidthPx / TILE_GRID_X;
+        int sectionH = pageHeightPx / TILE_GRID_Y;
+        for (int row = 0; row < TILE_GRID_Y; row++) {
+            for (int col = 0; col < TILE_GRID_X; col++) {
                 g.drawImage(tile, col * sectionW, row * sectionH, sectionW, sectionH, null);
             }
         }
@@ -136,8 +148,9 @@ public final class WatermarkCodec {
     /**
      * 从已渲染的页面图像中恢复 userId。
      *
-     * <p>要求页面图像中包含通过 {@link #tilePage} 嵌入的 3×3 暗水印，
-     * 且图像宽高可被 3 整除（否则自动向下取整）。
+     * <p>要求页面图像中包含通过 {@link #tilePage} 嵌入的
+     * {@value #TILE_GRID_X}×{@value #TILE_GRID_Y} 暗水印，
+     * 且图像宽高可被 {@value #TILE_GRID_X}/{@value #TILE_GRID_Y} 整除（否则自动向下取整）。
      *
      * @param pageImage 页面渲染图（建议 150 dpi，{@link BufferedImage#TYPE_INT_RGB}）
      * @param aesKeyB64 与编码时相同的 Base64 AES-128 密钥
@@ -148,27 +161,27 @@ public final class WatermarkCodec {
         int imgW = pageImage.getWidth();
         int imgH = pageImage.getHeight();
 
-        int sectionW = imgW / 3;
-        int sectionH = imgH / 3;
+        int sectionW = imgW / TILE_GRID_X;
+        int sectionH = imgH / TILE_GRID_Y;
 
-        // votes[bit] 累计 9 个副本中该 bit 为 1 的票数
+        // votes[bit] 累计 TILE_GRID_X×TILE_GRID_Y 个副本中该 bit 为 1 的票数
         int[] votes = new int[MATRIX_COLS * MATRIX_ROWS];
 
-        for (int row = 0; row < 3; row++) {
-            for (int col = 0; col < 3; col++) {
+        for (int row = 0; row < TILE_GRID_Y; row++) {
+            for (int col = 0; col < TILE_GRID_X; col++) {
                 int offsetX = col * sectionW;
                 int offsetY = row * sectionH;
                 extractBitsFromSection(pageImage, offsetX, offsetY, sectionW, sectionH, votes);
             }
         }
 
-        // 多数投票：≥5 票取 1
+        // 多数投票：≥ VOTE_THRESHOLD 票取 1（总票数 TILE_GRID_X×TILE_GRID_Y 的过半）
         byte[] payload = new byte[MATRIX_COLS];
         for (int byteIdx = 0; byteIdx < MATRIX_COLS; byteIdx++) {
             int byteVal = 0;
             for (int bitIdx = 0; bitIdx < MATRIX_ROWS; bitIdx++) {
                 int cellIdx = byteIdx * MATRIX_ROWS + bitIdx;
-                if (votes[cellIdx] >= 5) {
+                if (votes[cellIdx] >= VOTE_THRESHOLD) {
                     byteVal |= (1 << (7 - bitIdx));
                 }
             }
@@ -183,6 +196,7 @@ public final class WatermarkCodec {
     // -------------------------------------------------------------------------
 
     private static BufferedImage payloadToTile(byte[] payload) {
+        System.out.println(payload);
         BufferedImage tile = new BufferedImage(TILE_W, TILE_H, BufferedImage.TYPE_INT_ARGB);
         for (int byteIdx = 0; byteIdx < MATRIX_COLS; byteIdx++) {
             for (int bitIdx = 0; bitIdx < MATRIX_ROWS; bitIdx++) {
