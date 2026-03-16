@@ -15,44 +15,43 @@
         <processorPath useClasspath="false">
           <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.30/lombok-1.18.30.jar" />
         </processorPath>
-
-        <module name="wisepen-common" />
         <module name="wisepen-system-api" />
-        <module name="wisepen-system-biz" />
         <module name="wisepen-common-log" />
         <module name="wisepen-user-api" />
-        <module name="wisepen-user-biz" />
-        <module name="wisepen-resource-api" />
-        <module name="wisepen-resource-biz" />
-        <module name="wisepen-file-api" />
         <module name="wisepen-file-biz" />
-        <module name="wisepen-document-api" />
         <module name="wisepen-document-biz" />
-        <module name="wisepen-file-storage-api" />
+        <module name="wisepen-resource-biz" />
         <module name="wisepen-file-storage-biz" />
+        <module name="wisepen-file-storage-api" />
+        <module name="wisepen-resource-api" />
+        <module name="wisepen-system-biz" />
+        <module name="wisepen-common" />
+        <module name="wisepen-user-biz" />
+        <module name="wisepen-file-api" />
+        <module name="wisepen-document-api" />
       </profile>
     </annotationProcessing>
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
-      <module name="wisepen-cloud" options="-parameters" />
-      <module name="wisepen-common" options="-parameters" />
-      <module name="wisepen-common-log" options="-parameters" />
-      <module name="wisepen-document-api" options="-parameters" />
-      <module name="wisepen-document-biz" options="-parameters" />
-      <module name="wisepen-document-service" options="-parameters" />
-      <module name="wisepen-file-storage-api" options="-parameters" />
-      <module name="wisepen-file-storage-biz" options="-parameters" />
-      <module name="wisepen-file-storage-service" options="-parameters" />
-      <module name="wisepen-resource-api" options="-parameters" />
-      <module name="wisepen-resource-biz" options="-parameters" />
-      <module name="wisepen-resource-service" options="-parameters" />
-      <module name="wisepen-system-api" options="-parameters" />
-      <module name="wisepen-system-biz" options="-parameters" />
-      <module name="wisepen-system-service" options="-parameters" />
-      <module name="wisepen-user-api" options="-parameters" />
-      <module name="wisepen-user-biz" options="-parameters" />
-      <module name="wisepen-user-service" options="-parameters" />
+      <module name="wisepen-cloud" options="-parameters -parameters" />
+      <module name="wisepen-common" options="-parameters -parameters" />
+      <module name="wisepen-common-log" options="-parameters -parameters" />
+      <module name="wisepen-document-api" options="-parameters -parameters" />
+      <module name="wisepen-document-biz" options="-parameters -parameters" />
+      <module name="wisepen-document-service" options="-parameters -parameters" />
+      <module name="wisepen-file-storage-api" options="-parameters -parameters" />
+      <module name="wisepen-file-storage-biz" options="-parameters -parameters" />
+      <module name="wisepen-file-storage-service" options="-parameters -parameters" />
+      <module name="wisepen-resource-api" options="-parameters -parameters" />
+      <module name="wisepen-resource-biz" options="-parameters -parameters" />
+      <module name="wisepen-resource-service" options="-parameters -parameters" />
+      <module name="wisepen-system-api" options="-parameters -parameters" />
+      <module name="wisepen-system-biz" options="-parameters -parameters" />
+      <module name="wisepen-system-service" options="-parameters -parameters" />
+      <module name="wisepen-user-api" options="-parameters -parameters" />
+      <module name="wisepen-user-biz" options="-parameters -parameters" />
+      <module name="wisepen-user-service" options="-parameters -parameters" />
     </option>
   </component>
 </project>

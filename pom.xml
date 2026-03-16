@@ -24,6 +24,8 @@
 
     <properties>
         <java.version>21</java.version>
+        <maven.compiler.release>${java.version}</maven.compiler.release>
+        <maven.compiler.parameters>true</maven.compiler.parameters>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
@@ -115,8 +117,7 @@
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.11.0</version>
                 <configuration>
-                    <source>${java.version}</source>
-                    <target>${java.version}</target>
+                    <release>${maven.compiler.release}</release>
                     <encoding>${project.build.sourceEncoding}</encoding>
                     <parameters>true</parameters>
                     <annotationProcessorPaths>
@@ -127,6 +128,31 @@
                         </path>
                     </annotationProcessorPaths>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>3.5.0</version>
+                <executions>
+                    <execution>
+                        <id>enforce-java-and-maven</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <requireJavaVersion>
+                                    <version>[21,)</version>
+                                    <message>WisePenCloud must be built with JDK 21 or newer. Configure IDEA Maven Runner/Importer and JAVA_HOME to JDK 21.</message>
+                                </requireJavaVersion>
+                                <requireMavenVersion>
+                                    <version>[3.9.0,)</version>
+                                    <message>WisePenCloud requires Maven 3.9.0 or newer.</message>
+                                </requireMavenVersion>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

@@ -8,7 +8,10 @@ import com.oriole.wisepen.common.security.annotation.CheckLogin;
 import com.oriole.wisepen.user.api.domain.dto.req.GroupMemberKickRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.GroupMemberRoleUpdateRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.GroupMemberQuitRequest;
+import com.oriole.wisepen.user.api.domain.dto.req.GroupMemberTokenLimitUpdateRequest;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberDetailResponse;
+import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberGetGroupTokenResponse;
+import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberGetTokenResponse;
 import com.oriole.wisepen.user.service.GroupMemberService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
@@ -51,18 +54,38 @@ public class GroupMemberController {
 			@RequestParam("groupId") Long groupId,
 			@RequestParam(value = "page", defaultValue = "1") @Min(1) int page,
 			@RequestParam(value = "size", defaultValue = "20") @Min(1) int size
-	){
+	) {
 		SecurityContextHolder.assertInGroup(groupId);
 		return R.ok(groupMemberService.getGroupMemberList(groupId, page, size));
 	}
 
 	@GetMapping("/getMyGroupMemberInfo")
-	public R<GroupMemberDetailResponse> getMyGroupMemberInfo(@RequestParam("groupId") Long groupId){
+	public R<GroupMemberDetailResponse> getMyGroupMemberInfo(@RequestParam("groupId") Long groupId) {
 		return R.ok(groupMemberService.getGroupMemberInfoByUserId(groupId, SecurityContextHolder.getUserId()));
 	}
 
 	@GetMapping("/getMyRole")
-	public R<GroupRoleType> getMyRole(@RequestParam("groupId") Long groupId){
+	public R<GroupRoleType> getMyRole(@RequestParam("groupId") Long groupId) {
 		return R.ok(SecurityContextHolder.getGroupRole(groupId));
+	}
+
+	@PostMapping("/changeTokenLimit")
+	public R<Void> changeTokenLimit(@RequestBody @Valid GroupMemberTokenLimitUpdateRequest req) {
+		SecurityContextHolder.assertGroupRole(req.getGroupId(), GroupRoleType.OWNER);
+		groupMemberService.updateGroupMemberTokenLimit(req);
+		return R.ok();
+	}
+
+	@GetMapping("/getGroupToken")
+	public R<GroupMemberGetTokenResponse> getGroupToken(@RequestParam("groupId") Long groupId) {
+		SecurityContextHolder.assertInGroup(groupId);
+		return R.ok(groupMemberService.getGroupToken(SecurityContextHolder.getUserId(), groupId));
+	}
+
+		@GetMapping("/getAllGroupToken")
+	public R<PageResult<GroupMemberGetGroupTokenResponse>> getAllGroupToken(
+			@RequestParam(value = "page", defaultValue = "1") @Min(1) Integer page,
+			@RequestParam(value = "size", defaultValue = "20") @Min(1) Integer size){
+		return R.ok(groupMemberService.getAllGroupToken(SecurityContextHolder.getUserId(), page, size));
 	}
 }

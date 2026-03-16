@@ -3,28 +3,31 @@ package com.oriole.wisepen.user.domain.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.oriole.wisepen.common.core.domain.enums.ChangeType;
+import com.oriole.wisepen.common.core.domain.enums.ConsumberTpye;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.io.Serial;
 import java.io.Serializable;
 import java.time.LocalDateTime;
-import java.util.Date;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("sys_user_wallets")
-public class UserTokenPoolEntity implements Serializable {
+@TableName("sys_token_record")
+public class TokenRecordEntity implements Serializable {
+	@TableId(type = IdType.ASSIGN_ID)
+	Long id;
 
-	@TableId(value="Id", type = IdType.INPUT)
-	private Long userId;
+	Long traceId;
 
-	private Integer tokenBalance;
-	private Integer tokenUsed;
 
-	private Date updateTime;
+	ConsumberTpye ownerType;
+	int tokenCount;
+	ChangeType changeType;
+	String meta;
+	LocalDateTime createTime;
 }

@@ -18,6 +18,8 @@ import com.oriole.wisepen.user.api.domain.dto.res.GroupItemInfoResponse;
 import com.oriole.wisepen.user.exception.GroupErrorCode;
 import com.oriole.wisepen.user.service.GroupMemberService;
 import com.oriole.wisepen.user.service.GroupService;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
@@ -57,7 +59,16 @@ public class GroupController {
 
 	@PostMapping("/changeGroup")
 	public R<Void> updateGroup(@RequestBody @Valid GroupUpdateRequest req) {
-		SecurityContextHolder.assertGroupRole(req.getGroupId(), GroupRoleType.OWNER, GroupRoleType.ADMIN);
+		SecurityContextHolder.assertGroupRole(req.getGroupId(), GroupRoleType.OWNER);
+
+		IdentityType userIdentityType= SecurityContextHolder.getIdentityType();
+		if (req.getGroupType() == GroupType.ADVANCED_GROUP && userIdentityType == IdentityType.STUDENT) {
+			throw new PermissionException(PermissionErrorCode.IDENTITY_UNAUTHORIZED);
+		}
+
+		if (req.getGroupType()==GroupType.MARKET_GROUP && userIdentityType != IdentityType.ADMIN) {
+			throw new PermissionException(PermissionErrorCode.IDENTITY_UNAUTHORIZED);
+		}
 		groupService.updateGroup(req);
 		return R.ok();
 	}
@@ -71,11 +82,11 @@ public class GroupController {
 
 	@GetMapping("/list")
 	public R<PageResult<GroupItemInfoResponse>> listGroups(
-			@RequestParam GroupRoleType groupRoleType,
+			@RequestParam @Min(0) @Max(2) int groupRoleType,
 			@RequestParam(value = "page", defaultValue = "1") int page,
 			@RequestParam(value = "size", defaultValue = "20") int size
 	) {
-		return R.ok(groupService.listGroups(SecurityContextHolder.getUserId(), groupRoleType, page, size));
+		return R.ok(groupService.listGroups(SecurityContextHolder.getUserId(), GroupRoleType.getByCode(groupRoleType), page, size));
 	}
 
 	@GetMapping("/getGroupBaseInfo")

@@ -9,12 +9,16 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.oriole.wisepen.common.core.domain.PageResult;
+import com.oriole.wisepen.common.core.domain.enums.ChangeType;
+import com.oriole.wisepen.common.core.domain.enums.ConsumberTpye;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.domain.enums.GroupType;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
 import com.oriole.wisepen.user.api.domain.dto.req.*;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberDetailResponse;
+import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberGetGroupTokenResponse;
+import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberGetTokenResponse;
 import com.oriole.wisepen.user.cache.RedisCacheManager;
 import com.oriole.wisepen.user.domain.entity.*;
 import com.oriole.wisepen.user.event.GroupTokenConsumeEvent;
@@ -28,8 +32,11 @@ import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+
+import static java.lang.Math.min;
 
 @Slf4j
 @Service
@@ -42,6 +49,8 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 	private final GroupMemberMapper groupMemberMapper;
 	private final UserService userService;
 	private final RedisCacheManager redisCacheManager;
+	private final UserWalletsMapper userWalletsMapper;
+	private final TokenRecordMapper tokenRecordMapper;
 
 	@Override
 	public Map<String, Integer> getGroupRoleMapByUserId(Long userId) {
@@ -185,6 +194,40 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 	}
 
 	@Override
+	public PageResult<GroupMemberGetGroupTokenResponse> getAllGroupToken(Long userId, Integer page, Integer size) {
+		Page<GroupMemberEntity> pageParam = new Page<>(page, size);
+		LambdaQueryWrapper<GroupMemberEntity> wrapper = new LambdaQueryWrapper<>();
+		wrapper.eq(GroupMemberEntity::getUserId, userId)
+				.orderByAsc(GroupMemberEntity::getRole)
+				.orderByDesc(GroupMemberEntity::getJoinTime);
+		IPage<GroupMemberEntity> memberPage = groupMemberMapper.selectPage(pageParam, wrapper);
+
+		List<Long> groupIds = memberPage.getRecords().stream()
+				.map(GroupMemberEntity::getGroupId)
+				.collect(Collectors.toList());
+		PageResult<GroupMemberGetGroupTokenResponse> pageResult = new PageResult<>(memberPage.getTotal(), page, size);
+		if (groupIds.isEmpty()) {
+			return pageResult;
+		}
+
+		Map<Long, GroupEntity> groupMap = groupMapper.selectBatchIds(groupIds).stream()
+				.collect(Collectors.toMap(GroupEntity::getGroupId, group -> group));
+
+		List<GroupMemberGetGroupTokenResponse> records = memberPage.getRecords().stream().map(memberEntity -> {
+			GroupMemberGetGroupTokenResponse resp = new GroupMemberGetGroupTokenResponse();
+			GroupEntity group = groupMap.get(memberEntity.getGroupId());
+			if (group != null) {
+				BeanUtil.copyProperties(group, resp);
+			}
+			BeanUtil.copyProperties(memberEntity, resp);
+			return resp;
+		}).collect(Collectors.toList());
+
+		pageResult.addAll(records);
+		return pageResult;
+	}
+
+	@Override
 	public void updateGroupMemberRole(GroupMemberRoleUpdateRequest req, Long opUserId) {
 		Set<Long> targetUserIdSet = req.getTargetUserIds().stream()
 				.filter(id -> !id.equals(opUserId))
@@ -266,7 +309,7 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 		GroupEntity group = groupMapper.selectById(req.getGroupId());
 		if (group == null) throw new ServiceException(GroupErrorCode.GROUP_NOT_EXIST);
 
-		if (!GroupType.ADVANCED_GROUP.equals(group.getGroupType())) {
+		if (GroupType.NORMAL_GROUP.equals(group.getGroupType())) {
 			throw new ServiceException(GroupErrorCode.GROUP_HAS_NO_QUOTA);
 		}
 
@@ -297,5 +340,71 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 		);
 
 
+	}
+
+	@Override
+	public GroupMemberGetTokenResponse getGroupToken(Long userId, Long groupId) {
+		GroupEntity group =  groupMapper.selectById(groupId);
+		return BeanUtil.copyProperties(group, GroupMemberGetTokenResponse.class);
+	}
+
+	public void calculateToken(TokenCalculateMessage message) {
+		LambdaQueryWrapper<TokenRecordEntity> tokenRecordEntityLambdaQueryWrapper = new LambdaQueryWrapper<TokenRecordEntity>().eq(TokenRecordEntity::getTraceId, message.getTraceId());
+		if (tokenRecordMapper.selectOne(tokenRecordEntityLambdaQueryWrapper) != null) return;
+		Long userId = message.getUserId();
+		Long groupId = message.getGroupId();
+		int tokenRest=message.getUsageTokens()*message.getModelType().getRatio();
+		eventPublisher.publishEvent(new GroupTokenConsumeEvent(this, groupId, tokenRest));
+
+		if (groupId!=null) {
+			// 因为用户可能没有登录，所以不查 redis
+			GroupEntity group = groupMapper.selectById(groupId);
+			if (group!=null&&group.getGroupType()!=GroupType.NORMAL_GROUP) {
+				LambdaQueryWrapper<GroupMemberEntity> queryWrapper = new LambdaQueryWrapper<GroupMemberEntity>()
+						.eq(GroupMemberEntity::getGroupId,groupId).eq(GroupMemberEntity::getUserId,userId);
+				GroupMemberEntity groupMember = groupMemberMapper.selectOne(queryWrapper);
+
+
+				int usage=min(min(group.getTokenBalance(),groupMember.getTokenLimit()-groupMember.getTokenUsed()),message.getUsageTokens());
+
+				tokenRest-=usage;
+				if (usage>0) {
+					TokenRecordEntity tokenRecordEntity = TokenRecordEntity.builder()
+							.traceId(message.getTraceId()).tokenCount(message.getUsageTokens()*message.getModelType().getRatio())
+							.changeType(ChangeType.SPEND).ownerType(ConsumberTpye.GROUP)
+							.createTime(LocalDateTime.now()).meta(message.getModelType().getDesc())
+							.build();
+					tokenRecordMapper.insert(tokenRecordEntity);
+					groupMember.setTokenUsed(groupMember.getTokenUsed() + usage);
+					groupMemberMapper.updateById(groupMember);
+
+					group.setTokenUsed(group.getTokenUsed() + usage);
+					group.setTokenBalance(group.getTokenBalance() - usage);
+					groupMapper.updateById(group);
+
+					if (groupMember != null && groupMember.getTokenUsed() >= groupMember.getTokenLimit()) {
+						redisCacheManager.blockGroupMemberChat(groupId, userId);
+						log.warn("用户 {} 在群组 {} 的个人配额已爆仓，已用: {}, 上限: {}。已触发 Redis 熔断",
+								userId, groupId, groupMember.getTokenUsed(), groupMember.getTokenLimit());
+					}
+				}
+			}
+		}
+
+		if (tokenRest<=0) {
+			return;
+		}
+		//传入的时候要做对用户是否还有余额的检查？
+		UserTokenPoolEntity user=userWalletsMapper.selectById(message.getUserId());
+		user.setTokenBalance(user.getTokenBalance() - tokenRest);
+		user.setTokenUsed(user.getTokenUsed()+tokenRest);
+		userWalletsMapper.updateById(user);
+
+		TokenRecordEntity tokenRecordEntity = TokenRecordEntity.builder()
+				.traceId(message.getTraceId()).tokenCount(message.getUsageTokens()*message.getModelType().getRatio())
+				.changeType(ChangeType.SPEND).ownerType(ConsumberTpye.USER)
+				.createTime(LocalDateTime.now()).meta(message.getModelType().getDesc())
+				.build();
+		tokenRecordMapper.insert(tokenRecordEntity);
 	}
 }
