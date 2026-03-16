@@ -7,7 +7,7 @@ import lombok.EqualsAndHashCode;
 import java.io.Serializable;
 
 @Data
-public class GroupMemberGetTokenResponse extends GroupMemberBase {
-	Integer groupId;
-	Integer groupName;
+public class GroupMemberGetTokenResponse {
+	Integer tokenUsed;
+	Integer tokenBalance;
 }

@@ -9,5 +9,5 @@ import lombok.EqualsAndHashCode;
 @Data
 public class GroupMemberGetGroupTokenResponse extends GroupDisplayBase {
 	Integer tokenUsed;
-	Integer tokenBalance;
+	Integer tokenLimit;
 }

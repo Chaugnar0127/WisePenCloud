@@ -215,11 +215,11 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 
 		List<GroupMemberGetGroupTokenResponse> records = memberPage.getRecords().stream().map(memberEntity -> {
 			GroupMemberGetGroupTokenResponse resp = new GroupMemberGetGroupTokenResponse();
-			BeanUtil.copyProperties(memberEntity, resp);
 			GroupEntity group = groupMap.get(memberEntity.getGroupId());
 			if (group != null) {
 				BeanUtil.copyProperties(group, resp);
 			}
+			BeanUtil.copyProperties(memberEntity, resp);
 			return resp;
 		}).collect(Collectors.toList());
 
@@ -309,7 +309,7 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 		GroupEntity group = groupMapper.selectById(req.getGroupId());
 		if (group == null) throw new ServiceException(GroupErrorCode.GROUP_NOT_EXIST);
 
-		if (!GroupType.ADVANCED_GROUP.equals(group.getGroupType())) {
+		if (GroupType.NORMAL_GROUP.equals(group.getGroupType())) {
 			throw new ServiceException(GroupErrorCode.GROUP_HAS_NO_QUOTA);
 		}
 
@@ -344,10 +344,8 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 
 	@Override
 	public GroupMemberGetTokenResponse getGroupToken(Long userId, Long groupId) {
-		LambdaQueryWrapper<GroupMemberEntity> queryWrapper = new LambdaQueryWrapper<GroupMemberEntity>()
-				.eq(GroupMemberEntity::getGroupId,groupId).eq(GroupMemberEntity::getUserId,userId);
-		GroupMemberEntity groupMember=groupMemberMapper.selectOne(queryWrapper);
-		return BeanUtil.copyProperties(groupMember, GroupMemberGetTokenResponse.class);
+		GroupEntity group =  groupMapper.selectById(groupId);
+		return BeanUtil.copyProperties(group, GroupMemberGetTokenResponse.class);
 	}
 
 	public void calculateToken(TokenCalculateMessage message) {
