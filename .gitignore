@@ -39,5 +39,6 @@ build/
 
 ### Mac OS ###
 .DS_Store
+/opentelemetry-javaagent.jar
 /.idea/
 /AGENTS.md

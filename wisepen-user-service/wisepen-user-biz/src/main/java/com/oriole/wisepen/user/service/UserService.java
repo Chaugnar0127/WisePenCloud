@@ -1,5 +1,6 @@
 package com.oriole.wisepen.user.service;
 
+import com.oriole.wisepen.common.core.domain.PageResult;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
 import com.oriole.wisepen.user.api.domain.dto.*;
 import com.oriole.wisepen.user.api.domain.dto.req.AuthPwdResetRequest;
@@ -20,4 +21,12 @@ public interface UserService {
     void register(AuthRegisterRequest req);
     void sendResetMail(AuthPwdResetVerifyRequest req);
     void resetPassword(AuthPwdResetRequest req);
+
+    void updateProfile(Long userId, UserInfoDTO profileDto);
+    void initiateEmailVerify(Long userId, int suffixType);
+    boolean checkVerifyToken(String token);
+
+    PageResult<UserInfoDTO> adminList(int page, int size, String keyword, Integer status, Integer identityType);
+    void adminUpdate(Long operatorUserId, UserInfoDTO dto);
+    void adminResetPassword(Long targetUserId);
 }
