@@ -123,7 +123,7 @@ public class UserServiceImpl implements UserService {
 
         UserTokenPoolEntity userWallets = new UserTokenPoolEntity();
         userWallets.setUserId(user.getUserId());
-        userWallets.setTokenLimit(0);
+        userWallets.setTokenBalance(0);
         userWallets.setTokenUsed(0);
         userWalletsMapper.insert(userWallets);
     }

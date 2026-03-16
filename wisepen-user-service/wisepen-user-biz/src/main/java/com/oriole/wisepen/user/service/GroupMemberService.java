@@ -4,6 +4,9 @@ import com.oriole.wisepen.common.core.domain.PageResult;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.user.api.domain.dto.req.*;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberDetailResponse;
+import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberGetGroupTokenResponse;
+import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberGetTokenResponse;
+import com.oriole.wisepen.user.domain.entity.TokenCalculateMessage;
 
 import java.util.List;
 import java.util.Map;
@@ -42,4 +45,13 @@ public interface GroupMemberService {
 
 	// 移除全部组成员
 	void removeAllGroupMembers(Long groupId);
+
+	// 获得一个小组的 Token 数据
+	GroupMemberGetTokenResponse getGroupToken(Long userId, Long groupId);
+
+	// 批量获得当前用户小组的 Token 信息
+	PageResult<GroupMemberGetGroupTokenResponse> getAllGroupToken(Long userId,Integer page,Integer size);
+
+	// 计算 Token 流水
+	void calculateToken(TokenCalculateMessage message);
 }

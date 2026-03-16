@@ -38,4 +38,6 @@ public class DocumentConstants {
             ResourceTypeEnum.XLS,
             ResourceTypeEnum.XLSX
     );
+
+    public static final int WATERMARK_SIZE = 64 * 1024; // 此值不可修改（除非全部重新预处理所有文件）
 }
