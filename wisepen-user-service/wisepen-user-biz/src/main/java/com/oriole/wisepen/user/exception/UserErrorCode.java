@@ -24,7 +24,8 @@ public enum UserErrorCode implements IErrorCode {
     PASSWORD_RESET_FAILED(1006, "密码重设失败"),
     UPDATE_FAILED(1007, "更新失败"),
     USER_STATUS_ERROR(1008, "用户状态错误"),
-    USER_CAMPUSNO_ERROR(1009, "学号不存在");
+    USER_CAMPUS_NO_ERROR(1009, "学号不存在"),
+    CAMPUS_NO_EXISTED(1010, "学号已存在");
 
     private final Integer code;
     private final String msg;

@@ -1,6 +1,7 @@
 package com.oriole.wisepen.user.cache;
 
 import cn.hutool.core.util.IdUtil;
+import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.domain.enums.IdentityType;
@@ -25,7 +26,27 @@ public class RedisCacheManager {
 	private static final String REDIS_SESSION_TO_USER_PREFIX = "wisepen:user:auth:user2session:";
 	private static final String REDIS_GROUP_CHAT_BLOCK_PREFIX = "wisepen:chat:block:group:";
 	private static final String REDIS_GROUP_MEMBER_CHAT_BLOCK_PREFIX = "wisepen:chat:block:member:";
-	private static final long SESSION_TIMEOUT_DAYS = 7;
+	private static final String REDIS_EMAIL_VERIFY_TOKEN_PREFIX = "wisepen:user:auth:verify:";
+    private static final long SESSION_TIMEOUT_DAYS = 7;
+
+    public String setEmailVerificationCode(String email, Long userId) {
+        // 生成6位数字 token
+        String token = RandomUtil.randomNumbers(6);
+
+        String redisKey = REDIS_EMAIL_VERIFY_TOKEN_PREFIX + token;
+        String redisValue = userId + ":" + email;
+        redisTemplate.opsForValue().set(redisKey, redisValue, 15, TimeUnit.MINUTES);
+
+        return token;
+    }
+
+    public String getEmailVerificationUser(String token) {
+        String redisKey = REDIS_EMAIL_VERIFY_TOKEN_PREFIX + token;
+        String redisValue = stringRedisTemplate.opsForValue().get(redisKey);
+        redisTemplate.delete(redisKey); // 立即删除
+
+        return redisValue; // 格式为 "userId:email"
+    }
 
 	public String setPwdResetToken(Long userId){
 		String token = IdUtil.fastSimpleUUID();
@@ -59,6 +80,17 @@ public class RedisCacheManager {
 	}
 
 	public void deleteSession(String sessionId, Long userId) {
+		stringRedisTemplate.delete(REDIS_SESSION_PREFIX + sessionId);
+		stringRedisTemplate.delete(REDIS_SESSION_TO_USER_PREFIX + userId);
+	}
+
+	/**
+	 * 删除指定用户的会话（若存在），安全封装：查找 user->session 映射并删除 session 与映射
+	 */
+	public void deleteSessionsByUserId(Long userId) {
+		String sessionId = stringRedisTemplate.opsForValue().get(REDIS_SESSION_TO_USER_PREFIX + userId);
+		if (sessionId == null) return;
+		// 删除 session 和 user->session 映射
 		stringRedisTemplate.delete(REDIS_SESSION_PREFIX + sessionId);
 		stringRedisTemplate.delete(REDIS_SESSION_TO_USER_PREFIX + userId);
 	}

@@ -6,8 +6,10 @@ import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
 import com.oriole.wisepen.user.api.domain.dto.UserInfoDTO;
+import com.oriole.wisepen.user.api.domain.dto.req.UserInfoUpdateRequest;
 import com.oriole.wisepen.user.service.UserService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -40,9 +42,13 @@ public class UserController {
     @CheckLogin
     @PutMapping("/profile")
     @Log(title = "更新用户资料", businessType = BusinessType.UPDATE)
-    public R<Void> updateProfile(@RequestBody UserInfoDTO profileDto) {
+    public R<Void> updateProfile(@RequestBody UserInfoUpdateRequest profileDto) {
         long userId = SecurityContextHolder.getUserId();
-        userService.updateProfile(userId, profileDto);
+
+        UserInfoDTO dto = new UserInfoDTO();
+        BeanUtils.copyProperties(profileDto, dto);
+
+        userService.updateProfile(userId, dto);
         return R.ok();
     }
 
