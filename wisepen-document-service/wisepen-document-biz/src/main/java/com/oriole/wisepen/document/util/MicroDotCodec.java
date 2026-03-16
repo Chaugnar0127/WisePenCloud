@@ -10,7 +10,7 @@ import java.util.Arrays;
 import java.util.Base64;
 
 /**
- * 微型点阵暗水印编解码器（生成端）。
+ * 微型点阵暗水印生成器
  *
  * <h3>Tile 布局（128×128 px 灰度图）</h3>
  * <pre>
@@ -38,10 +38,9 @@ import java.util.Base64;
  * </ol>
  *
  * <h3>提取</h3>
- * 提取逻辑由独立 Python 脚本完成（见 extract_watermark.py）：
+ * 提取逻辑由独立 Python 脚本完成
  * 任意截图/手机照片 → CLAHE增强 → 自适应二值化 → SimpleBlobDetector 锚点检测 →
  * 四边形重建 → warpPerspective 透视校正 → 采样数据区 → reedsolo RS 解码 → AES 解密。
- *
  */
 public final class MicroDotCodec {
 
