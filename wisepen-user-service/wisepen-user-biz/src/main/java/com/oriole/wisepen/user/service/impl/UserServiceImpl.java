@@ -270,7 +270,8 @@ public class UserServiceImpl implements UserService {
         redisTemplate.opsForValue().set(redisKey, redisValue, 15, TimeUnit.MINUTES);
 
         // 构建邮件内容
-        String content = "您的验证码为: " + token + "\n(该验证码15分钟内有效)";
+        // https://wisepen.fudan.edu.cn/verify-email?token=xyz
+        String content = "请点击该链接进行验证: https://wisepen.fudan.edu.cn/verify-email?token=" + token + "\n(该链接15分钟内有效)";
 
         MailSendDTO mailDTO = MailSendDTO.builder()
                 .toEmail(email)
@@ -298,7 +299,7 @@ public class UserServiceImpl implements UserService {
 
         String campusNo = user.getCampusNo();
         if (campusNo == null) {
-            throw new ServiceException(UserErrorCode.USER_NOT_EXIST);
+            throw new ServiceException(UserErrorCode.USER_CAMPUSNO_ERROR);
         }
 
         // 简单后缀映射：0 -> @m.fudan.edu.cn, 1 -> @fudan.edu.cn
