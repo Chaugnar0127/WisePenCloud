@@ -12,6 +12,12 @@
     <artifactId>wisepen-user-biz</artifactId>
 
     <dependencies>
+        <dependency>
+            <groupId>com.oriole</groupId>
+            <artifactId>wisepen-fudan-extension-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
         <!--User服务PRG调用的API, 已包括Common无需再次引用-->
         <dependency>
             <groupId>com.oriole</groupId>
@@ -93,6 +99,10 @@
         <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
         </dependency>
     </dependencies>
 

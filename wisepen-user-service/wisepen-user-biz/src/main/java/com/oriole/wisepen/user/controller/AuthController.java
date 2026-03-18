@@ -70,13 +70,13 @@ public class AuthController {
         return R.ok();
     }
 
-    @PostMapping("/forgot-password/email")
-    public R<Void> forgotPassword(@Valid @RequestBody AuthPwdResetVerifyRequest req) {
+    @PostMapping("/sendResetMail")
+    public R<Void> sendResetMail(@Valid @RequestBody AuthPwdResetVerifyRequest req) {
         userService.sendResetMail(req);
         return R.ok();
     }
 
-    @PostMapping("/forgot-password/reset")
+    @PostMapping("/resetPassword")
     public R<Void> resetPassword(@Valid @RequestBody AuthPwdResetRequest req) {
         userService.resetPassword(req);
         return R.ok();

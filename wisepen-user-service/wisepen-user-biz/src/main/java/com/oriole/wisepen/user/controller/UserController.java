@@ -5,12 +5,19 @@ import com.oriole.wisepen.common.core.domain.enums.BusinessType;
 import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
-import com.oriole.wisepen.user.api.domain.dto.UserInfoDTO;
 import com.oriole.wisepen.user.api.domain.dto.req.UserInfoUpdateRequest;
+import com.oriole.wisepen.user.api.domain.dto.res.UserDetailInfoResponse;
+import com.oriole.wisepen.user.api.domain.dto.VerificationResultDTO;
+import com.oriole.wisepen.user.api.domain.dto.req.UserProfileUpdateRequest;
+import com.oriole.wisepen.user.api.enums.UserVerificationMode;
 import com.oriole.wisepen.user.service.UserService;
+import com.oriole.wisepen.user.strategy.VerificationStrategyFactory;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.BeanUtils;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/user")
@@ -18,59 +25,72 @@ import org.springframework.web.bind.annotation.*;
 public class UserController {
 
     private final UserService userService;
+    private final VerificationStrategyFactory verificationStrategyFactory;
 
-    /**
-     * 获取用户信息
-     * 场景：用户登录后，前端需要获取自己的详细资料展示在右上角
-     */
-    @CheckLogin // 确保登录了才能查
-    @GetMapping("/info")
+    @CheckLogin
+    @GetMapping("/getUserInfo")
     @Log(title = "用户信息获取", businessType= BusinessType.SELECT, isSaveResponseData=false)
-    public R<UserInfoDTO> getInfo() {
+    public R<UserDetailInfoResponse> getUserInfo() {
         Long userId = SecurityContextHolder.getUserId();
-        UserInfoDTO userInfo = userService.getUserInfoById(userId);
-        if (userInfo != null) {
-            // 返回给前端前把密码抹除
-            userInfo.setPassword(null);
-        }
+        UserDetailInfoResponse userInfo = userService.getUserInfoById(userId);
         return R.ok(userInfo);
     }
 
-    /**
-     * 更新用户资料
-     */
     @CheckLogin
-    @PutMapping("/profile")
+    @PutMapping("/changeUserProfile")
     @Log(title = "更新用户资料", businessType = BusinessType.UPDATE)
-    public R<Void> updateProfile(@RequestBody UserInfoUpdateRequest profileDto) {
-        long userId = SecurityContextHolder.getUserId();
-
-        UserInfoDTO dto = new UserInfoDTO();
-        BeanUtils.copyProperties(profileDto, dto);
-
-        userService.updateProfile(userId, dto);
+    public R<Void> updateUserProfile(@RequestBody UserProfileUpdateRequest dto) {
+        userService.updateProfile(SecurityContextHolder.getUserId(), dto);
         return R.ok();
     }
 
-    /**
-     * 发起邮箱验证
-     */
     @CheckLogin
-    @PostMapping("/verify/email")
-    @Log(title = "发起邮箱验证", businessType = BusinessType.OTHER)
-    public R<Void> initiateEmailVerify(@RequestParam("suffixType") int suffixType) {
-        long userId = SecurityContextHolder.getUserId();
-        userService.initiateEmailVerify(userId, suffixType);
+    @PutMapping("/changeUserInfo")
+    @Log(title = "更新用户信息", businessType = BusinessType.UPDATE)
+    public R<Void> updateUserInfo(@RequestBody UserInfoUpdateRequest dto) {
+        userService.updateUserInfo(SecurityContextHolder.getUserId(), dto);
         return R.ok();
     }
 
-    /**
-     * 学号验证回调
-     */
-    @GetMapping("/verify/check")
-    @Log(title = "学号验证回调", businessType = BusinessType.OTHER)
-    public R<Boolean> checkVerify(@RequestParam("token") String token) {
-        boolean ok = userService.checkVerifyToken(token);
-        return R.ok(ok);
+    @CheckLogin
+    @PostMapping("/verify/initiateEmailVerify")
+    @Log(title = "发起邮箱验证", businessType = BusinessType.OTHER)
+    public R<Void> initiateEmailVerify(@RequestParam("email") String email) {
+        Map<String,Object> map = new HashMap<>();
+        map.put("email", email);
+        verificationStrategyFactory.getStrategy(UserVerificationMode.EDU_EMAIL)
+                .initiate(SecurityContextHolder.getUserId(), map);
+        return R.ok();
+    }
+
+    @GetMapping("/verify/checkEmailVerify")
+    @Log(title = "邮箱验证回调", businessType = BusinessType.OTHER)
+    public R<Void> checkEmailVerify(@RequestParam("token") String token) {
+        Map<String,Object> map = new HashMap<>();
+        map.put("token", token);
+        verificationStrategyFactory.getStrategy(UserVerificationMode.EDU_EMAIL).verify(map);
+        return R.ok();
+    }
+
+    @CheckLogin
+    @PostMapping("/verify/initiateFudanUISVerify")
+    @Log(title = "发起复旦UIS认证", businessType = BusinessType.OTHER)
+    public R<Void> initiateFudanUISVerify(@RequestParam("uisAccount") String uisAccount, @RequestParam("uisPassword") String uisPassword) {
+        Map<String,Object> map = new HashMap<>();
+        map.put("uisAccount", uisAccount);
+        map.put("uisPassword", uisPassword);
+        verificationStrategyFactory.getStrategy(UserVerificationMode.FDU_UIS_SYS)
+                .initiate(SecurityContextHolder.getUserId(), map);
+        return R.ok();
+    }
+
+    @CheckLogin
+    @GetMapping("/verify/checkFudanUISVerify")
+    @Log(title = "检查复旦UIS认证状态", businessType = BusinessType.OTHER)
+    public R<VerificationResultDTO> checkFudanUISVerify() {
+        Map<String,Object> map = new HashMap<>();
+        map.put("userId", SecurityContextHolder.getUserId());
+        VerificationResultDTO dto = verificationStrategyFactory.getStrategy(UserVerificationMode.FDU_UIS_SYS).verify(map);
+        return R.ok(dto);
     }
 }

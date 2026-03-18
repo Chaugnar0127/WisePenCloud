@@ -7,6 +7,8 @@ package com.oriole.wisepen.user.api.constant;
  */
 public interface UserValidationMsg {
 
+    String USER_ID_EMPTY = "用户ID不能为空";
+
     /**
      * 用户名相关消息
      */

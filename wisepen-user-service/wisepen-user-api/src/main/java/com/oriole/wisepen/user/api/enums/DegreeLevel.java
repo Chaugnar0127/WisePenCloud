@@ -9,6 +9,7 @@ import lombok.Getter;
 @AllArgsConstructor
 public enum DegreeLevel {
 
+    UNKNOWN(0, "UNKNOWN"),
     UNDERGRADUATE(1, "UNDERGRADUATE"),
     MASTER(2, "MASTER"),
     DOCTOR(3, "DOCTOR");

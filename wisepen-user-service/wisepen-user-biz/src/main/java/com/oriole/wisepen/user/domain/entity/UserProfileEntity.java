@@ -1,41 +1,28 @@
 package com.oriole.wisepen.user.domain.entity;
 
-import com.baomidou.mybatisplus.annotation.IdType;
-import com.baomidou.mybatisplus.annotation.TableField;
-import com.baomidou.mybatisplus.annotation.TableId;
-import com.baomidou.mybatisplus.annotation.TableName;
-import com.oriole.wisepen.user.api.enums.DegreeLevel;
-import com.oriole.wisepen.user.api.enums.GenderType;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import com.baomidou.mybatisplus.annotation.*;
+import com.oriole.wisepen.user.api.domain.base.UserProfileBase;
+import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.time.LocalDateTime;
 
+@EqualsAndHashCode(callSuper = true)
 @Data
-@Builder
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
 @TableName("sys_user_profile")
-public class UserProfileEntity implements Serializable {
+public class UserProfileEntity extends UserProfileBase {
 
     @TableId(type = IdType.INPUT)
     private Long userId;
 
-    private GenderType sex;
+    @TableField(value = "create_time", fill = FieldFill.INSERT)
+    private LocalDateTime createTime;
 
-    private String university;
-    private String college;
-
-    private String major;
-
-    private String className;
-
-    private Integer enrollmentYear;
-
-    private DegreeLevel degreeLevel;
-
-    private String academicTitle;
+    @TableField(value = "update_time", fill = FieldFill.INSERT_UPDATE)
+    private LocalDateTime updateTime;
 }

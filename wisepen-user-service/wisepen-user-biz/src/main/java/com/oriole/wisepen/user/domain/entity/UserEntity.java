@@ -22,6 +22,8 @@ public class UserEntity extends UserInfoBase {
     @TableId(type = IdType.ASSIGN_ID)
     private Long userId;
 
+    private String password; // 密码
+
     @TableLogic
     @TableField("del_flag")
     private Integer delFlag;

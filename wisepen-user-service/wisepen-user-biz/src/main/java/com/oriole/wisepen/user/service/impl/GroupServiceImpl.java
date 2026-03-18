@@ -101,7 +101,7 @@ public class GroupServiceImpl implements GroupService {
     }
 
     @Override
-    public PageResult<GroupItemInfoResponse> listGroups(Long userId, GroupRoleType groupRoleType, int page, int size) {
+    public PageResult<GroupItemInfoResponse> getGroupList(Long userId, GroupRoleType groupRoleType, int page, int size) {
         Page<GroupMemberEntity> memberPage = new Page<>(page, size);
 
         LambdaQueryWrapper<GroupMemberEntity> wrapper = new LambdaQueryWrapper<>();

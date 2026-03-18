@@ -7,6 +7,7 @@ import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.crypto.digest.BCrypt;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -15,11 +16,12 @@ import com.oriole.wisepen.common.core.domain.enums.IdentityType;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.system.api.domain.dto.MailSendDTO;
 import com.oriole.wisepen.system.api.feign.RemoteMailService;
+import com.oriole.wisepen.user.api.config.UserProperties;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
-import com.oriole.wisepen.user.api.domain.dto.req.AuthRegisterRequest;
-import com.oriole.wisepen.user.api.domain.dto.req.AuthPwdResetRequest;
-import com.oriole.wisepen.user.api.domain.dto.req.AuthPwdResetVerifyRequest;
-import com.oriole.wisepen.user.api.domain.dto.UserInfoDTO;
+import com.oriole.wisepen.user.api.domain.base.UserInfoBase;
+import com.oriole.wisepen.user.api.domain.base.UserProfileBase;
+import com.oriole.wisepen.user.api.domain.dto.req.*;
+import com.oriole.wisepen.user.api.domain.dto.res.UserDetailInfoResponse;
 import com.oriole.wisepen.user.api.enums.Status;
 import com.oriole.wisepen.user.cache.RedisCacheManager;
 import com.oriole.wisepen.user.domain.entity.UserEntity;
@@ -30,20 +32,18 @@ import com.oriole.wisepen.user.mapper.UserWalletsMapper;
 import com.oriole.wisepen.user.service.UserService;
 import com.oriole.wisepen.user.mapper.UserMapper;
 import com.oriole.wisepen.user.mapper.UserProfileMapper;
+import com.oriole.wisepen.user.strategy.UserVerificationStrategy;
+import com.oriole.wisepen.user.strategy.VerificationStrategyFactory;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import lombok.val;
+import org.apache.catalina.User;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import org.springframework.beans.factory.annotation.Value;
 
 @Slf4j
 @Service
@@ -58,8 +58,10 @@ public class UserServiceImpl implements UserService {
     private final TemplateEngine templateEngine;
     private final RemoteMailService remoteMailService;
 
-    @Value("${wisepen.user.default-password:WisePen@123456}")
-    private String defaultAdminResetPassword;
+    private final UserProperties userProperties;
+
+    @Autowired
+    private VerificationStrategyFactory strategyFactory;
 
     @Override
     public UserEntity getUserCoreInfoByAccount(String account) {
@@ -116,8 +118,6 @@ public class UserServiceImpl implements UserService {
         // 新建档案
         UserProfileEntity userProfile = UserProfileEntity.builder()
                 .userId(user.getUserId())
-                .university("复旦大学")
-                .college("复旦大学")
                 .build();
         userProfileMapper.insert(userProfile);
 
@@ -131,22 +131,24 @@ public class UserServiceImpl implements UserService {
     @Override
     public void sendResetMail(AuthPwdResetVerifyRequest req) {
         // 查询学号对应用户
-        String campusNo = req.getCampusNo();
-        UserEntity user = userMapper.selectOne(Wrappers.<UserEntity>lambdaQuery().eq(UserEntity::getCampusNo, campusNo).last("LIMIT 1"));
+        String username = req.getUsername();
+        UserEntity userEntity = userMapper.selectOne(Wrappers.<UserEntity>lambdaQuery().eq(UserEntity::getUsername, username).last("LIMIT 1"));
 
-        if(user==null){
-            log.warn("重置密码申请：学号 {} 不存在，流程静默终止", campusNo);
+        if(userEntity == null){
+            log.warn("重置密码申请：用户名 {} 不存在，流程静默终止", username);
             return; // 处于安全考虑，不存在也不报错，防止撞库
+        } else if(userEntity.getStatus() == Status.UNIDENTIFIED){
+            // 未通过身份认证，不能找回密码
+            throw new ServiceException(UserErrorCode.USER_UNIDENTIFIED);
         }
-
         // uid存入Redis
-        String token = redisCacheManager.setPwdResetToken(user.getUserId());
+        String token = redisCacheManager.setPwdResetToken(userEntity.getUserId());
         // 构建重置链接
-        String resetLink = "https://wisepen.fudan.edu.cn/reset-pwd?token=" + token;
+        String resetLink = userProperties.getApiDomain() + "/reset-pwd?token=" + token;
 
         // 构建重置邮件
         Context context = new Context();
-        context.setVariable("student_id", campusNo);
+        context.setVariable("username", username);
         context.setVariable("reset_link", resetLink);
         context.setVariable("current_date", DateUtil.now());
         // Thymeleaf 渲染
@@ -154,14 +156,14 @@ public class UserServiceImpl implements UserService {
 
         // 构造邮件 DTO 并发送
         MailSendDTO mailDTO = MailSendDTO.builder()
-                .toEmail(user.getEmail())
-                .subject("密码重置申请")
+                .toEmail(userEntity.getEmail())
+                .subject("WisePen 密码重置")
                 .content(emailContent) // 传递渲染后的 HTML 字符串
                 .build();
 
         try {
             remoteMailService.sendMail(mailDTO);
-            log.info("Email sent. campusNo={}, email={}", campusNo, user.getEmail());
+            log.info("Email sent. username={}, email={}", username, userEntity.getEmail());
         } catch (Exception e) {
             log.error("Email sending failed.", e);
             throw new ServiceException(UserErrorCode.EMAIL_SEND_ERROR);
@@ -169,32 +171,32 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public UserInfoDTO getUserInfoById(Long userId) {
-        // 查核心账号
-        UserEntity user = userMapper.selectById(userId);
+    public UserDetailInfoResponse getUserInfoById(Long userId) {
+        UserEntity userEntity = userMapper.selectById(userId);
+        UserProfileEntity userProfileEntity = userProfileMapper.selectById(userEntity.getUserId());
 
-        if (user == null) {
-            return null;
+        // 组装响应
+        UserDetailInfoResponse res = new UserDetailInfoResponse();
+        res.setUserInfo(BeanUtil.copyProperties(userEntity, UserInfoBase.class));
+        res.setUserProfile(BeanUtil.copyProperties(userProfileEntity, UserProfileBase.class));
+
+        // 如果已验证
+        if (userEntity.getStatus() != Status.UNIDENTIFIED) {
+            // 设置只读字段
+            List<String> readonlyFields = strategyFactory.getStrategy(userEntity.getVerificationMode()).getReadonlyFields();
+            res.setReadonlyFields(readonlyFields);
         }
-
-        // 查档案详情
-        UserProfileEntity profile = userProfileMapper.selectById(user.getUserId());
-
-        // 组装 DTO
-        UserInfoDTO dto = new UserInfoDTO();
-        BeanUtil.copyProperties(user, dto);
-
-        if (profile != null) {
-            BeanUtil.copyProperties(profile, dto);
-        }
-
-        // 密码置为空
-        dto.setPassword(null);
-
-        return dto;
+        return res;
     }
 
-    // 重置密码
+    @Override
+    public void resetPasswordAdmin(AuthPwdAdminResetRequest req){
+        Long userId = req.getUserId();
+        updatePasswordByUserId(userId,
+                StrUtil.isBlank(req.getNewPassword()) ? userProperties.getDefaultPassword() : req.getNewPassword());
+        log.info("[管理员] 用户 {} 密码重置成功", userId);
+    }
+
     @Override
     public void resetPassword(AuthPwdResetRequest req){
         Long userId = redisCacheManager.getPwdResetUser(req.getToken());
@@ -207,319 +209,134 @@ public class UserServiceImpl implements UserService {
     }
 
     // 修改密码
-    public boolean updatePasswordByUserId(Long userId, String newPassword) {
+    private void updatePasswordByUserId(Long userId, String newPassword) {
         UserEntity user = UserEntity.builder()
                 .userId(userId)
                 .password(BCrypt.hashpw(newPassword))
-                .updateTime(java.time.LocalDateTime.now())
                 .build();
-        return userMapper.updateById(user) > 0;
+        redisCacheManager.deleteSessionsByUserId(userId); // 强制下线
+        userMapper.updateById(user);
     }
 
-    /**
-     * 更新用户资料
-     */
     @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void updateProfile(Long userId, UserInfoDTO profileDto) {
-        // 加载现有实体
-        UserEntity existingUser = userMapper.selectById(userId);
-        if (existingUser == null) {
-            throw new ServiceException(UserErrorCode.USER_NOT_EXIST);
-        }
-        UserProfileEntity existingProfile = userProfileMapper.selectById(userId);
-        if (existingProfile == null) {
-            // 若档案不存在则新建一个基础档案
-            existingProfile = UserProfileEntity.builder().userId(userId).build();
+    public void updateProfile(Long userId, UserProfileUpdateRequest req) {
+        UserEntity userEntity = userMapper.selectById(userId);
+        if(userEntity.getStatus() == Status.UNIDENTIFIED){
+            // 未通过身份认证，不能更新Profile
+            throw new ServiceException(UserErrorCode.USER_UNIDENTIFIED);
         }
 
-        IdentityType identity = existingUser.getIdentityType();
+        UserVerificationStrategy strategy = strategyFactory.getStrategy(userEntity.getVerificationMode());
+        List<String> readonlyFields = strategy.getReadonlyFields();
 
-        // 复制非空字段到现有实体
-        BeanUtil.copyProperties(profileDto, existingUser, CopyOptions.create().setIgnoreNullValue(true));
-        BeanUtil.copyProperties(profileDto, existingProfile, CopyOptions.create().setIgnoreNullValue(true));
+        CopyOptions copyOptions = CopyOptions.create()
+                .setIgnoreNullValue(true)
+                .setIgnoreProperties(readonlyFields.toArray(new String[0]));
 
-        // 按身份过滤字段
-        if (identity == IdentityType.STUDENT) {
-            existingProfile.setAcademicTitle(existingProfile.getAcademicTitle()); // 保持原值（无操作）
-        } else if (identity == IdentityType.TEACHER) {
-            existingProfile.setMajor(existingProfile.getMajor());
-            existingProfile.setClassName(existingProfile.getClassName());
-        }
+        UserProfileEntity userProfileEntity = new UserProfileEntity();
+        BeanUtil.copyProperties(req, userProfileEntity, copyOptions);
+        userProfileEntity.setUserId(userId);
 
-        // 更新两张表
-        int r1 = userMapper.updateById(existingUser);
-        int r2;
-        if (userProfileMapper.selectById(userId) == null) {
-            r2 = userProfileMapper.insert(existingProfile);
+        if (userEntity.getIdentityType().equals(IdentityType.STUDENT)) {
+            userProfileEntity.setAcademicTitle(null);
         } else {
-            r2 = userProfileMapper.updateById(existingProfile);
+            userProfileEntity.setMajor(null);
+            userProfileEntity.setClassName(null);
         }
 
-        if (r1 == 0 || r2 == 0) {
-            throw new ServiceException(UserErrorCode.UPDATE_FAILED);
-        }
+        userProfileMapper.updateById(userProfileEntity);
     }
 
-    /**
-     * 发起邮箱验证
-     */
     @Override
-    public void initiateEmailVerify(Long userId, int suffixType) {
-        // 获取邮箱
-        UserEntity user = userMapper.selectById(userId);
-        String email = getEmail(suffixType, user);
-        String token = redisCacheManager.setEmailVerificationCode(email, userId);
-        String content = "请点击该链接进行验证: https://wisepen.fudan.edu.cn/verify-email?token=" + token + "\n(该链接15分钟内有效)";
-
-        MailSendDTO mailDTO = MailSendDTO.builder()
-                .toEmail(email)
-                .subject("邮箱验证验证码")
-                .content(content)
-                .build();
-
-        try {
-            remoteMailService.sendMail(mailDTO);
-            log.info("Verify email sent. userId={}, email={}", userId, email);
-        } catch (Exception e) {
-            log.error("Verify email sending failed.", e);
-            throw new ServiceException(UserErrorCode.EMAIL_SEND_ERROR);
-        }
+    public void updateProfileAdmin(UserProfileAdminUpdateRequest req) {
+        UserProfileEntity userProfileEntity = BeanUtil.copyProperties(req, UserProfileEntity.class);
+        userProfileMapper.updateById(userProfileEntity);
     }
 
-    private static String getEmail(int suffixType, UserEntity user) {
-        if (user == null) {
-            throw new ServiceException(UserErrorCode.USER_NOT_EXIST);
-        }
-
-        if (user.getStatus() != Status.UNIDENTIFIED) {
-            throw new ServiceException(UserErrorCode.USER_STATUS_ERROR);
-        }
-
-        String campusNo = user.getCampusNo();
-        if (campusNo == null) {
-            throw new ServiceException(UserErrorCode.USER_CAMPUS_NO_ERROR);
-        }
-
-        // 简单后缀映射：0 -> @m.fudan.edu.cn, 1 -> @fudan.edu.cn
-        String suffix = suffixType == 1 ? "@fudan.edu.cn" : "@m.fudan.edu.cn";
-        return campusNo + suffix;
+    public void updateUserInfo(Long userId, UserInfoUpdateRequest req) {
+        UserEntity userEntity = BeanUtil.copyProperties(req, UserEntity.class);
+        userEntity.setUserId(userId);
+        userMapper.updateById(userEntity);
     }
 
-    /**
-     * 验证 token 并更新用户状态和邮箱
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public boolean checkVerifyToken(String token) {
-        String val = redisCacheManager.getEmailVerificationUser(token);
-        if (val == null) {
-            return false;
+    public void updateUserInfoAdmin(UserInfoAdminUpdateRequest req) {
+        Long userId = req.getUserId();
+        UserEntity userEntity = userMapper.selectById(userId);
+
+        // 唯一性校验 username
+        if (req.getUsername() != null && !req.getUsername().equals(userEntity.getUsername())) {
+            if (userMapper.selectCount(Wrappers.<UserEntity>lambdaQuery()
+                    .eq(UserEntity::getUsername, req.getUsername())
+                    .ne(UserEntity::getUserId, userId)) > 0) {
+                throw new ServiceException(UserErrorCode.USERNAME_EXISTED);
+            }
         }
-
-        String[] parts = val.split(":", 2);
-        if (parts.length < 2) {
-            return false;
-        }
-
-        Long userId = Long.valueOf(parts[0]);
-        String email = parts[1];
-
-        // 在将当前用户设为已验证之前，检查是否已有其他已验证用户使用相同的 campusNo
-        String campusNo = null;
-        if (email != null && email.contains("@")) {
-            campusNo = email.split("@", 2)[0];
-        }
-
-        if (campusNo != null) {
-            long existed = userMapper.selectCount(Wrappers.<UserEntity>lambdaQuery()
-                    .eq(UserEntity::getCampusNo, campusNo)
+        // 唯一性校验 campusNo
+        if (req.getCampusNo() != null && !req.getCampusNo().equals(userEntity.getCampusNo())) {
+            if (userMapper.selectCount(Wrappers.<UserEntity>lambdaQuery()
+                    .eq(UserEntity::getCampusNo, req.getCampusNo())
                     .eq(UserEntity::getStatus, Status.NORMAL)
-                    .ne(UserEntity::getUserId, userId));
-            if (existed > 0) {
-                // 已有其他已验证账号使用相同学号
-                log.warn("邮箱验证失败：学号 {} 已被其他已验证账号占用，userId={}", campusNo, userId);
+                    .ne(UserEntity::getUserId, userId)) > 0) {
                 throw new ServiceException(UserErrorCode.CAMPUS_NO_EXISTED);
             }
         }
 
-        UserEntity updateUser = new UserEntity();
-        updateUser.setUserId(userId);
-        updateUser.setEmail(email);
-        updateUser.setStatus(Status.NORMAL);
-        updateUser.setUpdateTime(java.time.LocalDateTime.now());
+        // 处理身份变更副作用
+        if (req.getIdentityType() != null && !req.getIdentityType().equals(userEntity.getIdentityType())) {
+            LambdaUpdateWrapper<UserProfileEntity> updateWrapper = new LambdaUpdateWrapper<>();
+            if (req.getIdentityType() == IdentityType.STUDENT) {
+                updateWrapper.eq(UserProfileEntity::getUserId, userId)
+                        .set(UserProfileEntity::getAcademicTitle, null);
+            } else if (req.getIdentityType() == IdentityType.TEACHER) {
+                updateWrapper.eq(UserProfileEntity::getUserId, userId)
+                        .set(UserProfileEntity::getMajor, null)
+                        .set(UserProfileEntity::getClassName, null)
+                        .set(UserProfileEntity::getEnrollmentYear, null)
+                        .set(UserProfileEntity::getDegreeLevel, null);
+            }
+            userProfileMapper.update(null, updateWrapper);
+        }
 
-        int r = userMapper.updateById(updateUser);
-        return r > 0;
+        BeanUtil.copyProperties(req, userEntity);
+        userMapper.updateById(userEntity);
     }
 
-    /**
-     * 管理后台分页检索
-     */
     @Override
-    public PageResult<UserInfoDTO> adminList(int page, int size, String keyword, Integer status, Integer identityType) {
-        // 默认分页参数
-        int p = Math.max(1, page);
-        int s = Math.max(1, size);
-
-        Page<UserEntity> pager = new Page<>(p, s);
+    public PageResult<UserEntity> getUserListAdmin(int page, int size, String keyword, Status status, IdentityType identityType) {
+        page = Math.max(1, page);
+        size = Math.max(1, size);
 
         // 构建查询条件
-        LambdaQueryWrapper<UserEntity> qw = Wrappers.<UserEntity>lambdaQuery().eq(UserEntity::getDelFlag, 0);
-
+        LambdaQueryWrapper<UserEntity> queryWrapper = Wrappers.<UserEntity>lambdaQuery().eq(UserEntity::getDelFlag, 0);
         if (status != null) {
-            qw.eq(UserEntity::getStatus, status);
+            queryWrapper.eq(UserEntity::getStatus, status);
         }
         if (identityType != null) {
-            qw.eq(UserEntity::getIdentityType, identityType);
+            queryWrapper.eq(UserEntity::getIdentityType, identityType);
         }
 
         if (StrUtil.isNotBlank(keyword)) {
             // 关键词模糊匹配 realName，或精确匹配 campusNo、username，或尝试作为 id 精确匹配
             String kw = keyword.trim();
-            qw.and(w -> {
-                w.like(UserEntity::getRealName, kw)
-                 .or().eq(UserEntity::getCampusNo, kw)
-                 .or().eq(UserEntity::getUsername, kw);
-                // 尝试作为 id 精确匹配
-                try {
-                    Long id = Long.valueOf(kw);
-                    w.or().eq(UserEntity::getUserId, id);
-                } catch (Exception ignored) {
-                }
+            queryWrapper.and(wrapper -> {
+                wrapper.like(UserEntity::getRealName, kw).or().eq(UserEntity::getCampusNo, kw).or().eq(UserEntity::getUsername, kw);
+                wrapper.or().eq(UserEntity::getUserId, Long.valueOf(kw));
             });
         }
+        queryWrapper.orderByDesc(UserEntity::getCreateTime);
 
-        qw.orderByDesc(UserEntity::getCreateTime);
-
-        // 分页查询用户核心信息
-        Page<UserEntity> result = userMapper.selectPage(pager, qw);
-
-        PageResult<UserInfoDTO> pageResult = new PageResult<>(result.getTotal(), p, s);
+        Page<UserEntity> result = userMapper.selectPage(new Page<>(page, size), queryWrapper);
 
         List<UserEntity> records = result.getRecords();
-        if (CollUtil.isNotEmpty(records)) {
-            // 批量查询 profile
-            List<Long> ids = records.stream().map(UserEntity::getUserId).collect(Collectors.toList());
-            List<UserProfileEntity> profiles = userProfileMapper.selectBatchIds(ids);
-            Map<Long, UserProfileEntity> profileMap = Collections.emptyMap();
-            if (profiles != null) {
-                profileMap = profiles.stream().collect(Collectors.toMap(UserProfileEntity::getUserId, p2 -> p2));
-            }
-
-            List<UserInfoDTO> dtos = new ArrayList<>();
-            for (UserEntity u : records) {
-                UserInfoDTO dto = new UserInfoDTO();
-                BeanUtil.copyProperties(u, dto);
-                UserProfileEntity pf = profileMap.get(u.getUserId());
-                if (pf != null) BeanUtil.copyProperties(pf, dto);
-                // 管理端返回密码字段置空
-                dto.setPassword(null);
-                dtos.add(dto);
-            }
-            pageResult.addAll(dtos);
+        for (UserEntity userEntity : records) {
+            userEntity.setPassword(null);
         }
-
+        PageResult<UserEntity> pageResult = new PageResult<>(result.getTotal(), page, size);
+        pageResult.addAll(records);
         return pageResult;
     }
 
-    /**
-     * 管理员更新用户信息（全字段）
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void adminUpdate(Long operatorUserId, UserInfoDTO dto) {
-        if (dto == null || dto.getId() == null) throw new ServiceException(UserErrorCode.USER_NOT_EXIST);
-        Long targetId = dto.getId();
-
-        UserEntity oldUser = userMapper.selectById(targetId);
-        if (oldUser == null) throw new ServiceException(UserErrorCode.USER_NOT_EXIST);
-
-        // 唯一性校验 username
-        if (dto.getUsername() != null && !dto.getUsername().equals(oldUser.getUsername())) {
-            if (userMapper.selectCount(Wrappers.<UserEntity>lambdaQuery()
-                    .eq(UserEntity::getUsername, dto.getUsername())
-                    .ne(UserEntity::getUserId, targetId)) > 0) {
-                throw new ServiceException(UserErrorCode.USERNAME_EXISTED);
-            }
-        }
-        // 唯一性校验 campusNo
-        if (dto.getCampusNo() != null && !dto.getCampusNo().equals(oldUser.getCampusNo())) {
-            if (userMapper.selectCount(Wrappers.<UserEntity>lambdaQuery()
-                    .eq(UserEntity::getCampusNo, dto.getCampusNo())
-                    .eq(UserEntity::getStatus, Status.NORMAL)
-                    .ne(UserEntity::getUserId, targetId)) > 0) {
-                throw new ServiceException(UserErrorCode.CAMPUS_NO_EXISTED);
-            }
-        }
-
-        // 载入或新建 profile
-        UserProfileEntity profile = userProfileMapper.selectById(targetId);
-        if (profile == null) profile = UserProfileEntity.builder().userId(targetId).build();
-
-        // 处理身份变更副作用
-        if (dto.getIdentityType() != null && !dto.getIdentityType().equals(oldUser.getIdentityType())) {
-            if (dto.getIdentityType() == IdentityType.STUDENT) {
-                profile.setAcademicTitle(null);
-            } else if (dto.getIdentityType() == IdentityType.TEACHER) {
-                profile.setMajor(null);
-                profile.setClassName(null);
-                profile.setEnrollmentYear(null);
-                profile.setDegreeLevel(null);
-            }
-        }
-
-        // 学号变更副作用：若原 email 为学号邮箱，清空 email 并置为未验证
-        if (dto.getCampusNo() != null && !Objects.equals(dto.getCampusNo(), oldUser.getCampusNo())) {
-            String oldEmail = oldUser.getEmail();
-            if (oldEmail != null && (oldEmail.endsWith("@m.fudan.edu.cn") || oldEmail.endsWith("@fudan.edu.cn"))) {
-                oldUser.setEmail(null);
-                oldUser.setStatus(Status.UNIDENTIFIED);
-            }
-        }
-
-        // 复制字段
-        BeanUtil.copyProperties(dto, oldUser, CopyOptions.create().setIgnoreNullValue(true));
-        BeanUtil.copyProperties(dto, profile, CopyOptions.create().setIgnoreNullValue(true));
-
-        int r1 = userMapper.updateById(oldUser);
-        int r2;
-        if (userProfileMapper.selectById(targetId) == null) {
-            r2 = userProfileMapper.insert(profile);
-        } else {
-            r2 = userProfileMapper.updateById(profile);
-        }
-
-        if (r1 == 0 || r2 == 0) {
-            throw new ServiceException(UserErrorCode.UPDATE_FAILED);
-        }
-    }
-
-    /**
-     * 管理员重置密码
-     */
-    @Override
-    @Transactional(rollbackFor = Exception.class)
-    public void adminResetPassword(Long targetUserId) {
-        UserEntity user = userMapper.selectById(targetUserId);
-        if (user == null) throw new ServiceException(UserErrorCode.USER_NOT_EXIST);
-
-        String pwd = defaultAdminResetPassword;
-        String hashed = BCrypt.hashpw(pwd);
-
-        UserEntity updateUser = new UserEntity();
-        updateUser.setUserId(targetUserId);
-        updateUser.setPassword(hashed);
-        updateUser.setUpdateTime(java.time.LocalDateTime.now());
-
-        int r = userMapper.updateById(updateUser);
-        if (r == 0) throw new ServiceException(UserErrorCode.UPDATE_FAILED);
-
-        // 删除该用户的 session（强制下线）
-        try {
-            redisCacheManager.deleteSessionsByUserId(targetUserId);
-        } catch (Exception e) {
-            log.warn("删除用户会话失败 userId={}", targetUserId, e);
-        }
+    public UserProfileEntity getUserDetailInfoAdmin(Long userId) {
+        return userProfileMapper.selectById(userId);
     }
 }

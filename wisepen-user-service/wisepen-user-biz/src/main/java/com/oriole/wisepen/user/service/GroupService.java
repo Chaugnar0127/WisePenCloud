@@ -9,7 +9,6 @@ import com.oriole.wisepen.user.api.domain.dto.req.GroupUpdateRequest;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupDetailInfoResponse;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupItemInfoResponse;
 
-import java.util.Map;
 import java.util.Set;
 
 public interface GroupService {
@@ -27,7 +26,7 @@ public interface GroupService {
     void deleteGroup(GroupDeleteRequest req);
 
     // 获取指定用户的群组分页列表
-    PageResult<GroupItemInfoResponse> listGroups(Long userId, GroupRoleType groupRoleType, int page, int size);
+    PageResult<GroupItemInfoResponse> getGroupList(Long userId, GroupRoleType groupRoleType, int page, int size);
 
     // 获取群组的公开基础信息
     GroupItemInfoResponse getGroupBaseInfoById(Long groupId);

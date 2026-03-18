@@ -14,13 +14,12 @@
     <div class="header"><h2>WisePen 系统通知</h2></div>
     <p>尊敬的 WisePen 用户：</p>
     <p>您好！</p>
-    <p>系统收到了一项关于您的账号（学号：<strong th:text="${username}"></strong>）的密码重置请求。</p>
-    <p>请点击下方按钮设置新密码：</p>
-    <a class="btn" th:href="${reset_link}">立即设置新密码</a>
+    <p>请点击下方按钮设置验证您的邮箱：</p>
+    <a class="btn" th:href="${reset_link}">立即验证邮箱</a>
     <p>如果按钮无法点击，请复制下方链接到浏览器地址栏访问：</p>
     <p style="word-break: break-all; color: #005bac;" th:text="${reset_link}"></p>
     <p>为了保障您的账号安全，该链接将在 <strong>15 分钟</strong> 后失效。</p>
-    <p>如果您未发起此请求，说明有人误输入了您的学号，请忽略本邮件，无需进行任何操作。</p>
+    <p>如果您未发起此请求，说明有人误输入了您的邮箱，请忽略本邮件，无需进行任何操作。</p>
     <div class="footer">
         此致<br/>
         WisePen 系统团队<br/>

@@ -15,8 +15,6 @@ import com.oriole.wisepen.user.api.domain.dto.req.GroupMemberJoinRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.GroupUpdateRequest;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupDetailInfoResponse;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupItemInfoResponse;
-import com.oriole.wisepen.user.exception.GroupErrorCode;
-import com.oriole.wisepen.user.service.GroupMemberService;
 import com.oriole.wisepen.user.service.GroupService;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -86,7 +84,7 @@ public class GroupController {
 			@RequestParam(value = "page", defaultValue = "1") int page,
 			@RequestParam(value = "size", defaultValue = "20") int size
 	) {
-		return R.ok(groupService.listGroups(SecurityContextHolder.getUserId(), GroupRoleType.getByCode(groupRoleType), page, size));
+		return R.ok(groupService.getGroupList(SecurityContextHolder.getUserId(), GroupRoleType.getByCode(groupRoleType), page, size));
 	}
 
 	@GetMapping("/getGroupBaseInfo")

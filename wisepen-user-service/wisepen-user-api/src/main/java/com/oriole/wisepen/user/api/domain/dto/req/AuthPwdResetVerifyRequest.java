@@ -8,8 +8,8 @@ import java.io.Serializable;
 @Data
 public class AuthPwdResetVerifyRequest implements Serializable {
 
-    @NotBlank(message = UserValidationMsg.CAMPUS_NO_EMPTY)
-    private String campusNo; // 学工号
+    @NotBlank(message = UserValidationMsg.USERNAME_EMPTY)
+    private String username; // 用户名
 
     private String code; // 验证码 (预留)
 
