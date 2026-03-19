@@ -36,7 +36,7 @@ public class RedisCacheManager {
         String redisKey = REDIS_EMAIL_VERIFY_TOKEN_PREFIX + token;
 
 		String redisValue = userId + ":" + email;
-        redisTemplate.opsForValue().set(redisKey, redisValue, 15, TimeUnit.MINUTES);
+		stringRedisTemplate.opsForValue().set(redisKey, redisValue, 15, TimeUnit.MINUTES);
 
         return token;
     }
