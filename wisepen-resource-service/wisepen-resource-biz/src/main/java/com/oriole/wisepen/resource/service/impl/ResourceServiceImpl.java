@@ -23,7 +23,9 @@ import com.oriole.wisepen.resource.exception.ResPermissionErrorCode;
 import com.oriole.wisepen.resource.repository.CustomResourceItemRepository;
 import com.oriole.wisepen.resource.repository.ResourceItemRepository;
 import com.oriole.wisepen.resource.repository.TagRepository;
+import com.oriole.wisepen.resource.enums.FileOrganizationLogic;
 import com.oriole.wisepen.resource.service.IAclEventPublisher;
+import com.oriole.wisepen.resource.service.IGroupResService;
 import com.oriole.wisepen.resource.service.IResourceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -44,11 +46,14 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class ResourceServiceImpl implements IResourceService {
 
+    private static final String RESOURCE_TRASH_COLLECTION = "wisepen_resource_trash";
+
     private final TagRepository tagRepository;
     private final ResourceItemRepository resourceItemRepository;
     private final CustomResourceItemRepository customResourceItemRepository;
     private final IAclEventPublisher aclEventPublisher;
     private final MongoTemplate mongoTemplate;
+    private final IGroupResService groupResService;
 
     @Override
     public void assertResourceOwner(String resourceId, String userId) {
@@ -100,6 +105,14 @@ public class ResourceServiceImpl implements IResourceService {
             boolean allBelongToGroup = validTags.stream().allMatch(tag -> groupId.equals(tag.getGroupId()));
             if (!allBelongToGroup) {
                 throw new ServiceException(ResPermissionErrorCode.TAG_NOT_FOUND); // 包含无效的标签ID（实际上是跨空间越权挂载，但不返回真实原因）
+            }
+
+            // FOLDER 模式：同一小组内每个资源至多挂载一个标签
+            if (!groupId.startsWith(ResourceConstants.PERSONAL_GROUP_PREFIX)) {
+                FileOrganizationLogic logic = groupResService.getFileOrgLogic(groupId);
+                if (FileOrganizationLogic.FOLDER == logic && tagIds.size() > 1) {
+                    throw new ServiceException(ResPermissionErrorCode.FOLDER_MODE_ONLY_ONE_TAG);
+                }
             }
 
             // 寻找该实体中是否已经存在当前 groupId 的绑定记录
@@ -214,10 +227,10 @@ public class ResourceServiceImpl implements IResourceService {
     }
 
     @Override
-    public void removeResourceItem(String resourceId) {
+    public void softRemoveResourceItem(String resourceId) {
         resourceItemRepository.findById(resourceId).ifPresent(entity -> {
             // 插入到回收站集合中
-            mongoTemplate.save(entity, "wisepen_resource_trash");
+            mongoTemplate.save(entity, RESOURCE_TRASH_COLLECTION);
             resourceItemRepository.deleteById(resourceId);
         });
     }

@@ -9,12 +9,17 @@ import com.oriole.wisepen.resource.domain.dto.req.TagDeleteRequest;
 import com.oriole.wisepen.resource.domain.dto.req.TagMoveRequest;
 import com.oriole.wisepen.resource.domain.dto.req.TagUpdateRequest;
 import com.oriole.wisepen.resource.domain.dto.res.TagTreeResponse;
+import com.oriole.wisepen.resource.domain.entity.GroupResConfigEntity;
 import com.oriole.wisepen.resource.domain.entity.TagEntity;
 import com.oriole.wisepen.resource.exception.ResPermissionErrorCode;
 import com.oriole.wisepen.resource.repository.TagRepository;
 import com.oriole.wisepen.resource.service.IResourceService;
 import com.oriole.wisepen.resource.service.ITagService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.util.*;
@@ -22,12 +27,16 @@ import java.util.stream.Collectors;
 
 import static com.oriole.wisepen.resource.exception.ResPermissionErrorCode.CANNOT_SET_VISIBILITY;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class TagServiceImpl implements ITagService {
 
+    private static final String TAGS_TRASH_COLLECTION = "wisepen_tags_trash";
+
     private final TagRepository tagRepository;
     private final IResourceService permissionService;
+    private final MongoTemplate mongoTemplate;
 
     @Override
     public String createTag(TagCreateRequest tagCreateRequest) {
@@ -226,5 +235,33 @@ public class TagServiceImpl implements ITagService {
         List<String> changedTagIds = descendants.stream().map(TagEntity::getTagId).collect(Collectors.toList());
         changedTagIds.add(tagId);
         permissionService.afterTagNodeChanged(changedTagIds);
+    }
+
+    @Override
+    public void softRemoveAllTagByGroupId(String groupId) {
+        List<TagEntity> tags = tagRepository.findByGroupId(groupId);
+        if (tags.isEmpty()) {
+            return;
+        }
+        for (TagEntity tag : tags) {
+            mongoTemplate.save(tag, TAGS_TRASH_COLLECTION);
+        }
+        tagRepository.deleteByGroupId(groupId);
+        log.info("小组 {} Tag 树软删除：共移入 trash {} 个节点", groupId, tags.size());
+    }
+
+    public void hardRemoveAllTagByGroupId(String groupId) {
+        List<TagEntity> tags = mongoTemplate.find(
+                Query.query(Criteria.where("groupId").is(groupId)),
+                TagEntity.class,
+                TAGS_TRASH_COLLECTION
+        );
+        List<String> allTagIds = tags.stream().map(TagEntity::getTagId).collect(Collectors.toList());
+        permissionService.afterTagNodeDeleted(allTagIds, false);
+
+        mongoTemplate.remove(
+                Query.query(Criteria.where("groupId").is(groupId)),
+                TAGS_TRASH_COLLECTION
+        );
     }
 }

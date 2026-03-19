@@ -36,4 +36,8 @@ public interface RemoteResourceService {
     @PostMapping("/internal/resource/checkResPermission")
     R<ResourceCheckPermissionResDTO> checkResPermission(@RequestBody ResourceCheckPermissionReqDTO dto);
 
+    @Operation(summary = "解散小组", description = "软删除小组下的 Tag 树与资源配置，30 天后由定时任务彻底清理")
+    @PostMapping("/internal/resource/dissolveGroup")
+    R<Void> dissolveGroup(@RequestParam("groupId") Long groupId);
+
 }

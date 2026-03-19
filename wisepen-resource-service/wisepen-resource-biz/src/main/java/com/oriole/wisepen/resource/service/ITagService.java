@@ -24,4 +24,10 @@ public interface ITagService {
 
     // 级联删除 Tag 及其所有子孙节点
     void deleteTag(TagDeleteRequest tagDeleteRequest);
+
+    // 小组解散时软删除该组下所有 Tag
+    void softRemoveAllTagByGroupId(String groupId);
+
+    // 硬删除该组下所有 Tag（必须先执行软删除）
+    void hardRemoveAllTagByGroupId(String groupId);
 }

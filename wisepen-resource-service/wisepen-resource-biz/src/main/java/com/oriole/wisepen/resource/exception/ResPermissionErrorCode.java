@@ -19,7 +19,10 @@ public enum ResPermissionErrorCode implements IErrorCode {
 
     // --- 资源相关异常 ---
     RESOURCE_NOT_FOUND(50011, "目标标签不存在"),
-    RESOURCE_PERMISSION_DENIED(50012, "对不起，您没有该资源的访问权限");
+    RESOURCE_PERMISSION_DENIED(50012, "对不起，您没有该资源的访问权限"),
+
+    // --- 小组资源配置相关异常 ---
+    FOLDER_MODE_ONLY_ONE_TAG(50021, "文件夹模式下每个资源在同一小组内至多只能挂载一个标签");
 
     private final Integer code;
     private final String msg;

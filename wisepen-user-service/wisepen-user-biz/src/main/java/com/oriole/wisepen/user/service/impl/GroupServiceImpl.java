@@ -23,6 +23,7 @@ import com.oriole.wisepen.user.event.GroupTokenConsumeEvent;
 import com.oriole.wisepen.user.exception.GroupErrorCode;
 import com.oriole.wisepen.user.mapper.GroupMapper;
 import com.oriole.wisepen.user.mapper.GroupMemberMapper;
+import com.oriole.wisepen.resource.feign.RemoteResourceService;
 import com.oriole.wisepen.user.service.GroupMemberService;
 import com.oriole.wisepen.user.service.GroupService;
 import com.oriole.wisepen.user.service.UserService;
@@ -47,6 +48,7 @@ public class GroupServiceImpl implements GroupService {
     private final UserService userService;
     private final GroupMemberService groupMemberService;
     private final RedisCacheManager redisCacheManager;
+    private final RemoteResourceService remoteResourceService;
 
     @Override
     public void joinGroup(GroupMemberJoinRequest req, Long userId, Set<Long> userJoinedGroupIds) {
@@ -98,6 +100,13 @@ public class GroupServiceImpl implements GroupService {
             throw new ServiceException(GroupErrorCode.GROUP_NOT_EXIST);
         }
         groupMemberService.removeAllGroupMembers(groupId);
+
+        // 通知资源微服务删除该小组的 Tag 树与资源配置
+        try {
+            remoteResourceService.dissolveGroup(groupId);
+        } catch (Exception e) {
+            log.error("通知资源服务解散小组 {} 失败，资源数据将残留，需人工处理", groupId, e);
+        }
     }
 
     @Override

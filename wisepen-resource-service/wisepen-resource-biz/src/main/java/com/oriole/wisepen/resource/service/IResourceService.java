@@ -39,7 +39,7 @@ public interface IResourceService {
 
     String createResourceItem(ResourceCreateReqDTO dto);
 
-    void removeResourceItem(String resourceId);
+    void softRemoveResourceItem(String resourceId);
 
     void updateResourceAttributes(ResourceUpdateReqDTO dto);
 

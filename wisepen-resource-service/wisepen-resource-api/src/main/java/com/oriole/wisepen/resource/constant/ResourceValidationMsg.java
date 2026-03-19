@@ -21,4 +21,6 @@ public interface ResourceValidationMsg {
     // 分页与查询校验 (预留)
     String PAGE_MIN_INVALID = "页码不能小于1";
     String SIZE_MIN_INVALID = "每页条数不能小于1";
+
+    String FILE_ORG_LOGIC_NOT_NULL = "资源组织模式不能为空";
 }

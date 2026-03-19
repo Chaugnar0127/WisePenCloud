@@ -24,6 +24,12 @@
             <artifactId>wisepen-user-api</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--资源服务 Feign 接口（解散小组时通知资源服务清理数据）-->
+        <dependency>
+            <groupId>com.oriole</groupId>
+            <artifactId>wisepen-resource-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <!--业务日志包-->
         <dependency>
             <groupId>com.oriole</groupId>
