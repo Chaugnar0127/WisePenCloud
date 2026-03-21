@@ -8,6 +8,7 @@ import com.oriole.wisepen.user.api.domain.dto.req.*;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberDetailResponse;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberGetGroupTokenResponse;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberGetTokenResponse;
+import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberGetTransactionsResponse;
 import com.oriole.wisepen.user.domain.entity.TokenCalculateMessage;
 
 import java.util.List;
@@ -58,11 +59,18 @@ public interface GroupMemberService {
 	void calculateToken(TokenCalculateMessage message);
 
 	//获取钱包详情
-	void getWalletInfo(ConsumerType targetType, Long targetId);
+	GroupMemberGetTokenResponse getWalletInfo(ConsumerType targetType, Long targetId);
 
 	//核销点卡
 	void redeemVoucher(ConsumerType targetType, Long targetId, String code);
 
 	//获取交易流水
-	void getTransactions(ConsumerType targetType, Long targetId, Integer page, Integer size, ChangeType changeType);
+	PageResult<GroupMemberGetTransactionsResponse> getTransactions(ConsumerType targetType, Long targetId, Integer page, Integer size, ChangeType changeType);
+
+	// 把 group Token 给 owner
+	void exchangeTokenToOwner(Long userId, Long groupId, Integer amount);
+
+	// 把 owner Token 给 group
+	void exchangeTokenToGroup(Long userId, Long groupId, Integer amount);
+
 }

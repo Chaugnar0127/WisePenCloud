@@ -30,4 +30,6 @@ public class TokenRecordEntity implements Serializable {
 	ChangeType changeType;
 	String meta;
 	LocalDateTime createTime;
+	String operatorName;
+	Long targetId;
 }

@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.oriole.wisepen.common.core.domain.PageResult;
@@ -19,6 +20,8 @@ import com.oriole.wisepen.user.api.domain.dto.req.*;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberDetailResponse;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberGetGroupTokenResponse;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberGetTokenResponse;
+import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberGetTransactionsResponse;
+import com.oriole.wisepen.user.api.enums.VoucherStatus;
 import com.oriole.wisepen.user.cache.RedisCacheManager;
 import com.oriole.wisepen.user.domain.entity.*;
 import com.oriole.wisepen.user.event.GroupTokenConsumeEvent;
@@ -48,9 +51,11 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 	private final GroupMapper groupMapper;
 	private final GroupMemberMapper groupMemberMapper;
 	private final UserService userService;
+	private final UserMapper userMapper;
 	private final RedisCacheManager redisCacheManager;
 	private final UserWalletsMapper userWalletsMapper;
 	private final TokenRecordMapper tokenRecordMapper;
+	private final VoucherMapper voucherMapper;
 
 	@Override
 	public Map<String, Integer> getGroupRoleMapByUserId(Long userId) {
@@ -369,10 +374,14 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 
 				tokenRest-=usage;
 				if (usage>0) {
+					UserEntity userProfile= userMapper.selectById(userId);
+					//更新 tokenRecord， 此时 tokenCount 应该是负的
 					TokenRecordEntity tokenRecordEntity = TokenRecordEntity.builder()
-							.traceId(message.getTraceId()).tokenCount(message.getUsageTokens()*message.getModelType().getRatio())
+							.traceId(message.getTraceId()).tokenCount(-message.getUsageTokens()*message.getModelType().getRatio())
 							.changeType(ChangeType.SPEND).ownerType(ConsumerType.GROUP)
 							.createTime(LocalDateTime.now()).meta(message.getModelType().getDesc())
+							.operatorName(userProfile.getRealName())
+							.targetId(groupId)
 							.build();
 					tokenRecordMapper.insert(tokenRecordEntity);
 					groupMember.setTokenUsed(groupMember.getTokenUsed() + usage);
@@ -401,25 +410,130 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 		userWalletsMapper.updateById(user);
 
 		TokenRecordEntity tokenRecordEntity = TokenRecordEntity.builder()
-				.traceId(message.getTraceId()).tokenCount(message.getUsageTokens()*message.getModelType().getRatio())
+				.traceId(message.getTraceId()).tokenCount(-message.getUsageTokens()*message.getModelType().getRatio())
 				.changeType(ChangeType.SPEND).ownerType(ConsumerType.USER)
 				.createTime(LocalDateTime.now()).meta(message.getModelType().getDesc())
+				.targetId(userId)
 				.build();
 		tokenRecordMapper.insert(tokenRecordEntity);
 	}
 
 	@Override
-	public void getWalletInfo(ConsumerType targetType, Long targetId) {
-
+	public GroupMemberGetTokenResponse getWalletInfo(ConsumerType targetType, Long targetId) {
+		if (targetType==ConsumerType.USER) {
+			UserTokenPoolEntity user=userWalletsMapper.selectById(targetId);
+			return BeanUtil.copyProperties(user,GroupMemberGetTokenResponse.class);
+		}
+		else if (targetType==ConsumerType.GROUP) {
+			GroupEntity group = groupMapper.selectById(targetId);;
+			return BeanUtil.copyProperties(group,GroupMemberGetTokenResponse.class);
+		}
+		return null;
 	}
 
 	@Override
 	public void redeemVoucher(ConsumerType targetType, Long targetId, String code) {
+		LambdaQueryWrapper<VoucherEntity> wrapper = new LambdaQueryWrapper<VoucherEntity>().eq(VoucherEntity::getCode, code);
+		VoucherEntity voucher = voucherMapper.selectOne(wrapper);
+		if (voucher==null) throw new ServiceException(GroupErrorCode.VOUCHER_NOT_EXIST);
+		if (voucher.getStatus() != VoucherStatus.UNUSED) throw new ServiceException(GroupErrorCode.VOUCHER_IS_USED);
+		Date now = new Date();
+		if (voucher.getExpireTime() != null && !now.before(voucher.getExpireTime())) {
+			throw new ServiceException(GroupErrorCode.VOUCHER_IS_EXPIRED);
+		}
 
+		Long traceId = IdWorker.getId();
+		String codeMeta = "****-****-****-" + code.substring(code.length() - 4);
+		// 更新 Voucher
+		voucher.setStatus(VoucherStatus.USED);
+		voucherMapper.updateById(voucher);
+
+		// 更新 tokenRecord
+		TokenRecordEntity tokenRecordEntity = TokenRecordEntity.builder()
+				.traceId(traceId).tokenCount(voucher.getAmount())
+				.changeType(ChangeType.REFILL).ownerType(targetType)
+				.createTime(LocalDateTime.now()).meta(codeMeta)
+				.build();
+		tokenRecordMapper.insert(tokenRecordEntity);
+
+		// 更新个人 balance
+		if (targetType==ConsumerType.GROUP) {
+			LambdaUpdateWrapper<GroupEntity> updateWrapper = new LambdaUpdateWrapper<GroupEntity>()
+					.eq(GroupEntity::getGroupId,targetId)
+					.setSql("token_balance = token_balance + " + voucher.getAmount());
+			groupMapper.update(null, updateWrapper);
+		}
+		else {
+			LambdaUpdateWrapper<UserTokenPoolEntity> updateWrapper = new LambdaUpdateWrapper<UserTokenPoolEntity>()
+					.eq(UserTokenPoolEntity::getUserId,targetId)
+					.setSql("token_balance = token_balance + " + voucher.getAmount());
+			userWalletsMapper.update(null, updateWrapper);
+		}
 	}
 
 	@Override
-	public void getTransactions(ConsumerType targetType, Long targetId, Integer page, Integer size, ChangeType changeType) {
+	public PageResult<GroupMemberGetTransactionsResponse> getTransactions(ConsumerType targetType, Long targetId, Integer page, Integer size, ChangeType changeType) {
+		Page<TokenRecordEntity> pageParam = new Page<>(page, size);
+		LambdaQueryWrapper<TokenRecordEntity> wrapper = new LambdaQueryWrapper<>();
+		wrapper.eq(TokenRecordEntity::getTargetId, targetId)
+				.eq(TokenRecordEntity::getOwnerType, targetType)
+				.eq(changeType != null, TokenRecordEntity::getChangeType, changeType)
+				.orderByDesc(TokenRecordEntity::getCreateTime);
+		IPage<TokenRecordEntity> transactionPage = tokenRecordMapper.selectPage(pageParam, wrapper);
 
+		PageResult<GroupMemberGetTransactionsResponse> pageResult = new PageResult<>(transactionPage.getTotal(), page, size);
+		if (CollectionUtils.isEmpty(transactionPage.getRecords())) {
+			return pageResult;
+		}
+		List<GroupMemberGetTransactionsResponse> records = transactionPage.getRecords().stream()
+				.map(record -> {
+					GroupMemberGetTransactionsResponse resp = new GroupMemberGetTransactionsResponse();
+					resp.setTraceId(record.getTraceId());
+					resp.setCreateTime(record.getCreateTime());
+					resp.setChangeType(record.getChangeType());
+					resp.setAmount((long) record.getTokenCount());
+					resp.setMeta(record.getMeta());
+					resp.setOperatorName(record.getOperatorName());
+					return resp;
+				})
+				.collect(Collectors.toList());
+		pageResult.addAll(records);
+		return pageResult;
 	}
+
+	@Override
+	public void exchangeTokenToOwner(Long userId, Long groupId, Integer amount) {
+		GroupEntity group = groupMapper.selectById(groupId);
+		if (group.getTokenBalance()<amount) {
+			throw new ServiceException(GroupErrorCode.LIMIT_CANNOT_BE_LOWER_THAN_USED);
+		}
+		LambdaUpdateWrapper<UserTokenPoolEntity> wrapper = new LambdaUpdateWrapper<UserTokenPoolEntity>()
+				.eq(UserTokenPoolEntity::getUserId,userId)
+				.setSql("token_balance = token_balance + " + amount);
+		userWalletsMapper.update(null, wrapper);
+
+		LambdaUpdateWrapper<GroupEntity> wrapper2 = new LambdaUpdateWrapper<GroupEntity>()
+				.eq(GroupEntity::getGroupId,groupId)
+				.setSql("token_balance = token_balance - " + amount);
+		groupMapper.update(null, wrapper2);
+	}
+
+	@Override
+	public void exchangeTokenToGroup(Long userId, Long groupId, Integer amount) {
+		UserTokenPoolEntity user = userWalletsMapper.selectById(userId);
+		if (user.getTokenBalance()<amount) {
+			throw new ServiceException(GroupErrorCode.LIMIT_CANNOT_BE_LOWER_THAN_USED);
+		}
+		LambdaUpdateWrapper<UserTokenPoolEntity> wrapper = new LambdaUpdateWrapper<UserTokenPoolEntity>()
+				.eq(UserTokenPoolEntity::getUserId,userId)
+				.setSql("token_balance = token_balance - " + amount);
+		userWalletsMapper.update(null, wrapper);
+
+		LambdaUpdateWrapper<GroupEntity> wrapper2 = new LambdaUpdateWrapper<GroupEntity>()
+				.eq(GroupEntity::getGroupId,groupId)
+				.setSql("token_balance = token_balance + " + amount);
+		groupMapper.update(null, wrapper2);
+	}
+
+
 }
