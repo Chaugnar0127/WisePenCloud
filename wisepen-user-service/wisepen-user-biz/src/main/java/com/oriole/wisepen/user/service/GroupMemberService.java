@@ -1,6 +1,8 @@
 package com.oriole.wisepen.user.service;
 
 import com.oriole.wisepen.common.core.domain.PageResult;
+import com.oriole.wisepen.common.core.domain.enums.ChangeType;
+import com.oriole.wisepen.common.core.domain.enums.ConsumerType;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.user.api.domain.dto.req.*;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberDetailResponse;
@@ -54,4 +56,13 @@ public interface GroupMemberService {
 
 	// 计算 Token 流水
 	void calculateToken(TokenCalculateMessage message);
+
+	//获取钱包详情
+	void getWalletInfo(ConsumerType targetType, Long targetId);
+
+	//核销点卡
+	void redeemVoucher(ConsumerType targetType, Long targetId, String code);
+
+	//获取交易流水
+	void getTransactions(ConsumerType targetType, Long targetId, Integer page, Integer size, ChangeType changeType);
 }

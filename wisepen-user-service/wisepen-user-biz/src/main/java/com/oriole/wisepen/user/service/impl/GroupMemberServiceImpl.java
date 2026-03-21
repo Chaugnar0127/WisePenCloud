@@ -10,7 +10,7 @@ import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.oriole.wisepen.common.core.domain.PageResult;
 import com.oriole.wisepen.common.core.domain.enums.ChangeType;
-import com.oriole.wisepen.common.core.domain.enums.ConsumberTpye;
+import com.oriole.wisepen.common.core.domain.enums.ConsumerType;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.domain.enums.GroupType;
 import com.oriole.wisepen.common.core.exception.ServiceException;
@@ -371,7 +371,7 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 				if (usage>0) {
 					TokenRecordEntity tokenRecordEntity = TokenRecordEntity.builder()
 							.traceId(message.getTraceId()).tokenCount(message.getUsageTokens()*message.getModelType().getRatio())
-							.changeType(ChangeType.SPEND).ownerType(ConsumberTpye.GROUP)
+							.changeType(ChangeType.SPEND).ownerType(ConsumerType.GROUP)
 							.createTime(LocalDateTime.now()).meta(message.getModelType().getDesc())
 							.build();
 					tokenRecordMapper.insert(tokenRecordEntity);
@@ -402,9 +402,24 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 
 		TokenRecordEntity tokenRecordEntity = TokenRecordEntity.builder()
 				.traceId(message.getTraceId()).tokenCount(message.getUsageTokens()*message.getModelType().getRatio())
-				.changeType(ChangeType.SPEND).ownerType(ConsumberTpye.USER)
+				.changeType(ChangeType.SPEND).ownerType(ConsumerType.USER)
 				.createTime(LocalDateTime.now()).meta(message.getModelType().getDesc())
 				.build();
 		tokenRecordMapper.insert(tokenRecordEntity);
+	}
+
+	@Override
+	public void getWalletInfo(ConsumerType targetType, Long targetId) {
+
+	}
+
+	@Override
+	public void redeemVoucher(ConsumerType targetType, Long targetId, String code) {
+
+	}
+
+	@Override
+	public void getTransactions(ConsumerType targetType, Long targetId, Integer page, Integer size, ChangeType changeType) {
+
 	}
 }
