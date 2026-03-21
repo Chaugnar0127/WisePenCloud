@@ -460,6 +460,7 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 				.traceId(traceId).tokenCount(voucher.getAmount())
 				.changeType(ChangeType.REFILL).ownerType(targetType)
 				.createTime(LocalDateTime.now()).meta(codeMeta)
+				.targetId(targetId)
 				.build();
 		tokenRecordMapper.insert(tokenRecordEntity);
 
