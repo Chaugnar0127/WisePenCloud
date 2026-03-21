@@ -437,6 +437,7 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 	}
 
 	@Override
+	@Transactional
 	public void redeemVoucher(ConsumerType targetType, Long targetId, String code) {
 		if (targetType==ConsumerType.GROUP) validateGroupType(targetId);
 
@@ -451,10 +452,17 @@ public class GroupMemberServiceImpl implements GroupMemberService {
 
 		Long traceId = IdWorker.getId();
 		String codeMeta = "****-****-****-" + code.substring(code.length() - 4);
-		// 更新 Voucher
-		voucher.setStatus(VoucherStatus.USED);
-		voucherMapper.updateById(voucher);
-
+		// 更新 Voucher，保证幂等
+		int row = voucherMapper.update(
+				null,
+				new LambdaUpdateWrapper<VoucherEntity>()
+						.eq(VoucherEntity::getVoucherId, voucher.getVoucherId())
+						.eq(VoucherEntity::getStatus, VoucherStatus.UNUSED)
+						.set(VoucherEntity::getStatus, VoucherStatus.USED)
+		);
+		if (row == 0) {
+			throw new ServiceException(GroupErrorCode.VOUCHER_IS_USED);
+		}
 		// 更新 tokenRecord
 		TokenRecordEntity tokenRecordEntity = TokenRecordEntity.builder()
 				.traceId(traceId).tokenCount(voucher.getAmount())
