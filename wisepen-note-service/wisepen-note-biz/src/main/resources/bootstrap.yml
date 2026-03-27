@@ -1,0 +1,27 @@
+server:
+  port: 9600
+
+spring:
+  application:
+    name: wisepen-note-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: wisepen-dev-server:8848
+      config:
+        server-addr: wisepen-dev-server:8848
+        file-extension: yaml
+        group: DEFAULT_GROUP
+        shared-configs:
+          - data-id: wisepen-common-${spring.profiles.active}.yaml
+            group: DEFAULT_GROUP
+            refresh: true
+    inetutils:
+      ignored-interfaces:
+        - VMnet.*
+        - vEthernet.*
+        - docker0
+      preferred-networks:
+        - 10
+  profiles:
+    active: dev
