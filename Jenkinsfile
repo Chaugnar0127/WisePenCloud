@@ -6,7 +6,7 @@ pipeline {
         // 项目基础名称
         PROJECT_NAME = 'WisepenCloud'
         // Docker 镜像仓库地址 (如果在单机内网部署，可以直接留空或使用 local)
-        DOCKER_REGISTRY = local
+        DOCKER_REGISTRY = 'local'
         // 动态获取 Git 提交的简短哈希作为镜像版本 Tag
         IMAGE_TAG = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
         // 部署脚本的绝对或相对路径
