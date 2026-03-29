@@ -29,7 +29,6 @@ pipeline {
 
         stage('2. 编译与打包 (Build)') {
             parallel {
-                // 并行任务 1：编译打包所有 Java Spring Boot 微服务
                 stage('Java Backend Build') {
                     steps {
                         echo "开始进行 Java 微服务 Maven 构建..."
@@ -39,18 +38,21 @@ pipeline {
                         sh './mvnw clean package -Dmaven.test.skip=true -T 1C'
                     }
                 }
+            }
+        }
 
-                // 并行任务 2：编译 Node.js 微服务
-                stage('Node Collab Build') {
-                    steps {
-                        echo "开始构建 Note Collab Service..."
-                        dir('wisepen-note-collab-service') {
-                            // 假设使用 npm，如果使用 pnpm/yarn 请自行替换
-                            sh 'pnpm install'
-                            sh 'pnpm run build'
-                        }
-                    }
-                }
+        stage('2.5 准备可观测性探针 (OTel Agent)') {
+            steps {
+                echo "检查并下载 OpenTelemetry Java Agent..."
+                // 如果本地没有，就自动下载到项目根目录供所有 Dockerfile COPY 使用
+                sh '''
+                if [ ! -f "opentelemetry-javaagent.jar" ]; then
+                    echo "本地无探针，开始下载..."
+                    wget -q --show-progress -O opentelemetry-javaagent.jar https://github.com/open-telemetry/opentelemetry-java-instrumentation/releases/latest/download/opentelemetry-javaagent.jar
+                else
+                    echo "探针已存在，跳过下载"
+                fi
+                '''
             }
         }
 
@@ -63,7 +65,6 @@ pipeline {
                     steps {
                         script {
                             sh "docker build -t ${DOCKER_REGISTRY}/${PROJECT_NAME}-user:${IMAGE_TAG} -f Dockerfile --build-arg MODULE_NAME=wisepen-user-service/wisepen-user-biz ."
-                            // sh "docker push ${DOCKER_REGISTRY}/${PROJECT_NAME}-user:${IMAGE_TAG}"
                         }
                     }
                 }
@@ -71,7 +72,6 @@ pipeline {
                     steps {
                         script {
                             sh "docker build -t ${DOCKER_REGISTRY}/${PROJECT_NAME}-system:${IMAGE_TAG} -f Dockerfile --build-arg MODULE_NAME=wisepen-system-service/wisepen-system-biz ."
-                            // sh "docker push ${DOCKER_REGISTRY}/${PROJECT_NAME}-system:${IMAGE_TAG}"
                         }
                     }
                 }
@@ -110,17 +110,17 @@ pipeline {
                         }
                     }
                 }
-                stage('Note Collab Service') {
-                    steps {
-                        script {
-                            // Node.js 服务通常有独立的 Dockerfile 在其目录下
-                            dir('wisepen-note-collab-service') {
-                                // 如果该目录下存在 Dockerfile，则使用以下命令构建
-                                sh "docker build -t ${DOCKER_REGISTRY}/${PROJECT_NAME}-note-collab:${IMAGE_TAG} ."
-                            }
-                        }
-                    }
-                }
+//                 stage('Note Collab Service') {
+//                     steps {
+//                         script {
+//                             // Node.js 服务通常有独立的 Dockerfile 在其目录下
+//                             dir('wisepen-note-collab-service') {
+//                                 // 如果该目录下存在 Dockerfile，则使用以下命令构建
+//                                 sh "docker build -t ${DOCKER_REGISTRY}/${PROJECT_NAME}-note-collab:${IMAGE_TAG} ."
+//                             }
+//                         }
+//                     }
+//                 }
             }
         }
 
