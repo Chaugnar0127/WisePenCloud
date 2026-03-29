@@ -145,13 +145,22 @@ pipeline {
                     echo "开始部署最新版本: ${IMAGE_TAG} ..."
                     // Jenkins 和 运行服务器 在同一台宿主机
                     sh """
-                    # 导出版本号给 docker-compose 读取
+                    # 如果没有 docker-compose，则静默下载最新独立版
+                    if ! command -v docker-compose &> /dev/null; then
+                        echo "容器内缺失 docker-compose，正在自动下载..."
+                        curl -L -# -o /usr/local/bin/docker-compose "https://github.com/docker/compose/releases/latest/download/docker-compose-\$(uname -s)-\$(uname -m)"
+                        chmod +x /usr/local/bin/docker-compose
+                    fi
+
+                    # 导出所需环境变量
                     export APP_VERSION=${IMAGE_TAG}
                     export DOCKER_REGISTRY=${DOCKER_REGISTRY}
+                    export NACOS_USERNAME=\${NACOS_USER}
+                    export NACOS_PASSWORD=\${NACOS_PWD}
 
-                    # 重新拉取镜像并重启变更的服务
+                    # 启动部署
                     cd deploy
-                    docker compose -f docker-compose-app.yml up -d --remove-orphans
+                    docker-compose -f docker-compose-app.yml up -d --remove-orphans
                     """
 
                     // 通过 Python 脚本远程部署到其他服务器
