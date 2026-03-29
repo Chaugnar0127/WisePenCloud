@@ -2,14 +2,9 @@ version: '3.8'
 
 services:
   user-service:
-    image: wisepen/user-service:latest
+    image: ${DOCKER_REGISTRY}/wisepencloud-user:${APP_VERSION}
     container_name: wisepen-user-service
     restart: always
-    build:
-      context: ../
-      dockerfile: Dockerfile
-      args:
-        JAR_FILE: wisepen-user-service/wisepen-user-biz/target/*.jar
     environment:
       - TZ=Asia/Shanghai
       - SPRING_PROFILES_ACTIVE=prod # 必须使用prod, 否则Nacos拉取的是dev的配置（默认），下同
@@ -26,14 +21,9 @@ services:
       - cloud-net
 
   system-service:
-    image: wisepen/system-service:latest
+    image: ${DOCKER_REGISTRY}/wisepencloud-system:${APP_VERSION}
     container_name: wisepen-system-service
     restart: always
-    build:
-      context: ../
-      dockerfile: Dockerfile
-      args:
-        JAR_FILE: wisepen-system-service/wisepen-system-biz/target/*.jar
     environment:
       - TZ=Asia/Shanghai
       - SPRING_PROFILES_ACTIVE=prod
@@ -50,14 +40,9 @@ services:
       - cloud-net
 
   resource-service:
-    image: wisepen/resource-service:latest
+    image: ${DOCKER_REGISTRY}/wisepencloud-resource:${APP_VERSION}
     container_name: wisepen-resource-service
     restart: always
-    build:
-      context: ../
-      dockerfile: Dockerfile
-      args:
-        JAR_FILE: wisepen-resource-service/wisepen-resource-biz/target/*.jar
     environment:
       - TZ=Asia/Shanghai
       - SPRING_PROFILES_ACTIVE=prod
@@ -74,14 +59,9 @@ services:
       - cloud-net
 
   document-service:
-    image: wisepen/document-service:latest
+    image: ${DOCKER_REGISTRY}/wisepencloud-document:${APP_VERSION}
     container_name: wisepen-document-service
     restart: always
-    build:
-      context: ../
-      dockerfile: Dockerfile
-      args:
-        JAR_FILE: wisepen-document-service/wisepen-document-biz/target/*.jar
     environment:
       - TZ=Asia/Shanghai
       - SPRING_PROFILES_ACTIVE=prod
@@ -98,14 +78,9 @@ services:
       - cloud-net
 
   file-storage-service:
-    image: wisepen/file-storage-service:latest
+    image: ${DOCKER_REGISTRY}/wisepencloud-file-storage:${APP_VERSION}
     container_name: wisepen-file-storage-service
     restart: always
-    build:
-      context: ../
-      dockerfile: Dockerfile
-      args:
-        JAR_FILE: wisepen-file-storage-service/wisepen-file-storage-biz/target/*.jar
     environment:
       - TZ=Asia/Shanghai
       - SPRING_PROFILES_ACTIVE=prod
@@ -122,14 +97,9 @@ services:
       - cloud-net
 
   fudan-extension-service:
-    image: wisepen/fudan-extension-service:latest
+    image: ${DOCKER_REGISTRY}/wisepencloud-fudan-extension:${APP_VERSION}
     container_name: wisepen-fudan-extension-service
     restart: always
-    build:
-      context: ../
-      dockerfile: Dockerfile
-      args:
-        JAR_FILE: wisepen-fudan-extension-service/wisepen-fudan-extension-biz/target/*.jar
     environment:
       - TZ=Asia/Shanghai
       - SPRING_PROFILES_ACTIVE=prod
