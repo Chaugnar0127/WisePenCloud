@@ -122,7 +122,7 @@ pipeline {
                 stage('Fudan Extension Service') {
                     steps {
                         script {
-                            sh "docker build -t ${DOCKER_REGISTRY}/${PROJECT_NAME}-fudan-extension:${IMAGE_TAG} -f Dockerfile --build-arg MODULE_NAME=wisepen-fudan-extension-service/wisepen-fudan-extension-biz ."
+                            sh "docker build -t ${DOCKER_REGISTRY}/${PROJECT_NAME}-fudan-extension:${IMAGE_TAG} -f Dockerfile.playwright --build-arg MODULE_NAME=wisepen-fudan-extension-service/wisepen-fudan-extension-biz ."
                         }
                     }
                 }

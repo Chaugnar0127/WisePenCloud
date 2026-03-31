@@ -1,0 +1,27 @@
+FROM openjdk:21-jdk-slim
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y \
+    libglib2.0-0 libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 \
+    libcups2 libdrm2 libdbus-1-3 libexpat1 libxcb1 libxkbcommon0 \
+    libatspi2.0-0 libx11-6 libxcomposite1 libxdamage1 libxext6 \
+    libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2 \
+    && rm -rf /var/lib/apt/lists/*
+
+# 接收构建参数：传入模块的相对路径
+ARG MODULE_NAME
+
+# 复制业务 Jar 包
+COPY ${MODULE_NAME}/app.jar app.jar
+
+COPY opentelemetry-javaagent.jar /app/agent.jar
+
+# 暴露端口
+EXPOSE 8080
+
+# 使用环境变量来动态配置服务名
+ENTRYPOINT ["java", \
+            "-javaagent:/app/agent.jar", \
+            "-Dotel.traces.sampler=always_on", \
+            "-jar", "/app/app.jar"]
