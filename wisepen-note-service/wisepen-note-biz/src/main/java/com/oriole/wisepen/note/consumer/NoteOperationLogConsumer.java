@@ -37,8 +37,7 @@ public class NoteOperationLogConsumer {
 
         try {
             noteOperationLogService.batchSave(msg);
-            log.debug("操作日志消费完成: resourceId={}, count={}",
-                    msg.getResourceId(), msg.getEntries().size());
+            log.debug("操作日志消费完成: resourceId={}, count={}", msg.getResourceId(), msg.getEntries().size());
         } catch (Exception e) {
             log.error("操作日志消费处理失败, resourceId={}", msg.getResourceId(), e);
         }

@@ -14,6 +14,4 @@ public interface NoteOperationLogRepository extends MongoRepository<NoteOperatio
     Page<NoteOperationLogEntity> findByResourceIdOrderByTimestampDesc(String resourceId, Pageable pageable);
 
     void deleteByResourceId(String resourceId);
-
-    void deleteByTimestampBefore(Date date);
 }

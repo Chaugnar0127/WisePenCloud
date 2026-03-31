@@ -11,11 +11,7 @@ import lombok.AllArgsConstructor;
 public enum NoteErrorCode implements IErrorCode {
 
     NOTE_NOT_FOUND(60001, "笔记不存在"),
-    NOTE_PERMISSION_DENIED(60002, "对不起，您没有该笔记的访问权限"),
-    NOTE_VERSION_NOT_FOUND(60003, "指定的版本不存在"),
-    NOTE_SNAPSHOT_EMPTY(60004, "笔记快照为空，无法恢复"),
-    NOTE_REVERT_FAILED(60005, "版本回退失败"),
-    NOTE_CHECKPOINT_MISSING(60006, "未找到有效的检查点，无法恢复版本");
+    NOTE_PERMISSION_DENIED(60002, "对不起，您没有该资源的访问/操作权限");
 
     private final Integer code;
     private final String msg;

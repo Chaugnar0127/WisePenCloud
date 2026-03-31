@@ -22,8 +22,6 @@ public class NoteOperationLogMessage {
     public static class Entry {
         private String userId;
         private String operationType;
-        /** Base64 编码的 Yjs update 二进制（可选） */
-        private String updateData;
         private String contentSummary;
         private Long timestamp;
         private Integer mergedCount;
