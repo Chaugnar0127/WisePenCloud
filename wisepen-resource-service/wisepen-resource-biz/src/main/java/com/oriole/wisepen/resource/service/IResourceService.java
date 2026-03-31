@@ -26,8 +26,6 @@ public interface IResourceService {
 
     void updateResourceActionPermission(ResourceUpdateActionPermissionRequest req);
 
-    ResourceItemResponse getResourceInfo(String resourceId, String userId, Map<Long, GroupRoleType> groupRoles);
-
     PageResult<ResourceItemResponse> listResources(String currentUserId,
                                                    String groupId, GroupRoleType userGroupRole,
                                                    List<String> tagIds, QueryLogicEnum tagQueryLogicMode,
@@ -49,5 +47,7 @@ public interface IResourceService {
 
     void updateResourceAttributes(ResourceUpdateReqDTO dto);
 
-    ResourceCheckPermissionResDTO checkPermission(ResourceCheckPermissionReqDTO dto);
+    ResourceItemResponse getResourceInfo(String resourceId, String userId, Map<Long, GroupRoleType> groupRoles);
+
+    ResourceCheckPermissionResDTO checkPermission(String resourceId, String userId, Map<Long, GroupRoleType> groupRoles);
 }

@@ -76,18 +76,6 @@ public class ResourceItemController {
         return R.ok();
     }
 
-    @Operation(summary = "获取资源详细信息", description = "获取单个资源的详细信息，包括当前挂载的标签、资源覆盖权限及指定用户权限")
-    @GetMapping("/getResourceInfo")
-    public R<ResourceItemResponse> getResourceInfo(
-            @Parameter(description = "资源ID", required = true) @RequestParam("resourceId") String resourceId) {
-
-        String userId = SecurityContextHolder.getUserId().toString();
-        Map<Long, GroupRoleType> groupRoles = SecurityContextHolder.getGroupRoleMap();
-
-        ResourceItemResponse response = resourceService.getResourceInfo(resourceId, userId, groupRoles);
-        return R.ok(response);
-    }
-
     // 列出资源
     @Operation(summary = "分页列出资源", description = "多条件组合的高级分页查询，支持按字段升降序，多标签与/或筛选。<br><br>" +
             "**核心查询场景说明：**<br>" +

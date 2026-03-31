@@ -445,22 +445,22 @@ public class ResourceServiceImpl implements IResourceService {
     }
 
     @Override
-    public ResourceCheckPermissionResDTO checkPermission(ResourceCheckPermissionReqDTO dto) {
+    public ResourceCheckPermissionResDTO checkPermission(String resourceId, String userId, Map<Long, GroupRoleType> groupRoles) {
         // 如果资源不存在（或已进入回收站），直接拒绝
-        ResourceItemEntity entity = resourceItemRepository.findById(dto.getResourceId()).orElse(null);
+        ResourceItemEntity entity = resourceItemRepository.findById(resourceId).orElse(null);
         if (entity == null) {
             return new ResourceCheckPermissionResDTO(ResourceAccessRole.NONE);
         }
         // 资源所有者有全部权限
-        if (dto.getUserId().equals(entity.getOwnerId())) {
+        if (userId.equals(entity.getOwnerId())) {
             return new ResourceCheckPermissionResDTO(ResourceAccessRole.OWNER, null,
                     ResourceAction.permissionCodeToActions(ResourceAction.ALL_ACTIONS));
         }
         // 提前提取用户定向特权掩码
         Integer userMask = entity.getSpecifiedUsersGrantedActionsMask() == null ? null :
-                entity.getSpecifiedUsersGrantedActionsMask().get(dto.getUserId());
+                entity.getSpecifiedUsersGrantedActionsMask().get(userId);
         // 判断是否缺乏群组上下文（用户不在任何组 或 资源不在任何组）
-        boolean noGroupContext = (dto.getGroupRoles() == null || dto.getGroupRoles().isEmpty()) ||
+        boolean noGroupContext = (groupRoles == null || groupRoles.isEmpty()) ||
                 (entity.getGroupBinds() == null || entity.getGroupBinds().isEmpty());
         // 如果既没有群组上下文，也没有被单独赋予特权，直接拒绝
         if (noGroupContext && userMask == null) {
@@ -476,10 +476,10 @@ public class ResourceServiceImpl implements IResourceService {
             for (GroupTagBind groupBind : entity.getGroupBinds()) {
                 Long groupId = Long.valueOf(groupBind.getGroupId());
 
-                if (!dto.getGroupRoles().containsKey(groupId)) { // 用户不在该组，跳过
+                if (!groupRoles.containsKey(groupId)) { // 用户不在该组，跳过
                     continue;
                 }
-                GroupRoleType userRoleInThisGroup = dto.getGroupRoles().get(groupId);
+                GroupRoleType userRoleInThisGroup = groupRoles.get(groupId);
 
                 // 用户是组管理员/拥有者，有全部权限
                 if (userRoleInThisGroup == GroupRoleType.ADMIN || userRoleInThisGroup == GroupRoleType.OWNER) {
@@ -503,8 +503,8 @@ public class ResourceServiceImpl implements IResourceService {
 
                 // 判断是否有当前组的阅读权限
                 boolean hasReadAuth = (resolved.visibilityMode == VisibilityMode.ALL ||
-                        (resolved.visibilityMode == VisibilityMode.WHITELIST && resolved.specifiedUsers.contains(dto.getUserId())) ||
-                        (resolved.visibilityMode == VisibilityMode.BLACKLIST && !resolved.specifiedUsers.contains(dto.getUserId())));
+                        (resolved.visibilityMode == VisibilityMode.WHITELIST && resolved.specifiedUsers.contains(userId)) ||
+                        (resolved.visibilityMode == VisibilityMode.BLACKLIST && !resolved.specifiedUsers.contains(userId)));
 
                 if (hasReadAuth) {
                     // 只要有一个组能看，基础身份就是 Member
