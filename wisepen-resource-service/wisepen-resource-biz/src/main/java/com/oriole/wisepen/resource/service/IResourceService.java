@@ -47,7 +47,7 @@ public interface IResourceService {
 
     void updateResourceAttributes(ResourceUpdateReqDTO dto);
 
-    ResourceItemResponse getResourceInfo(String resourceId, String userId, Map<Long, GroupRoleType> groupRoles);
+    ResourceItemResponse getResourceInfo(ResourceInfoGetReqDTO dto);
 
-    ResourceCheckPermissionResDTO checkPermission(String resourceId, String userId, Map<Long, GroupRoleType> groupRoles);
+    ResourceCheckPermissionResDTO checkPermission(ResourceCheckPermissionReqDTO dto);
 }

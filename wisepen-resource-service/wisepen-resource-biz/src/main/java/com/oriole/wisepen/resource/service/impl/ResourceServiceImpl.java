@@ -104,7 +104,7 @@ public class ResourceServiceImpl implements IResourceService {
             // 执行常规的覆盖 (Update)/新增 (Upsert) 操作
 
             // 检查Tag是否存在
-            List<TagEntity> validTags = (List<TagEntity>) tagRepository.findAllById(req.getTagIds());
+            List<TagEntity> validTags = tagRepository.findAllById(req.getTagIds());
             if (validTags.size() != req.getTagIds().size()) {
                 throw new ServiceException(ResPermissionErrorCode.TAG_NOT_FOUND); // 包含无效的标签ID
             }
@@ -157,9 +157,8 @@ public class ResourceServiceImpl implements IResourceService {
 
         if (req.getSpecifiedUsersGrantedActions() != null) {
             Map<String, Integer> specifiedMaskMap = new HashMap<>();
-            req.getSpecifiedUsersGrantedActions().forEach((uid, actionsList) -> {
-                specifiedMaskMap.put(uid, ResourceAction.actionsToPermissionCode(actionsList));
-            });
+            req.getSpecifiedUsersGrantedActions().forEach((uid, actionsList) ->
+                    specifiedMaskMap.put(uid, ResourceAction.actionsToPermissionCode(actionsList)));
             entity.setSpecifiedUsersGrantedActionsMask(specifiedMaskMap);
         } else {
             entity.setSpecifiedUsersGrantedActionsMask(null);
@@ -170,40 +169,38 @@ public class ResourceServiceImpl implements IResourceService {
     }
 
     @Override
-    public ResourceItemResponse getResourceInfo(String resourceId, String userId, Map<Long, GroupRoleType> groupRoles) {
-        ResourceItemEntity entity = resourceItemRepository.findById(resourceId)
+    public ResourceItemResponse getResourceInfo(ResourceInfoGetReqDTO dto) {
+        ResourceItemEntity entity = resourceItemRepository.findById(dto.getResourceId())
                 .orElseThrow(() -> new ServiceException(ResPermissionErrorCode.RESOURCE_NOT_FOUND));
 
         // 预计算 ACL 快速鉴权 (拦截非法越权访问)
         boolean canView = false;
 
         // 如果用户被资源级的“指定用户特权”单独授权了 VIEW 动作
-        Integer userMask = entity.getSpecifiedUsersGrantedActionsMask() == null ? null: entity.getSpecifiedUsersGrantedActionsMask().get(userId);
+        Integer userMask = entity.getSpecifiedUsersGrantedActionsMask() == null ? null: entity.getSpecifiedUsersGrantedActionsMask().get(dto.getUserId().toString());
 
-        if (userId.equals(entity.getOwnerId())) {
+        if (dto.getUserId().toString().equals(entity.getOwnerId())) {
             // 所有者直接放行
             canView = true;
         } else if (userMask != null && ResourceAction.hasAction(userMask, ResourceAction.VIEW)) {
             // 如果用户被资源级的“指定用户特权”单独授权了 VIEW 动作
             canView = true;
-        } else if (groupRoles != null && !groupRoles.isEmpty() && entity.getComputedAcls() != null) {
+        } else if (dto.getGroupRoles() != null && !dto.getGroupRoles().isEmpty() && entity.getComputedAcls() != null) {
             // 遍历预计算的 ACL 列表
             for (GroupAcl acl : entity.getComputedAcls()) {
                 Long groupId = Long.valueOf(acl.getGroupId());
-                if (!groupRoles.containsKey(groupId)) continue;
+                if (!dto.getGroupRoles().containsKey(groupId)) continue;
 
-                GroupRoleType userRole = groupRoles.get(groupId);
+                GroupRoleType userRole = dto.getGroupRoles().get(groupId);
                 // 群组管理员/所有者直接放行
                 if (userRole == GroupRoleType.ADMIN || userRole == GroupRoleType.OWNER) {
                     canView = true;
                     break;
                 }
-
                 // 校验基础可见性
                 boolean hasReadAuth = (acl.getVisibilityMode() == VisibilityMode.ALL ||
-                        (acl.getVisibilityMode() == VisibilityMode.WHITELIST && acl.getSpecifiedUsers().contains(userId)) ||
-                        (acl.getVisibilityMode() == VisibilityMode.BLACKLIST && !acl.getSpecifiedUsers().contains(userId)));
-
+                        (acl.getVisibilityMode() == VisibilityMode.WHITELIST && acl.getSpecifiedUsers().contains(dto.getUserId().toString())) ||
+                        (acl.getVisibilityMode() == VisibilityMode.BLACKLIST && !acl.getSpecifiedUsers().contains(dto.getUserId().toString())));
                 if (hasReadAuth) {
                     canView = true;
                     break;
@@ -231,7 +228,7 @@ public class ResourceServiceImpl implements IResourceService {
         }
         resp.setCurrentTags(tagMap);
 
-        if (userId.equals(entity.getOwnerId())) {
+        if (dto.getUserId().toString().equals(entity.getOwnerId())) {
             // 处理权限掩码解包
             if (entity.getOverrideGrantedActionsMask() != null) {
                 resp.setOverrideGrantedActions(ResourceAction.permissionCodeToActions(entity.getOverrideGrantedActionsMask()));
@@ -239,9 +236,8 @@ public class ResourceServiceImpl implements IResourceService {
 
             if (entity.getSpecifiedUsersGrantedActionsMask() != null) {
                 Map<String, List<ResourceAction>> userActionsMap = new HashMap<>();
-                entity.getSpecifiedUsersGrantedActionsMask().forEach((uid, mask) -> {
-                    userActionsMap.put(uid, ResourceAction.permissionCodeToActions(mask));
-                });
+                entity.getSpecifiedUsersGrantedActionsMask().forEach((uid, mask) ->
+                        userActionsMap.put(uid, ResourceAction.permissionCodeToActions(mask)));
                 resp.setSpecifiedUsersGrantedActions(userActionsMap);
             }
         }
@@ -445,22 +441,22 @@ public class ResourceServiceImpl implements IResourceService {
     }
 
     @Override
-    public ResourceCheckPermissionResDTO checkPermission(String resourceId, String userId, Map<Long, GroupRoleType> groupRoles) {
+    public ResourceCheckPermissionResDTO checkPermission(ResourceCheckPermissionReqDTO dto) {
         // 如果资源不存在（或已进入回收站），直接拒绝
-        ResourceItemEntity entity = resourceItemRepository.findById(resourceId).orElse(null);
+        ResourceItemEntity entity = resourceItemRepository.findById(dto.getResourceId()).orElse(null);
         if (entity == null) {
             return new ResourceCheckPermissionResDTO(ResourceAccessRole.NONE);
         }
         // 资源所有者有全部权限
-        if (userId.equals(entity.getOwnerId())) {
+        if (dto.getUserId().toString().equals(entity.getOwnerId())) {
             return new ResourceCheckPermissionResDTO(ResourceAccessRole.OWNER, null,
                     ResourceAction.permissionCodeToActions(ResourceAction.ALL_ACTIONS));
         }
         // 提前提取用户定向特权掩码
         Integer userMask = entity.getSpecifiedUsersGrantedActionsMask() == null ? null :
-                entity.getSpecifiedUsersGrantedActionsMask().get(userId);
+                entity.getSpecifiedUsersGrantedActionsMask().get(dto.getUserId().toString());
         // 判断是否缺乏群组上下文（用户不在任何组 或 资源不在任何组）
-        boolean noGroupContext = (groupRoles == null || groupRoles.isEmpty()) ||
+        boolean noGroupContext = (dto.getGroupRoles() == null || dto.getGroupRoles().isEmpty()) ||
                 (entity.getGroupBinds() == null || entity.getGroupBinds().isEmpty());
         // 如果既没有群组上下文，也没有被单独赋予特权，直接拒绝
         if (noGroupContext && userMask == null) {
@@ -476,10 +472,10 @@ public class ResourceServiceImpl implements IResourceService {
             for (GroupTagBind groupBind : entity.getGroupBinds()) {
                 Long groupId = Long.valueOf(groupBind.getGroupId());
 
-                if (!groupRoles.containsKey(groupId)) { // 用户不在该组，跳过
+                if (!dto.getGroupRoles() .containsKey(groupId)) { // 用户不在该组，跳过
                     continue;
                 }
-                GroupRoleType userRoleInThisGroup = groupRoles.get(groupId);
+                GroupRoleType userRoleInThisGroup = dto.getGroupRoles() .get(groupId);
 
                 // 用户是组管理员/拥有者，有全部权限
                 if (userRoleInThisGroup == GroupRoleType.ADMIN || userRoleInThisGroup == GroupRoleType.OWNER) {
@@ -503,8 +499,8 @@ public class ResourceServiceImpl implements IResourceService {
 
                 // 判断是否有当前组的阅读权限
                 boolean hasReadAuth = (resolved.visibilityMode == VisibilityMode.ALL ||
-                        (resolved.visibilityMode == VisibilityMode.WHITELIST && resolved.specifiedUsers.contains(userId)) ||
-                        (resolved.visibilityMode == VisibilityMode.BLACKLIST && !resolved.specifiedUsers.contains(userId)));
+                        (resolved.visibilityMode == VisibilityMode.WHITELIST && resolved.specifiedUsers.contains(dto.getUserId().toString())) ||
+                        (resolved.visibilityMode == VisibilityMode.BLACKLIST && !resolved.specifiedUsers.contains(dto.getUserId().toString())));
 
                 if (hasReadAuth) {
                     // 只要有一个组能看，基础身份就是 Member

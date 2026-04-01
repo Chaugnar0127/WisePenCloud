@@ -2,9 +2,7 @@ package com.oriole.wisepen.resource.controller;
 
 import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
-import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionResDTO;
-import com.oriole.wisepen.resource.domain.dto.ResourceCreateReqDTO;
-import com.oriole.wisepen.resource.domain.dto.ResourceUpdateReqDTO;
+import com.oriole.wisepen.resource.domain.dto.*;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
 import com.oriole.wisepen.resource.feign.RemoteResourceService;
 import com.oriole.wisepen.resource.service.IGroupResService;
@@ -47,23 +45,15 @@ public class InternalResourceItemController implements RemoteResourceService {
     }
 
     @GetMapping("/getResourceInfo")
-    public R<ResourceItemResponse> getResourceInfo(
-            @RequestParam("resourceId") String resourceId,
-            @RequestParam("userId") Long userId,
-            @RequestParam("groupRoles") Map<Long, GroupRoleType> groupRoles
-    ) {
-        ResourceItemResponse response = resourceService.getResourceInfo(resourceId, userId.toString(), groupRoles);
+    public R<ResourceItemResponse> getResourceInfo(ResourceInfoGetReqDTO dto) {
+        ResourceItemResponse response = resourceService.getResourceInfo(dto);
         return R.ok(response);
     }
 
     // 内部鉴权接口，供下游微服务在执行敏感操作（如：导出PDF、分享链接）前进行硬核鉴权
     @PostMapping("/checkResPermission")
-    public R<ResourceCheckPermissionResDTO> checkResPermission(
-            @RequestParam("resourceId") String resourceId,
-            @RequestParam("userId") Long userId,
-            @RequestParam("groupRoles") Map<Long, GroupRoleType> groupRoles
-    ) {
-        ResourceCheckPermissionResDTO hasPermission = resourceService.checkPermission(resourceId, userId.toString(), groupRoles);
+    public R<ResourceCheckPermissionResDTO> checkResPermission(ResourceCheckPermissionReqDTO dto) {
+        ResourceCheckPermissionResDTO hasPermission = resourceService.checkPermission(dto);
         return R.ok(hasPermission);
     }
 
