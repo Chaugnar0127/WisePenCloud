@@ -1,5 +1,6 @@
 package com.oriole.wisepen.extension.fudan.consumer;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.playwright.*;
 import com.microsoft.playwright.options.LoadState;
@@ -29,14 +30,8 @@ public class UISAuthRequestConsumer {
     private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = MqTopicConstants.FUDAN_UIS_AUTH_REQ, groupId = "wisepen-extension-fudan-uis-auth-group")
-    public void handleUisAuthRequest(String payload) {
-        FudanUISAuthRequestMessage msg;
-        try {
-            msg = objectMapper.readValue(payload, FudanUISAuthRequestMessage.class);
-        } catch (Exception e) {
-            log.error("FudanUISAuthRequestMessage 反序列化失败, payload={}", payload, e);
-            return;
-        }
+    public void handleUisAuthRequest(String payload) throws JsonProcessingException {
+        FudanUISAuthRequestMessage msg = objectMapper.readValue(payload, FudanUISAuthRequestMessage.class);
         runScraper(msg.getUserId(), msg.getAccount(), msg.getPassword());
     }
 

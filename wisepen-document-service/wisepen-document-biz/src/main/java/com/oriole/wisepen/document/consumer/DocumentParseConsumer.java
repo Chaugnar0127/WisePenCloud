@@ -1,6 +1,7 @@
 package com.oriole.wisepen.document.consumer;
 
 import cn.hutool.core.util.StrUtil;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oriole.wisepen.document.api.constant.DocumentConstants;
 import com.oriole.wisepen.document.api.domain.mq.DocumentParseTaskMessage;
@@ -95,26 +96,12 @@ public class DocumentParseConsumer {
     private final WatermarkPreProcessor watermarkPreProcessor;
 
     @KafkaListener(topics = TOPIC_DOCUMENT_PARSE, groupId = "wisepen-document-parse-group")
-    public void onDocumentParse(String payload) {
-        DocumentParseTaskMessage msg;
-        try {
-            msg = objectMapper.readValue(payload, DocumentParseTaskMessage.class);
-        } catch (Exception e) {
-            log.error("DocumentParseTaskMessage 反序列化失败, payload={}", payload, e);
-            return;
-        }
-
-        try {
-            process(msg);
-        } catch (Exception e) {
-            log.error("文档解析失败: documentId={}", msg.getDocumentId(), e);
-            documentProcessService.markFailed(msg.getDocumentId(), e.getMessage());
-        }
+    public void onDocumentParse(String payload) throws IOException, InterruptedException {
+        DocumentParseTaskMessage msg = objectMapper.readValue(payload, DocumentParseTaskMessage.class);
+        process(msg);
     }
 
-    // ==================== 核心流水线 ====================
-
-    private void process(DocumentParseTaskMessage msg) throws Exception {
+    private void process(DocumentParseTaskMessage msg) throws IOException, InterruptedException {
         // 用户可能在任务派发后取消了文档，提前退出避免浪费下载/转换资源
         if (!documentProcessService.isActive(msg.getDocumentId())) {
             log.info("文档已取消，跳过解析: documentId={}", msg.getDocumentId());
@@ -183,7 +170,7 @@ public class DocumentParseConsumer {
     /**
      * 流式下载源文件到本地缓存目录（使用 Java HttpClient 避免内存中间缓冲）。
      */
-    private File downloadSourceFile(String url, String documentId, String ext) throws Exception {
+    private File downloadSourceFile(String url, String documentId, String ext) throws IOException, InterruptedException {
         Path dir = Paths.get(documentProperties.getCachePath());
         Files.createDirectories(dir);
         Path target = dir.resolve(documentId + "_source." + ext);
@@ -199,7 +186,7 @@ public class DocumentParseConsumer {
      *
      * @return previewObjectKey（PDF 在 OSS 中的 ObjectKey）
      */
-    private String uploadPreviewPdf(String documentId, File pdfFile) throws Exception {
+    private String uploadPreviewPdf(String documentId, File pdfFile) throws IOException, InterruptedException {
         UploadInitRespDTO storageData = remoteStorageService.initUpload(
                 UploadInitReqDTO.builder()
                         .extension("pdf")
@@ -235,7 +222,7 @@ public class DocumentParseConsumer {
     }
 
     /** 在缓存目录下创建临时文件（用于存放 Office→PDF 转换产物）。 */
-    private File createCacheFile(String documentId, String suffix) throws Exception {
+    private File createCacheFile(String documentId, String suffix) throws IOException {
         Path dir = Paths.get(documentProperties.getCachePath());
         Files.createDirectories(dir);
         return Files.createTempFile(dir, documentId + "_", suffix).toFile();

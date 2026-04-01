@@ -1,5 +1,6 @@
 package com.oriole.wisepen.document.consumer;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oriole.wisepen.document.api.domain.mq.DocumentReadyMessage;
 import com.oriole.wisepen.document.service.IDocumentProcessService;
@@ -30,19 +31,8 @@ public class DocumentReadyConsumer {
     private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = TOPIC_DOCUMENT_READY, groupId = "wisepen-document-ready-group")
-    public void onDocumentReady(String payload) {
-        DocumentReadyMessage msg;
-        try {
-            msg = objectMapper.readValue(payload, DocumentReadyMessage.class);
-        } catch (Exception e) {
-            log.error("DocumentReadyMessage 反序列化失败, payload={}", payload, e);
-            return;
-        }
-
-        try {
-            documentProcessService.finalizeToReady(msg);
-        } catch (Exception e) {
-            log.error("文档就绪状态收敛失败: documentId={}", msg.getDocumentId(), e);
-        }
+    public void onDocumentReady(String payload) throws JsonProcessingException {
+        DocumentReadyMessage msg = objectMapper.readValue(payload, DocumentReadyMessage.class);
+        documentProcessService.finalizeToReady(msg);
     }
 }

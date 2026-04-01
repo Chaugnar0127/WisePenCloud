@@ -1,5 +1,6 @@
 package com.oriole.wisepen.note.consumer;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oriole.wisepen.note.api.domain.mq.NoteSnapshotMessage;
 import com.oriole.wisepen.note.service.INoteVersionService;
@@ -25,20 +26,9 @@ public class NoteSnapshotConsumer {
                     "value.deserializer=org.apache.kafka.common.serialization.StringDeserializer"
             }
     )
-    public void onSnapshot(String payload) {
-        NoteSnapshotMessage msg;
-        try {
-            msg = objectMapper.readValue(payload, NoteSnapshotMessage.class);
-        } catch (Exception e) {
-            log.error("NoteSnapshotMessage 反序列化失败, payload={}", payload, e);
-            return;
-        }
-
-        try {
-            noteVersionService.createVersion(msg);
-            log.info("快照消费完成: resourceId={}, version={}, type={}", msg.getResourceId(), msg.getVersion(), msg.getType());
-        } catch (Exception e) {
-            log.error("快照消费处理失败, resourceId={}, version={}", msg.getResourceId(), msg.getVersion(), e);
-        }
+    public void onSnapshot(String payload) throws JsonProcessingException {
+        NoteSnapshotMessage msg = objectMapper.readValue(payload, NoteSnapshotMessage.class);
+        noteVersionService.createVersion(msg);
+        log.info("快照消费完成: resourceId={}, version={}, type={}", msg.getResourceId(), msg.getVersion(), msg.getType());
     }
 }

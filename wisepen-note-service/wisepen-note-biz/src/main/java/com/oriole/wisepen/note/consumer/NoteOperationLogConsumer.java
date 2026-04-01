@@ -1,5 +1,6 @@
 package com.oriole.wisepen.note.consumer;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oriole.wisepen.note.api.domain.mq.NoteOperationLogMessage;
 import com.oriole.wisepen.note.service.INoteOperationLogService;
@@ -26,20 +27,9 @@ public class NoteOperationLogConsumer {
                     "value.deserializer=org.apache.kafka.common.serialization.StringDeserializer"
             }
     )
-    public void onOperationLog(String payload) {
-        NoteOperationLogMessage msg;
-        try {
-            msg = objectMapper.readValue(payload, NoteOperationLogMessage.class);
-        } catch (Exception e) {
-            log.error("NoteOperationLogMessage 反序列化失败, payload={}", payload, e);
-            return;
-        }
-
-        try {
-            noteOperationLogService.batchSave(msg);
-            log.debug("操作日志消费完成: resourceId={}, count={}", msg.getResourceId(), msg.getEntries().size());
-        } catch (Exception e) {
-            log.error("操作日志消费处理失败, resourceId={}", msg.getResourceId(), e);
-        }
+    public void onOperationLog(String payload) throws JsonProcessingException {
+        NoteOperationLogMessage msg = objectMapper.readValue(payload, NoteOperationLogMessage.class);
+        noteOperationLogService.batchSave(msg);
+        log.debug("操作日志消费完成: resourceId={}, count={}", msg.getResourceId(), msg.getEntries().size());
     }
 }

@@ -18,14 +18,7 @@ public class AclRecalculateConsumer {
 
     @KafkaListener(topics = TOPIC_ACL_RECALC, groupId = "wisepen-resource-acl-recalc-group")
     public void onAclRecalculate(AclRecalculateMessage message) {
-        try {
-            log.debug("接收到 ACL 重算事件, ResourceId: {}", message.getResourceId());
-            // 执行真正的溯源和权限计算
-            resourceService.calculateResourceAcl(message.getResourceId());
-        } catch (Exception e) {
-            // 这里建议捕获异常，防止某一个资源的脏数据导致消费者无限重试和阻塞
-            // 在成熟的架构中，可以将失败的 message 发送到 Dead Letter Queue (死信队列)
-            log.error("ACL 重算失败, ResourceId: {}", message.getResourceId(), e);
-        }
+        log.debug("接收到 ACL 重算事件, ResourceId: {}", message.getResourceId());
+        resourceService.calculateResourceAcl(message.getResourceId());
     }
 }

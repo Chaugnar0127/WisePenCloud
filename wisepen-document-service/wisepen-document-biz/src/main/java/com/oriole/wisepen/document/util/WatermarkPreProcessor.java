@@ -45,7 +45,7 @@ public class WatermarkPreProcessor {
      * @param source 原始 PDF
      * @param target 加工后的 PDF 输出路径
      */
-    public DocumentPdfMetaEntity processAndExtractMeta(File source, File target) throws Exception {
+    public DocumentPdfMetaEntity processAndExtractMeta(File source, File target) throws IOException {
         // 预埋空水印占位 Form XObject（/WisepenWM）和追加烧录免责声明，生成 hooked PDF 并落盘
         injectHooksAndDisclaimer(source, target);
         // 重新读取已落盘的 hooked PDF，提取用于增量更新的物理坐标元信息
@@ -271,7 +271,7 @@ public class WatermarkPreProcessor {
      *   <li>每页的对象编号、代号及媒体框尺寸</li>
      * </ul>
      */
-    private DocumentPdfMetaEntity extractPdfMeta(File pdfFile) throws Exception {
+    private DocumentPdfMetaEntity extractPdfMeta(File pdfFile) throws IOException {
         DocumentPdfMetaEntity meta = new DocumentPdfMetaEntity();
 
         // 提取原文件的绝对物理大小，作为追加的起始游标 (currentOffset)

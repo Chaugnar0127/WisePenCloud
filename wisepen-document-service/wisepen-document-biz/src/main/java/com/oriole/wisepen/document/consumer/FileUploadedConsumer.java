@@ -1,6 +1,7 @@
 package com.oriole.wisepen.document.consumer;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oriole.wisepen.document.api.domain.mq.DocumentParseTaskMessage;
 import com.oriole.wisepen.document.api.enums.DocumentStatusEnum;
@@ -48,20 +49,9 @@ public class FileUploadedConsumer {
     private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = TOPIC_FILE_UPLOADED, groupId = "wisepen-document-upload-callback-group")
-    public void onFileUploaded(String payload) {
-        FileUploadedMessage msg;
-        try {
-            msg = objectMapper.readValue(payload, FileUploadedMessage.class);
-        } catch (Exception e) {
-            log.error("FileUploadedMessage 反序列化失败, payload={}", payload, e);
-            return;
-        }
-
-        try {
-            process(msg);
-        } catch (Exception e) {
-            log.error("FileUploadedConsumer 处理失败, objectKey={}", msg.getObjectKey(), e);
-        }
+    public void onFileUploaded(String payload) throws JsonProcessingException {
+        FileUploadedMessage msg = objectMapper.readValue(payload, FileUploadedMessage.class);
+        process(msg);
     }
 
     private void process(FileUploadedMessage msg) {
