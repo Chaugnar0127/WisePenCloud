@@ -153,7 +153,7 @@ pipeline {
                     export NACOS_PASSWORD=\${NACOS_PWD}
 
                     # 启动部署
-                    cd deploy/jenkins/app/
+                    cd deploy/app/
                     docker-compose -f docker-compose-app.yml up -d --remove-orphans
                     """
 
