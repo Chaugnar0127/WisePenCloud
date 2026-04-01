@@ -8,6 +8,4 @@ import lombok.Data;
 public class NoteCreateRequest {
     @NotBlank(message = NoteValidationMsg.NOTE_TITLE_NOT_BLANK)
     private String title;
-
-    private Long groupId;
 }

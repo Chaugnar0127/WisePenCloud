@@ -13,7 +13,6 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class NoteInfoBase {
-
     private Date lastUpdatedAt;
     private List<Long> authors;
 }

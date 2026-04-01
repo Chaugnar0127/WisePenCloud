@@ -1,5 +1,6 @@
 package com.oriole.wisepen.note.controller;
 
+import cn.hutool.core.convert.Convert;
 import com.oriole.wisepen.common.core.context.SecurityContextHolder;
 import com.oriole.wisepen.common.core.domain.PageResult;
 import com.oriole.wisepen.common.core.domain.R;
@@ -12,7 +13,9 @@ import com.oriole.wisepen.note.api.domain.dto.res.NoteInfoResponse;
 import com.oriole.wisepen.note.api.domain.dto.res.NoteVersionListResponse;
 import com.oriole.wisepen.note.service.INoteService;
 import com.oriole.wisepen.note.service.INoteVersionService;
+import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionReqDTO;
 import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionResDTO;
+import com.oriole.wisepen.resource.domain.dto.ResourceInfoGetReqDTO;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
 import com.oriole.wisepen.resource.enums.ResourceAccessRole;
 import com.oriole.wisepen.resource.feign.RemoteResourceService;
@@ -48,11 +51,9 @@ public class NoteController {
     @Operation(summary = "删除笔记")
     @PostMapping("/removeNote")
     public R<Void> deleteNote(@RequestParam String resourceId) {
-        ResourceCheckPermissionResDTO permission = remoteResourceService.checkResPermission(
-                resourceId,
-                SecurityContextHolder.getUserId(),
-                SecurityContextHolder.getGroupRoleMap()
-        ).getData();
+        ResourceCheckPermissionResDTO permission = remoteResourceService.checkResPermission(new ResourceCheckPermissionReqDTO(
+                resourceId, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap()
+        )).getData();
         if (permission.getResourceAccessRole() == ResourceAccessRole.OWNER){
             noteService.deleteNote(resourceId);
         } else {
@@ -64,10 +65,10 @@ public class NoteController {
     @Operation(summary = "获取笔记信息")
     @GetMapping("/getNoteInfo")
     public R<NoteInfoResponse> getNoteInfo(@RequestParam String resourceId) {
-        Long userId = SecurityContextHolder.getUserId();
-        Map<Long, GroupRoleType> groupRoleMap = SecurityContextHolder.getGroupRoleMap();
         // 若无权限将抛出异常，此处无需重复鉴权
-        ResourceItemResponse resourceInfo = remoteResourceService.getResourceInfo(resourceId, userId, groupRoleMap).getData();
+        ResourceItemResponse resourceInfo = remoteResourceService.getResourceInfo(new ResourceInfoGetReqDTO(
+                resourceId, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap()
+        )).getData();
         NoteInfoBase noteInfo = noteService.getNoteInfo(resourceId);
         NoteInfoResponse noteInfoResponse = NoteInfoResponse.builder().resourceInfo(resourceInfo).noteInfo(noteInfo).build();
         return R.ok(noteInfoResponse);
@@ -79,11 +80,9 @@ public class NoteController {
             @RequestParam String resourceId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
-        ResourceCheckPermissionResDTO permission = remoteResourceService.checkResPermission(
-                resourceId,
-                SecurityContextHolder.getUserId(),
-                SecurityContextHolder.getGroupRoleMap()
-        ).getData();
+        ResourceCheckPermissionResDTO permission = remoteResourceService.checkResPermission(new ResourceCheckPermissionReqDTO(
+                resourceId, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap()
+        )).getData();
         if (permission.getResourceAccessRole() == ResourceAccessRole.OWNER){
             PageResult<NoteVersionListResponse> noteVersionListResponses = noteVersionService.listVersions(resourceId, page, size);
             return R.ok(noteVersionListResponses);
@@ -95,11 +94,9 @@ public class NoteController {
     @Operation(summary = "回退到指定版本")
     @PostMapping("/revertNote")
     public R<Void> revertToVersion(@RequestParam String resourceId, @RequestParam Long version) {
-        ResourceCheckPermissionResDTO permission = remoteResourceService.checkResPermission(
-                resourceId,
-                SecurityContextHolder.getUserId(),
-                SecurityContextHolder.getGroupRoleMap()
-        ).getData();
+        ResourceCheckPermissionResDTO permission = remoteResourceService.checkResPermission(new ResourceCheckPermissionReqDTO(
+                resourceId, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap()
+        )).getData();
         if (permission.getResourceAccessRole() == ResourceAccessRole.OWNER){
             // TODO: 待未来实现
         } else {
