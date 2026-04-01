@@ -126,17 +126,6 @@ pipeline {
                         }
                     }
                 }
-//                 stage('Note Collab Service') {
-//                     steps {
-//                         script {
-//                             // Node.js 服务通常有独立的 Dockerfile 在其目录下
-//                             dir('wisepen-note-collab-service') {
-//                                 // 如果该目录下存在 Dockerfile，则使用以下命令构建
-//                                 sh "docker build -t ${DOCKER_REGISTRY}/${PROJECT_NAME}-note-collab:${IMAGE_TAG} ."
-//                             }
-//                         }
-//                     }
-//                 }
             }
         }
 
@@ -164,7 +153,7 @@ pipeline {
                     export NACOS_PASSWORD=\${NACOS_PWD}
 
                     # 启动部署
-                    cd deploy
+                    cd deploy/jenkins/app/
                     docker-compose -f docker-compose-app.yml up -d --remove-orphans
                     """
 
