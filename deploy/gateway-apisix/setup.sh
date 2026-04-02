@@ -50,8 +50,8 @@ function init_infrastructure() {
                 "opentelemetry": {},
                 "cors": {
                     "allow_origins_by_regex": $cors_regex_arr,
-                    "allow_methods": "**",
-                    "allow_headers": "**",
+                    "allow_methods": "GET,POST,PUT,DELETE,PATCH,HEAD,OPTIONS",
+                    "allow_headers": "Content-Type,Authorization,Accept,Origin,X-Requested-With,Cache-Control,Range,X-Developer",
                     "expose_headers": "Accept-Ranges,Content-Range,Content-Length",
                     "allow_credential": true,
                     "max_age": 3600
