@@ -7,7 +7,7 @@ ADMIN_KEY="edd1c9f034335f136f87ad84b625c8f1"
 
 # 接收 Jenkins 传入的 CORS 正则数组
 # 默认值保留为本地开发的正则表达式
-export CORS_REGEX_JSON=${CORS_REGEX_JSON:-'["^http://localhost:\\d+$", "^http://127\\.0\\.0\\.1:\\d+$"]'}
+CORS_REGEX_JSON=${CORS_REGEX_JSON:-'["^http://localhost:\\d+$", "^http://127\\.0\\.0\\.1:\\d+$"]'}
 
 # 全局模版
 TPL_ID_GLOBAL=1
@@ -42,6 +42,7 @@ function init_infrastructure() {
     local body_global=$(jq -n \
         --argjson script_route "$LUA_ROUTE" \
         --argjson script_auth "$LUA_AUTH" \
+        --argjson cors_regex_arr "$CORS_REGEX_JSON" \
         '{
             desc: "WisePen Global Template (Monitor + Routing + Auth + CORS)",
             plugins: {
