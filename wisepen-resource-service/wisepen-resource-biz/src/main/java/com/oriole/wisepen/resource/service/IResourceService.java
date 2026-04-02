@@ -37,7 +37,7 @@ public interface IResourceService {
 
     void afterTagNodeDeleted(List<String> deletedTagIds, Boolean isPersonalTag);
 
-    void calculateResourceAcl(String resourceId);
+    void calculateResourceGroupAcl(String resourceId);
 
     // ToService：增加、移除、更新资源；检查特定资源的权限
 

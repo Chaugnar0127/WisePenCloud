@@ -1,10 +1,7 @@
 package com.oriole.wisepen.resource.domain.base;
 
-import com.oriole.wisepen.resource.enums.VisibilityMode;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-
-import java.util.List;
 
 @EqualsAndHashCode(callSuper = true)
 @Data

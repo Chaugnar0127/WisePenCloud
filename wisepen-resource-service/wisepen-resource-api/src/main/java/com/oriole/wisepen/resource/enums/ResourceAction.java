@@ -10,13 +10,14 @@ import java.util.stream.Collectors;
 @Getter
 @AllArgsConstructor
 public enum ResourceAction {
-    VIEW(1 << 0),               // 1: 在线阅读
-    EDIT(1 << 1),               // 2: 协同编辑
-    DOWNLOAD_WATERMARK(1 << 2), // 4: 导出/下载带水印
-    DOWNLOAD_ORIGINAL(1 << 3);  // 8: 下载源文件
+    DISCOVER(1 << 0),           // 1: 列表可见（发现权）
+    VIEW(1 << 1),               // 2: 在线阅读
+    EDIT(1 << 2),               // 4: 协同编辑
+    DOWNLOAD_WATERMARK(1 << 3), // 8: 导出/下载带水印
+    DOWNLOAD_ORIGINAL(1 << 4);  // 16: 下载源文件
 
     public static final int ALL_ACTIONS = (1 << values().length) - 1;
-    public static final int DEFAULT_MEMBER_ACTIONS = VIEW.code | DOWNLOAD_WATERMARK.code; // 7
+    public static final int DEFAULT_MEMBER_ACTIONS = DISCOVER.code | VIEW.code | DOWNLOAD_WATERMARK.code;
 
     private final int code;
 

@@ -8,7 +8,7 @@ import com.oriole.wisepen.common.core.domain.enums.list.QueryLogicEnum;
 import com.oriole.wisepen.common.core.domain.enums.list.SortDirectionEnum;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.resource.constant.ResourceConstants;
-import com.oriole.wisepen.resource.domain.GroupAcl;
+import com.oriole.wisepen.resource.domain.ComputedGroupAcl;
 import com.oriole.wisepen.resource.domain.GroupTagBind;
 import com.oriole.wisepen.resource.domain.dto.*;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceRenameRequest;
@@ -21,7 +21,7 @@ import com.oriole.wisepen.resource.domain.entity.TagEntity;
 import com.oriole.wisepen.resource.enums.ResourceAccessRole;
 import com.oriole.wisepen.resource.enums.ResourceAction;
 import com.oriole.wisepen.resource.enums.ResourceSortBy;
-import com.oriole.wisepen.resource.enums.VisibilityMode;
+import com.oriole.wisepen.resource.enums.AclGrantMode;
 import com.oriole.wisepen.resource.exception.ResPermissionErrorCode;
 import com.oriole.wisepen.resource.repository.CustomResourceItemRepository;
 import com.oriole.wisepen.resource.repository.GroupResConfigRepository;
@@ -140,7 +140,7 @@ public class ResourceServiceImpl implements IResourceService {
         if (groupId != null && groupId.startsWith(ResourceConstants.PERSONAL_GROUP_PREFIX)) {
             return; // 个人Tag变更不需要重新计算Acl
         }
-        this.calculateResourceAcl(entity.getResourceId());
+        this.calculateResourceGroupAcl(entity.getResourceId());
     }
 
     @Override
@@ -166,6 +166,9 @@ public class ResourceServiceImpl implements IResourceService {
 
         entity.setUpdateTime(new Date());
         resourceItemRepository.save(entity);
+
+        // 保存资源级权限覆盖后，触发重算
+        this.calculateResourceGroupAcl(entity.getResourceId());
     }
 
     @Override
@@ -185,10 +188,10 @@ public class ResourceServiceImpl implements IResourceService {
         } else if (userMask != null && ResourceAction.hasAction(userMask, ResourceAction.VIEW)) {
             // 如果用户被资源级的“指定用户特权”单独授权了 VIEW 动作
             canView = true;
-        } else if (dto.getGroupRoles() != null && !dto.getGroupRoles().isEmpty() && entity.getComputedAcls() != null) {
+        } else if (dto.getGroupRoles() != null && !dto.getGroupRoles().isEmpty() && entity.getComputedGroupAcls() != null) {
             // 遍历预计算的 ACL 列表
-            for (GroupAcl acl : entity.getComputedAcls()) {
-                Long groupId = Long.valueOf(acl.getGroupId());
+            for (Map.Entry<String, ComputedGroupAcl> entry : entity.getComputedGroupAcls().entrySet()) {
+                Long groupId = Long.valueOf(entry.getKey());
                 if (!dto.getGroupRoles().containsKey(groupId)) continue;
 
                 GroupRoleType userRole = dto.getGroupRoles().get(groupId);
@@ -197,11 +200,11 @@ public class ResourceServiceImpl implements IResourceService {
                     canView = true;
                     break;
                 }
-                // 校验基础可见性
-                boolean hasReadAuth = (acl.getVisibilityMode() == VisibilityMode.ALL ||
-                        (acl.getVisibilityMode() == VisibilityMode.WHITELIST && acl.getSpecifiedUsers().contains(dto.getUserId().toString())) ||
-                        (acl.getVisibilityMode() == VisibilityMode.BLACKLIST && !acl.getSpecifiedUsers().contains(dto.getUserId().toString())));
-                if (hasReadAuth) {
+
+                ComputedGroupAcl acl = entry.getValue();
+                Integer finalMask = acl.getUserMasks().getOrDefault(dto.getUserId().toString(), acl.getBaseMask());
+
+                if (ResourceAction.hasAction(finalMask, ResourceAction.VIEW)) {
                     canView = true;
                     break;
                 }
@@ -399,43 +402,58 @@ public class ResourceServiceImpl implements IResourceService {
     }
 
     @Override
-    public void calculateResourceAcl(String resourceId) {
+    public void calculateResourceGroupAcl(String resourceId) {
         // 获取资源绑定记录
         ResourceItemEntity bindEntity = resourceItemRepository.findByResourceId(resourceId)
                 .orElse(null);
 
-        List<GroupAcl> finalGroupAcls = new ArrayList<>();
+        Map<String, ComputedGroupAcl> computedGroupAcls = new HashMap<>();
 
         if (bindEntity != null && bindEntity.getGroupBinds() != null && !bindEntity.getGroupBinds().isEmpty()) {
             for (GroupTagBind groupBind : bindEntity.getGroupBinds()) {
-                if (groupBind.getTagIds() == null || groupBind.getTagIds().isEmpty()) {
-                    continue;
-                }
-                if (groupBind.getGroupId().startsWith(ResourceConstants.PERSONAL_GROUP_PREFIX)) {
-                    continue; // 个人Tag不参与计算Acl
-                }
+                if (groupBind.getTagIds() == null || groupBind.getTagIds().isEmpty()) continue;
+                if (groupBind.getGroupId().startsWith(ResourceConstants.PERSONAL_GROUP_PREFIX)) continue; // 个人Tag不参与计算Acl
+
                 // 提取首标并查询
                 String primaryTagId = groupBind.getTagIds().getFirst();
                 TagEntity primaryTag = tagRepository.findById(primaryTagId).orElse(null);
-
                 if (primaryTag == null) continue;
 
-                // 双维度溯源：可见性和动作权限分别从最近的有配置祖先节点捕获
-                // 加载当前组身份基线
                 Integer defaultActions = groupResConfigRepository.findByGroupId(groupBind.getGroupId())
                         .map(GroupResConfigEntity::getDefaultMemberActionsMask)
                         .orElse(ResourceAction.DEFAULT_MEMBER_ACTIONS);
                 ResolvedTagPermission resolved = resolveTagPermission(primaryTag, defaultActions);
 
-                GroupAcl acl = GroupAcl.builder().groupId(groupBind.getGroupId()).build();
-                BeanUtil.copyProperties(resolved, acl);
-                finalGroupAcls.add(acl);
+                // 如果资源自身有覆盖权限，则优先使用覆盖权限作为基础分发掩码
+                Integer effectiveMask = bindEntity.getOverrideGrantedActionsMask() != null
+                        ? bindEntity.getOverrideGrantedActionsMask()
+                        : resolved.grantedActionsMask;
+
+                // 将 AclGrantMode 编译为 BaseMask 和 UserMasks
+                ComputedGroupAcl computed = new ComputedGroupAcl();
+                switch (resolved.aclGrantMode) {
+                    case ALL:
+                        computed.setBaseMask(effectiveMask);
+                        break;
+                    case ONLY_ADMIN:
+                        computed.setBaseMask(0);
+                        break;
+                    case WHITELIST:
+                        computed.setBaseMask(0);
+                        resolved.specifiedUsers.forEach(uid -> computed.getUserMasks().put(uid, effectiveMask));
+                        break;
+                    case BLACKLIST:
+                        computed.setBaseMask(effectiveMask);
+                        resolved.specifiedUsers.forEach(uid -> computed.getUserMasks().put(uid, 0));
+                        break;
+                }
+                computedGroupAcls.put(groupBind.getGroupId(), computed);
             }
         }
 
         Query query = new Query(Criteria.where("_id").is(resourceId));
         Update update = new Update()
-                .set("computedAcls", finalGroupAcls)
+                .set("computedGroupAcls", computedGroupAcls)
                 .set("updateTime", new Date());
         mongoTemplate.updateFirst(query, update, ResourceItemEntity.class);
     }
@@ -489,21 +507,19 @@ public class ResourceServiceImpl implements IResourceService {
                 // 查询首标
                 TagEntity primaryTag = tagRepository.findById(primaryTagId).orElse(null);
 
-                // 可见性和动作权限分别从最近的有配置祖先节点捕获
-                // 加载当前组身份基线
                 Integer defaultActions = groupResConfigRepository.findByGroupId(groupBind.getGroupId())
                         .map(GroupResConfigEntity::getDefaultMemberActionsMask)
                         .orElse(ResourceAction.DEFAULT_MEMBER_ACTIONS);
 
                 ResolvedTagPermission resolved = resolveTagPermission(primaryTag, defaultActions);
 
-                // 判断是否有当前组的阅读权限
-                boolean hasReadAuth = (resolved.visibilityMode == VisibilityMode.ALL ||
-                        (resolved.visibilityMode == VisibilityMode.WHITELIST && resolved.specifiedUsers.contains(dto.getUserId().toString())) ||
-                        (resolved.visibilityMode == VisibilityMode.BLACKLIST && !resolved.specifiedUsers.contains(dto.getUserId().toString())));
+                // 使用 AclGrantMode 判断用户是否能获取当前组的权限掩码
+                boolean isEligibleForMask = (resolved.aclGrantMode == AclGrantMode.ALL ||
+                        (resolved.aclGrantMode == AclGrantMode.WHITELIST && resolved.specifiedUsers.contains(dto.getUserId().toString())) ||
+                        (resolved.aclGrantMode == AclGrantMode.BLACKLIST && !resolved.specifiedUsers.contains(dto.getUserId().toString())));
 
-                if (hasReadAuth) {
-                    // 只要有一个组能看，基础身份就是 Member
+                if (isEligibleForMask) {
+                    // 只要有一个组能下发权限，基础身份就是 Member
                     if (resourceAccessRole == ResourceAccessRole.NONE) {
                         resourceAccessRole = ResourceAccessRole.GROUP_MEMBER;
                     }
@@ -514,16 +530,12 @@ public class ResourceServiceImpl implements IResourceService {
             }
         }
 
-        // 如果群组层面没有权限，且个人特权里没有 VIEW (阅读) 权限，则彻底拒绝
-        if (resourceAccessRole == ResourceAccessRole.NONE && (userMask == null || !ResourceAction.hasAction(userMask, ResourceAction.VIEW))) {
-            return new ResourceCheckPermissionResDTO(ResourceAccessRole.NONE);
-        }
-
         // 应用资源级权限覆盖策略
-        // 优先级：定向用户特权 (userMask) > 全局覆盖 (Override) > 群组策略 (actionsMask)
-        actionsMask = entity.getOverrideGrantedActionsMask() == null ? actionsMask : entity.getOverrideGrantedActionsMask();
-
-        if (userMask != null) {
+        // 优先级：定向用户特权 (userMask) > 群组策略覆盖 (Override) > 群组策略 (actionsMask)
+        if (resourceAccessRole != ResourceAccessRole.NONE) { // 组策略覆盖的前提是用户在某个组内
+            actionsMask = entity.getOverrideGrantedActionsMask() == null ? actionsMask : entity.getOverrideGrantedActionsMask();
+        }
+        if (userMask != null) { // 如果有定向用户特权
             resourceAccessRole = ResourceAccessRole.OWNER_SPECIFIED;
             actionsMask = userMask;
             permissionSources.clear();
@@ -534,30 +546,20 @@ public class ResourceServiceImpl implements IResourceService {
 
     /**
      * 标签权限溯源的聚合结果
-     * 可见性（visibilityMode + specifiedUsers）和动作权限（grantedActions）
-     * 是两个独立维度，可能来自标签树中不同层级的祖先节点
      */
     @Data
     private static class ResolvedTagPermission {
-        VisibilityMode visibilityMode;
+        AclGrantMode aclGrantMode;
         List<String> specifiedUsers = Collections.emptyList();
         Integer grantedActionsMask;
 
-        boolean isVisibilityResolved() {
-            return visibilityMode != null;
-        }
-
-        boolean isActionsResolved() {
-            return grantedActionsMask != null;
-        }
-
-        boolean isFullyResolved() {
-            return isVisibilityResolved() && isActionsResolved();
-        }
+        boolean isAclGrantModeResolved() { return aclGrantMode != null; }
+        boolean isActionsResolved() { return grantedActionsMask != null; }
+        boolean isFullyResolved() { return isAclGrantModeResolved() && isActionsResolved(); }
     }
 
     /**
-     * 单次向上遍历标签树，分别捕获可见性和动作权限两个维度最近的非空配置
+     * 单次向上遍历标签树，分别捕获 ACL授予模式 和 授予动作掩码 最近的非空配置
      */
     private ResolvedTagPermission resolveTagPermission(TagEntity node, Integer defaultActions) {
         ResolvedTagPermission result = new ResolvedTagPermission();
@@ -595,9 +597,9 @@ public class ResourceServiceImpl implements IResourceService {
         if (!result.isActionsResolved()) {
             result.grantedActionsMask = defaultActions;
         }
-        // 如果未解析到可见性，则使用默认可见性（ALL）
-        if (!result.isVisibilityResolved()) {
-            result.visibilityMode = VisibilityMode.ALL;
+        // 如果未解析到 ACL授予模式，则使用默认ACL授予模式（ALL）
+        if (!result.isAclGrantModeResolved()) {
+            result.aclGrantMode = AclGrantMode.ALL;
         }
 
         return result;
@@ -607,8 +609,8 @@ public class ResourceServiceImpl implements IResourceService {
      * 将节点的权限配置按维度填入聚合结果，仅填充尚未解析的维度
      */
     private void capturePermission(ResolvedTagPermission result, TagEntity node) {
-        if (!result.isVisibilityResolved() && node.getVisibilityMode() != null) {
-            result.visibilityMode = node.getVisibilityMode();
+        if (!result.isAclGrantModeResolved() && node.getAclGrantMode() != null) {
+            result.aclGrantMode = node.getAclGrantMode();
             result.specifiedUsers = node.getSpecifiedUsers() != null ? node.getSpecifiedUsers()
                     : Collections.emptyList();
         }

@@ -52,7 +52,7 @@ public class TagServiceImpl implements ITagService {
 
         if (groupID.startsWith(ResourceConstants.PERSONAL_GROUP_PREFIX)){
             // 个人组标签不能设置标签权限
-            entity.setVisibilityMode(null);
+            entity.setAclGrantMode(null);
             entity.setSpecifiedUsers(null);
             entity.setGrantedActionsMask(null);
         }
@@ -102,7 +102,7 @@ public class TagServiceImpl implements ITagService {
 
         // 是否有权限变更
         boolean isPermissionChanged = false;
-        if (tagUpdateRequest.getVisibilityMode() != null && !tagUpdateRequest.getVisibilityMode().equals(entity.getVisibilityMode())) {
+        if (tagUpdateRequest.getAclGrantMode() != null && !tagUpdateRequest.getAclGrantMode().equals(entity.getAclGrantMode())) {
             isPermissionChanged = true;
         }
         if (tagUpdateRequest.getSpecifiedUsers() != null && !tagUpdateRequest.getSpecifiedUsers().equals(entity.getSpecifiedUsers())) {

@@ -1,7 +1,7 @@
 package com.oriole.wisepen.resource.domain.entity;
 
 import com.oriole.wisepen.resource.domain.base.TagInfoBase;
-import com.oriole.wisepen.resource.enums.VisibilityMode;
+import com.oriole.wisepen.resource.enums.AclGrantMode;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.springframework.data.annotation.Id;
@@ -21,7 +21,7 @@ public class TagEntity extends TagInfoBase {
     private List<String> ancestors;
 
     // 权限配置
-    private VisibilityMode visibilityMode;
+    private AclGrantMode aclGrantMode;
     private List<String> specifiedUsers; // 配合白名单/黑名单使用的 userId 列表
     private Integer grantedActionsMask;  // 匹配该标签时授予的权限掩码
 

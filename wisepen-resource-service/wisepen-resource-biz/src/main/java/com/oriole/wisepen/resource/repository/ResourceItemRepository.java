@@ -18,4 +18,8 @@ public interface ResourceItemRepository extends MongoRepository<ResourceItemEnti
     // 根据 tagId 查找所有关联的资源
     @Query("{ 'groupBinds.tagIds': { $in: ?0 } }")
     List<ResourceItemEntity> findByTagIdsIn(List<String> tagIds);
+
+    // 根据 groupId 查找所有关联的资源
+    @Query(value = "{ 'groupBinds.groupId' : ?0 }")
+    List<ResourceItemEntity> findByGroupId(String groupId);
 }

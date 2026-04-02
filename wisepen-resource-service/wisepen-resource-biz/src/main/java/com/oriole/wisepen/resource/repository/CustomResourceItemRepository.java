@@ -3,7 +3,7 @@ package com.oriole.wisepen.resource.repository;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.domain.enums.list.QueryLogicEnum;
 import com.oriole.wisepen.resource.domain.entity.ResourceItemEntity;
-import com.oriole.wisepen.resource.enums.VisibilityMode;
+import com.oriole.wisepen.resource.enums.ResourceAction;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -58,24 +58,19 @@ public class CustomResourceItemRepository {
             }
             criteria.and("groupBinds").elemMatch(groupBindCriteria);
             if (userGroupRole != GroupRoleType.ADMIN && userGroupRole != GroupRoleType.OWNER) {
+                int discoverCode = ResourceAction.DISCOVER.getCode();
+                String aclPrefix = "computedGroupAcls." + groupId;
                 Criteria aclCriteria = new Criteria().orOperator(
-                        // 情况 A: 自己的文件
+                        // 情况 A: 自己的文件 (免检)
                         Criteria.where("ownerId").is(userId),
-                        // 情况 B: 在用户所在的组内，模式为 ALL
-                        Criteria.where("computedAcls").elemMatch(
-                                Criteria.where("groupId").in(groupId).and("visibilityMode").is(VisibilityMode.ALL)
-                        ),
-                        // 情况 C: 模式为 WHITELIST，且用户在名单中
-                        Criteria.where("computedAcls").elemMatch(
-                                Criteria.where("groupId").in(groupId)
-                                        .and("visibilityMode").in(VisibilityMode.WHITELIST)
-                                        .and("specifiedUsers").is(userId)
-                        ),
-                        // 情况 D: 模式为 BLACKLIST，且用户【不在】名单中
-                        Criteria.where("computedAcls").elemMatch(
-                                Criteria.where("groupId").in(groupId)
-                                        .and("visibilityMode").is(VisibilityMode.BLACKLIST)
-                                        .and("specifiedUsers").ne(userId)
+                        // 情况 B: 资源级的定向用户特权 (包含 DISCOVER)
+                        Criteria.where("specifiedUsersGrantedActionsMask." + userId).bits().allSet(discoverCode),
+                        // 情况 C: 用户被分配了专属掩码，且掩码中包含 DISCOVER
+                        Criteria.where(aclPrefix + ".userMasks." + userId).bits().allSet(discoverCode),
+                        // 情况 D: 用户没有专属掩码，检查该组的 baseMask 是否包含 DISCOVER
+                        new Criteria().andOperator(
+                                Criteria.where(aclPrefix + ".userMasks." + userId).exists(false),
+                                Criteria.where(aclPrefix + ".baseMask").bits().allSet(discoverCode)
                         )
                 );
                 criteria = new Criteria().andOperator(criteria, aclCriteria);
