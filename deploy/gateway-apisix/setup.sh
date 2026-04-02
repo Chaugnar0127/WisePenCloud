@@ -62,12 +62,18 @@ function init_infrastructure() {
                 }
             }
         }')
-
-    curl -s -o /dev/null "${APISIX_ADMIN}/apisix/admin/plugin_configs/${TPL_ID_GLOBAL}" -X PUT \
+    local RESPONSE=$(curl -s -w "\n%{http_code}" "${APISIX_ADMIN}/apisix/admin/plugin_configs/${TPL_ID_GLOBAL}" -X PUT \
           -H "X-API-KEY: ${ADMIN_KEY}" \
-          -d "$body_global"
-
-    echo -e "\n基础设施初始化完成"
+          -d "$body_global")
+    local HTTP_BODY=$(echo "$RESPONSE" | sed '$d')
+    local HTTP_STATUS=$(echo "$RESPONSE" | tail -n 1)
+    if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]; then
+        echo -e "\n✅ 基础设施初始化完成"
+    else
+        echo -e "\n❌ [Fatal] APISIX 拒绝了配置！状态码: ${HTTP_STATUS}"
+        echo ">>> APISIX 报错详情: ${HTTP_BODY}"
+        exit 1
+    fi
 }
 
 # ================= 路由注册函数 =================
