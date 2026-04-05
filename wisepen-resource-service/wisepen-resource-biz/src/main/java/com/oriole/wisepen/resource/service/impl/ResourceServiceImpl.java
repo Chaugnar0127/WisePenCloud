@@ -7,7 +7,6 @@ import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.domain.enums.list.QueryLogicEnum;
 import com.oriole.wisepen.common.core.domain.enums.list.SortDirectionEnum;
 import com.oriole.wisepen.common.core.exception.ServiceException;
-import com.oriole.wisepen.resource.constant.MqTopicConstants;
 import com.oriole.wisepen.resource.constant.ResourceConstants;
 import com.oriole.wisepen.resource.domain.ComputedGroupAcl;
 import com.oriole.wisepen.resource.domain.GroupTagBind;
@@ -29,10 +28,12 @@ import com.oriole.wisepen.resource.repository.GroupResConfigRepository;
 import com.oriole.wisepen.resource.repository.ResourceItemRepository;
 import com.oriole.wisepen.resource.repository.TagRepository;
 import com.oriole.wisepen.resource.enums.FileOrganizationLogic;
-import com.oriole.wisepen.resource.service.IEventPublisher;
+import com.oriole.wisepen.resource.mq.IEventPublisher;
 import com.oriole.wisepen.resource.service.IGroupResService;
 import com.oriole.wisepen.resource.service.IResourceService;
 import com.oriole.wisepen.resource.service.ITagService;
+import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
+import com.oriole.wisepen.user.api.feign.RemoteUserService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -43,7 +44,6 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -67,6 +67,8 @@ public class ResourceServiceImpl implements IResourceService {
 
     private final IGroupResService groupResService;
     private final ITagService tagService;
+
+    private final RemoteUserService remoteUserService;
 
     @Override
     public void assertResourceOwner(String resourceId, String userId) {
@@ -252,6 +254,13 @@ public class ResourceServiceImpl implements IResourceService {
         // 组装响应数据
         ResourceItemResponse resp = new ResourceItemResponse();
         BeanUtil.copyProperties(entity, resp);
+        UserDisplayBase userDisplayBase;
+        try {
+            userDisplayBase = remoteUserService.getUserDisplayInfo(List.of(dto.getUserId())).getData().get(dto.getUserId());
+        } catch (Exception ignored){
+            userDisplayBase = new UserDisplayBase("UNKNOW", null, null, null);
+        }
+        resp.setOwnerInfo(userDisplayBase);
 
         // 处理标签回显
         List<String> allTagIds = extractRelevantTagIds(entity, null);
@@ -424,11 +433,19 @@ public class ResourceServiceImpl implements IResourceService {
             return;
         }
         // 仅从审计集合中物理擦除
-        Query physicalDeleteQuery = Query.query(Criteria.where("_id").in(resourceIds));
-        long deletedCount = mongoTemplate.remove(physicalDeleteQuery, RESOURCE_TRASH_COLLECTION).getDeletedCount();
+        Query query = Query.query(Criteria.where("_id").in(resourceIds));
+
+        List<ResourceItemEntity> expiredResources = mongoTemplate.find(
+                query,
+                ResourceItemEntity.class,
+                ResourceConstants.RESOURCE_TRASH_COLLECTION
+        );
+        if (expiredResources.isEmpty()) return;
+
+        long deletedCount = mongoTemplate.remove(query, RESOURCE_TRASH_COLLECTION).getDeletedCount();
         if (deletedCount > 0) {
             // 发送 Kafka 广播，通知文件存储等下游微服务抹除物理文件
-            eventPublisher.publishResDeletedEvent(resourceIds);
+            eventPublisher.publishResDeletedEvent(expiredResources);
         }
     }
 

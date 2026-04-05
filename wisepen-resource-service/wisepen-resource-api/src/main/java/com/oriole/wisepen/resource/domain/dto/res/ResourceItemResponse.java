@@ -2,6 +2,7 @@ package com.oriole.wisepen.resource.domain.dto.res;
 
 import com.oriole.wisepen.resource.domain.base.ResourceItemInfoBase;
 import com.oriole.wisepen.resource.enums.ResourceAction;
+import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
@@ -12,8 +13,10 @@ import java.util.Map;
 @Data
 public class ResourceItemResponse extends ResourceItemInfoBase {
     private String resourceId;
-    private Map<String, String> currentTags;
 
+    private UserDisplayBase ownerInfo;
+
+    private Map<String, String> currentTags;
     private List<ResourceAction> overrideGrantedActions;
     private Map<String, List<ResourceAction>> specifiedUsersGrantedActions;
 }

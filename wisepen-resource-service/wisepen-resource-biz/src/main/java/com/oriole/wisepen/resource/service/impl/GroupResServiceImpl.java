@@ -8,7 +8,7 @@ import com.oriole.wisepen.resource.enums.FileOrganizationLogic;
 import com.oriole.wisepen.resource.enums.ResourceAction;
 import com.oriole.wisepen.resource.repository.GroupResConfigRepository;
 import com.oriole.wisepen.resource.repository.ResourceItemRepository;
-import com.oriole.wisepen.resource.service.IEventPublisher;
+import com.oriole.wisepen.resource.mq.IEventPublisher;
 import com.oriole.wisepen.resource.service.IGroupResService;
 
 import cn.hutool.core.bean.BeanUtil;

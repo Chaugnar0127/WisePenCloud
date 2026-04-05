@@ -33,7 +33,8 @@ public enum ResourceType {
     PPT("ppt"),
     PPTX("pptx"),
     XLS("xls"),
-    XLSX("xlsx");
+    XLSX("xlsx"),
+    UNKNOWN("unknown");
 
     /** 枚举标识值（文件类扩展名小写，NOTE 使用逻辑标识），同时作为 DB 存储值和 JSON 序列化值 */
     @EnumValue
