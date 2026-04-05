@@ -19,14 +19,14 @@
             <version>${project.version}</version>
         </dependency>
 
-        <!-- Storage 服务 API（Feign 客户端 + 事件消息） -->
+        <!-- Storage 服务 API -->
         <dependency>
             <groupId>com.oriole</groupId>
             <artifactId>wisepen-file-storage-api</artifactId>
             <version>${project.version}</version>
         </dependency>
 
-        <!-- Resource 服务 API（Feign 客户端） -->
+        <!-- Resource 服务 API -->
         <dependency>
             <groupId>com.oriole</groupId>
             <artifactId>wisepen-resource-api</artifactId>
@@ -60,29 +60,19 @@
             <artifactId>spring-cloud-starter-alibaba-nacos-config</artifactId>
         </dependency>
 
-        <!-- MySQL + MyBatis-Plus -->
-        <dependency>
-            <groupId>com.mysql</groupId>
-            <artifactId>mysql-connector-j</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.baomidou</groupId>
-            <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
-        </dependency>
-
-        <!-- MongoDB（Stage 3 文本归档） -->
+        <!-- MongoDB -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-data-mongodb</artifactId>
         </dependency>
 
-        <!-- Kafka（Stage 2/3/4 事件驱动） -->
+        <!-- Kafka -->
         <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
         </dependency>
 
-        <!-- jodconverter（Stage 3 Office→PDF 转换） -->
+        <!-- jodconverter -->
         <dependency>
             <groupId>org.jodconverter</groupId>
             <artifactId>jodconverter-spring-boot-starter</artifactId>
@@ -94,14 +84,14 @@
             <version>4.4.7</version>
         </dependency>
 
-        <!-- Apache PDFBox：PDF 预览水印处理（明水印 + 暗水印马赛克、页数裁剪） -->
+        <!-- Apache PDFBox -->
         <dependency>
             <groupId>org.apache.pdfbox</groupId>
             <artifactId>pdfbox</artifactId>
             <version>2.0.31</version>
         </dependency>
 
-        <!-- ZXing：Reed-Solomon(32,16) over GF(2^8) 纠错编码，用于微型点阵暗水印 -->
+        <!-- ZXing -->
         <dependency>
             <groupId>com.google.zxing</groupId>
             <artifactId>core</artifactId>

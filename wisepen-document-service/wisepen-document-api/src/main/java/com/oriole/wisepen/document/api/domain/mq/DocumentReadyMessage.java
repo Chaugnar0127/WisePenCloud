@@ -20,12 +20,6 @@ public class DocumentReadyMessage implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    /** 文档唯一 ID（即 resource 服务的 resourceId） */
-    private String documentId;
-
-    /** 生成的 PDF 预览文件在 OSS 中的 ObjectKey */
-    private String previewObjectKey;
-
-    /** MongoDB 中纯文本文档的 _id */
-    private String textMongoId;
+    private String resourceId;
+    private String content;
 }

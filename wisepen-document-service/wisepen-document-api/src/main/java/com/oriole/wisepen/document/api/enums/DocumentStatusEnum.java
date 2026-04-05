@@ -10,13 +10,15 @@ import lombok.Getter;
 public enum DocumentStatusEnum {
 
     UPLOADING(0),
-    /** 物理文件已落地 OSS，等待解析流水线处理 */
     UPLOADED(1),
-    CONVERTING(2),
-    READY(3),
+    CONVERTING_AND_PARSING(2),
+    REGISTERING_RES(3),
+    READY(4),
+
     /** 上传超时：OSS 回调在预期时限内未收到，需人工或自动重试 */
     TRANSFER_TIMEOUT(-1),
-    FAILED(-2);
+    REGISTERING_RES_TIMEOUT(-2),
+    FAILED(-3);
 
     @EnumValue
     private final int code;

@@ -27,5 +27,5 @@ public class DocumentUploadInitRequest implements Serializable {
     private String md5;
 
     @NotNull(message = DocumentValidationMsg.FILE_SIZE_NULL)
-    private Long size;
+    private Long expectedSize;
 }

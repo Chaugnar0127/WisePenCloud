@@ -6,8 +6,10 @@ import com.oriole.wisepen.document.config.DocumentProperties;
 import com.oriole.wisepen.document.domain.entity.DocumentInfoEntity;
 import com.oriole.wisepen.document.domain.entity.DocumentPdfMetaEntity;
 import com.oriole.wisepen.document.exception.DocumentErrorCode;
+import com.oriole.wisepen.document.repository.DocumentContentRepository;
+import com.oriole.wisepen.document.repository.DocumentInfoRepository;
+import com.oriole.wisepen.document.repository.DocumentPdfMetaRepository;
 import com.oriole.wisepen.document.service.IDocumentPreviewService;
-import com.oriole.wisepen.document.service.IDocumentProcessService;
 import com.oriole.wisepen.document.util.WatermarkAppendixBuilder;
 import com.oriole.wisepen.file.storage.api.feign.RemoteStorageService;
 import jakarta.servlet.ServletOutputStream;
@@ -59,28 +61,27 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
 
     private static final int PIPE_BUF = 64 * 1024; // 64 KB 管道缓冲区
 
-    private final IDocumentProcessService documentProcessService;
+    private final DocumentInfoRepository documentInfoRepository;
+    private final DocumentContentRepository documentContentRepository;
+    private final DocumentPdfMetaRepository documentPdfMetaRepository;
+
     private final RemoteStorageService remoteStorageService;
     private final DocumentProperties documentProperties;
 
     @Override
     public void handlePreviewRequest(HttpServletRequest request,
                                      HttpServletResponse response,
-                                     String documentId,
+                                     String resourceId,
                                      String userId) {
-        DocumentInfoEntity doc = documentProcessService.getDocumentInfo(documentId);
-        if (doc == null || doc.getStatus() != DocumentStatusEnum.READY) {
-            response.setStatus(HttpStatus.NOT_FOUND.value());
-            return;
+        DocumentInfoEntity doc = documentInfoRepository.findByResourceId(resourceId)
+                .orElseThrow(() -> new ServiceException(DocumentErrorCode.DOCUMENT_NOT_FOUND));
+
+        if (doc.getDocumentStatus().getStatus() != DocumentStatusEnum.READY){
+            throw new ServiceException(DocumentErrorCode.DOCUMENT_NOT_READY);
         }
 
-        DocumentPdfMetaEntity meta = documentProcessService.getPdfMeta(documentId);
-        if (meta == null || meta.getAppendixSize() == 0) {
-            // 元数据尚未就绪（极少数情况），降级为 404
-            log.warn("PDF 元数据不可用，降级 404: documentId={}", documentId);
-            response.setStatus(HttpStatus.NOT_FOUND.value());
-            return;
-        }
+        DocumentPdfMetaEntity meta = documentPdfMetaRepository.findById(doc.getDocumentId())
+                .orElseThrow(() -> new ServiceException(DocumentErrorCode.DOCUMENT_PREVIEW_ERROR));
 
         long originalSize = meta.getOriginalSize();
         long totalSize = originalSize + meta.getAppendixSize();
@@ -108,13 +109,11 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
                         ossUrl, meta, userId, previewTime, response);
             }
         } catch (IOException e) {
-            log.error("预览响应写入失败: documentId={}", documentId, e);
-            // 响应已开始写出，无法再设置状态码，仅记录日志
+            log.error("文档预览响应写入失败 ResourceId={}", resourceId, e);
+            throw new ServiceException(DocumentErrorCode.DOCUMENT_PREVIEW_ERROR);
         } catch (Exception e) {
-            log.error("预览请求处理失败: documentId={}", documentId, e);
-            if (!response.isCommitted()) {
-                response.setStatus(HttpStatus.INTERNAL_SERVER_ERROR.value());
-            }
+            log.error("文档预览请求处理失败 ResourceId={}", resourceId, e);
+            throw new ServiceException(DocumentErrorCode.DOCUMENT_PREVIEW_ERROR);
         }
     }
 

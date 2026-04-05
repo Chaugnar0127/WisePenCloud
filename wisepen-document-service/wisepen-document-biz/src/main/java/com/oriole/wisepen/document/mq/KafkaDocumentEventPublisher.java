@@ -1,15 +1,20 @@
 package com.oriole.wisepen.document.mq;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oriole.wisepen.document.api.domain.mq.DocumentParseTaskMessage;
 import com.oriole.wisepen.document.api.domain.mq.DocumentReadyMessage;
+import com.oriole.wisepen.file.storage.api.domain.mq.FileUploadedMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 import static com.oriole.wisepen.document.api.constant.MqTopicConstants.TOPIC_DOCUMENT_PARSE;
 import static com.oriole.wisepen.document.api.constant.MqTopicConstants.TOPIC_DOCUMENT_READY;
+import static com.oriole.wisepen.file.storage.api.constant.MqTopicConstants.TOPIC_FILE_DELETE;
 
 /**
  * 文档服务 Kafka 事件发布器
@@ -22,27 +27,36 @@ public class KafkaDocumentEventPublisher {
     private final KafkaTemplate<String, String> kafkaTemplate;
     private final ObjectMapper objectMapper;
 
-    /**
-     * 发布文档解析任务（Stage 2 → Stage 3）
-     */
+    // 发布文档解析任务（内部削峰）
     public void publishParseTask(DocumentParseTaskMessage msg) {
-        send(TOPIC_DOCUMENT_PARSE, msg.getDocumentId(), msg);
-    }
-
-    /**
-     * 发布文档处理就绪事件（Stage 3 → Stage 4）
-     */
-    public void publishReadyEvent(DocumentReadyMessage msg) {
-        send(TOPIC_DOCUMENT_READY, msg.getDocumentId(), msg);
-    }
-
-    private void send(String topic, String key, Object payload) {
         try {
-            String json = objectMapper.writeValueAsString(payload);
-            kafkaTemplate.send(topic, key, json);
-            log.debug("Kafka 事件已发布: topic={}, key={}", topic, key);
+            String jsonMessage = objectMapper.writeValueAsString(msg);
+            kafkaTemplate.send(TOPIC_DOCUMENT_PARSE, msg.getDocumentId(), jsonMessage);
+            log.debug("成功发布文档解析事件 Document: {}", msg.getDocumentId());
         } catch (Exception e) {
-            log.error("Kafka 事件发布失败: topic={}, key={}", topic, key, e);
+            log.error("发布文档解析事件失败 Document: {}", msg.getDocumentId(), e);
+        }
+    }
+
+    // 发布文档处理就绪事件
+    public void publishReadyEvent(DocumentReadyMessage msg) {
+        try {
+            String jsonMessage = objectMapper.writeValueAsString(msg);
+            kafkaTemplate.send(TOPIC_DOCUMENT_READY, msg.getResourceId(), jsonMessage);
+            log.debug("成功发布文档解析事件 Document: {}", msg.getResourceId());
+        } catch (Exception e) {
+            log.error("发布文档解析事件失败 Document: {}", msg.getResourceId(), e);
+        }
+    }
+
+    // 发布文件删除事件
+    public void publishFileDeleteEvent(List<String> allObjectKeys) {
+        try {
+            String jsonPayload = objectMapper.writeValueAsString(allObjectKeys);
+            kafkaTemplate.send(TOPIC_FILE_DELETE, jsonPayload);
+            log.debug("成功发布文档解析事件 Document: {}", allObjectKeys);
+        } catch (Exception e) {
+            log.error("发布文档解析事件失败 Document: {}", allObjectKeys, e);
         }
     }
 }

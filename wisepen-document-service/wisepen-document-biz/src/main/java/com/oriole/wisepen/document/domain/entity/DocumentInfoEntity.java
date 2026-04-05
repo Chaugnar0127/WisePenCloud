@@ -1,56 +1,45 @@
 package com.oriole.wisepen.document.domain.entity;
 
-import com.baomidou.mybatisplus.annotation.*;
 import com.oriole.wisepen.document.api.domain.base.DocumentInfoBase;
+import com.oriole.wisepen.document.api.domain.base.DocumentUploadMeta;
 import com.oriole.wisepen.resource.enums.ResourceType;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.mongodb.core.mapping.Document;
+import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.time.LocalDateTime;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
-@TableName("document_info")
+@SuperBuilder
+@NoArgsConstructor
+@AllArgsConstructor
+@Document(collection = "wisepen_document_info")
 public class DocumentInfoEntity extends DocumentInfoBase {
 
-    /**
-     * 文档唯一 ID，直接复用 resource 服务返回的 resourceId（全局唯一，无需自造 ID）。
-     * MySQL 类型：VARCHAR，由服务层在 initUploadDocument 时写入。
-     */
-    @TableId(type = IdType.INPUT)
+    @Id
     private String documentId;
 
-    /**
-     * 文件类型（枚举，小写扩展名为 DB 存储值）。
-     * 本服务处理流水线根据 {@link com.oriole.wisepen.document.api.constant.DocumentConstants#OFFICE_TYPES}
-     * 决定是否执行 Office→PDF 转换。
-     */
-    private ResourceType fileType;
+    /** 关联的资源服务 ID (延迟绑定：初始化时为 null，解析成功后回写) */
+    private String resourceId;
 
-    /**
-     * 前端申报的文件大小（字节），用于计算上传超时阈值。
-     * 不作为最终文件大小的真实来源（以 OSS 回调为准）。
-     */
-    private Long size;
+    private DocumentUploadMeta uploadMeta;
 
-    /**
-     * 预览可见页数上限（null 表示不限制）。
-     * 由管理员或文档交易微服务写入，预览接口据此裁剪 PDF 页数。
-     */
-    private Integer maxPreviewPages;
+    /** 原始文件在 OSS 中的 ObjectKey（由 storage 服务分配） */
+    private String sourceObjectKey;
 
-    /**
-     * 转换失败时记录的错误摘要，供用户重试前查看。
-     * 仅在 status=FAILED 时有意义。
-     */
-    private String errorMessage;
+    /** PDF 预览文件在 OSS 中的 ObjectKey（Stage 3 归档后写入） */
+    private String previewObjectKey;
 
-    @TableField(fill = FieldFill.INSERT)
+    @CreatedDate
     private LocalDateTime createTime;
-
-    @TableField(fill = FieldFill.INSERT_UPDATE)
+    @LastModifiedDate
     private LocalDateTime updateTime;
-
-    @TableLogic
-    private Integer isDeleted;
 }
