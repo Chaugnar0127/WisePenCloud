@@ -17,6 +17,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.codec.digest.DigestUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
@@ -28,6 +29,10 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -93,7 +98,19 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
 
         response.setContentType("application/pdf");
         response.setHeader("Accept-Ranges", "bytes");
-        response.setHeader("Cache-Control", "no-store");
+        response.setHeader("Cache-Control", "no-cache");
+
+        if (doc.getCreateTime() != null) {
+            ZonedDateTime updateZdt = doc.getCreateTime()
+                    .atZone(ZoneId.systemDefault())
+                    .withZoneSameInstant(ZoneOffset.UTC);
+            String lastModifiedStr = DateTimeFormatter.RFC_1123_DATE_TIME.format(updateZdt);
+            response.setHeader("Last-Modified", lastModifiedStr);
+
+            long updateTimeMillis = updateZdt.toInstant().toEpochMilli();
+            String eTag = DigestUtils.md5Hex(resourceId + "_" + updateTimeMillis);
+            response.setHeader("ETag", "\"" + eTag + "\"");
+        }
 
         try {
             String rangeHeader = request.getHeader("Range");
