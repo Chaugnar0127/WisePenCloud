@@ -19,12 +19,15 @@ import com.oriole.wisepen.resource.domain.dto.ResourceInfoGetReqDTO;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
 import com.oriole.wisepen.resource.enums.ResourceAccessRole;
 import com.oriole.wisepen.resource.feign.RemoteResourceService;
+import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
+import com.oriole.wisepen.user.api.feign.RemoteUserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 import static com.oriole.wisepen.note.exception.NoteErrorCode.NOTE_PERMISSION_DENIED;
@@ -39,6 +42,7 @@ public class NoteController {
     private final INoteService noteService;
     private final INoteVersionService noteVersionService;
     private final RemoteResourceService remoteResourceService;
+    private final RemoteUserService remoteUserService;
 
     @Operation(summary = "创建笔记")
     @PostMapping("/addNote")
@@ -56,7 +60,18 @@ public class NoteController {
                 resourceId, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap()
         )).getData();
         NoteInfoBase noteInfo = noteService.getNoteInfo(resourceId);
-        NoteInfoResponse noteInfoResponse = NoteInfoResponse.builder().resourceInfo(resourceInfo).noteInfo(noteInfo).build();
+
+        Map<Long, UserDisplayBase> authorsDisplay = null;
+        try {
+            authorsDisplay = remoteUserService.getUserDisplayInfo(noteInfo.getAuthors()).getData();
+        } catch (Exception ignored){
+        }
+
+        NoteInfoResponse noteInfoResponse = NoteInfoResponse.builder()
+                .resourceInfo(resourceInfo)
+                .noteInfo(noteInfo)
+                .authorsDisplay(authorsDisplay)
+                .build();
         return R.ok(noteInfoResponse);
     }
 
