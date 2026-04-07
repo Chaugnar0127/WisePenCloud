@@ -142,12 +142,19 @@ public class StorageServiceImpl implements IStorageService {
         StorageRecordEntity record = storageRecordMapper.selectOne(
                 Wrappers.<StorageRecordEntity>lambdaQuery()
                         .eq(StorageRecordEntity::getObjectKey, objectKey)
-                        .eq(StorageRecordEntity::getStatus, StorageStatusEnum.AVAILABLE)
+                        .ne(StorageRecordEntity::getStatus, StorageStatusEnum.DELETED)
                         .last("LIMIT 1")
         );
         if (record == null) {
             throw new ServiceException(StorageErrorCode.RECORD_NOT_FOUND);
         }
+        if (StorageStatusEnum.UPLOADING.equals(record.getStatus())) {
+            StorageRecordDTO storageRecordDTO = this.compensateStatus(record);
+            if (storageRecordDTO == null) {
+                throw new ServiceException(StorageErrorCode.RECORD_NOT_FOUND);
+            }
+        }
+
         StorageProvider provider = storageManager.getProvider(record.getConfigId());
         return provider.generateDownloadUrl(objectKey, durationSeconds);
     }
