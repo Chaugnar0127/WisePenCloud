@@ -138,7 +138,7 @@ public class DocumentConversionAndParseConsumer {
                 UploadInitReqDTO.builder()
                         .extension("pdf")
                         .scene(StorageSceneEnum.PRIVATE_DOC)
-                        .bizTag(documentId + "_preview")
+                        .bizTag(documentId)
                         .build()
         ).getData();
 

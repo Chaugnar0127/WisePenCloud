@@ -43,9 +43,9 @@ public class KafkaDocumentEventPublisher {
         try {
             String jsonMessage = objectMapper.writeValueAsString(msg);
             kafkaTemplate.send(TOPIC_DOCUMENT_READY, msg.getResourceId(), jsonMessage);
-            log.debug("成功发布文档解析事件 Document: {}", msg.getResourceId());
+            log.debug("成功发布文档就绪事件 Document: {}", msg.getResourceId());
         } catch (Exception e) {
-            log.error("发布文档解析事件失败 Document: {}", msg.getResourceId(), e);
+            log.error("发布文档就绪事件失败 Document: {}", msg.getResourceId(), e);
         }
     }
 
@@ -54,9 +54,9 @@ public class KafkaDocumentEventPublisher {
         try {
             String jsonPayload = objectMapper.writeValueAsString(allObjectKeys);
             kafkaTemplate.send(TOPIC_FILE_DELETE, jsonPayload);
-            log.debug("成功发布文档解析事件 Document: {}", allObjectKeys);
+            log.debug("成功发布文档删除事件 Document: {}", allObjectKeys);
         } catch (Exception e) {
-            log.error("发布文档解析事件失败 Document: {}", allObjectKeys, e);
+            log.error("发布文档解析删除失败 Document: {}", allObjectKeys, e);
         }
     }
 }

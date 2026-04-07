@@ -58,7 +58,7 @@ public class FileUploadedConsumer {
             return; // 不处理
         }
 
-        DocumentInfoEntity entity = documentInfoRepository.findBySourceObjectKey(msg.getObjectKey()).orElse(null);
+        DocumentInfoEntity entity = documentInfoRepository.findBySourceObjectKeyOrPreviewObjectKey(msg.getObjectKey()).orElse(null);
         if (entity == null) {
             // 用户已经取消文件处理，删除文档
             eventPublisher.publishFileDeleteEvent(List.of(msg.getObjectKey()));

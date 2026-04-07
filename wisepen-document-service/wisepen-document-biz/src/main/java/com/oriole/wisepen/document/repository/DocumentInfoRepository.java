@@ -34,7 +34,8 @@ public interface DocumentInfoRepository extends MongoRepository<DocumentInfoEnti
 
     List<DocumentInfoEntity> findAllByResourceIdIn(List<String> resourceId);
 
-    Optional<DocumentInfoEntity> findBySourceObjectKey(String sourceObjectKey);
+    @Query("{ '$or': [ { 'sourceObjectKey': ?0 }, { 'previewObjectKey': ?0 } ] }")
+    Optional<DocumentInfoEntity> findBySourceObjectKeyOrPreviewObjectKey(String objectKey);
 
     @Query("{ 'documentStatus.status': ?0 }")
     List<DocumentInfoEntity> findByStatus(DocumentStatusEnum status);
