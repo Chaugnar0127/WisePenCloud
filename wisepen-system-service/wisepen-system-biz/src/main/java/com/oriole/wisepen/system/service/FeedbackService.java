@@ -1,10 +1,10 @@
 package com.oriole.wisepen.system.service;
 
-import com.oriole.wisepen.system.api.domain.dto.FeedbackDTO;
+import com.oriole.wisepen.system.api.domain.dto.FeedbackRequest;
 
 /**
  * @author Xiong Heng
  */
 public interface FeedbackService {
-    void storeFeedback(FeedbackDTO feedbackDto);
+    void storeFeedback(FeedbackRequest feedbackRequest);
 }

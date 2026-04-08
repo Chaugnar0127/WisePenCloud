@@ -1,7 +1,7 @@
 package com.oriole.wisepen.system.service.impl;
 
 import com.oriole.wisepen.common.core.context.SecurityContextHolder;
-import com.oriole.wisepen.system.api.domain.dto.FeedbackDTO;
+import com.oriole.wisepen.system.api.domain.dto.FeedbackRequest;
 import com.oriole.wisepen.system.api.enums.FeedbackStatus;
 import com.oriole.wisepen.system.domain.entity.Feedback;
 import com.oriole.wisepen.system.mapper.FeedbackMapper;
@@ -24,9 +24,9 @@ public class FeedbackServiceImpl implements FeedbackService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void storeFeedback(FeedbackDTO feedbackDto) {
+    public void storeFeedback(FeedbackRequest feedbackRequest) {
         Feedback feedback = new Feedback();
-        BeanUtils.copyProperties(feedbackDto, feedback);
+        BeanUtils.copyProperties(feedbackRequest, feedback);
 
         // 业务默认值赋值
         feedback.setStatus(FeedbackStatus.PENDING);

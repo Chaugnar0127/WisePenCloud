@@ -2,7 +2,7 @@ package com.oriole.wisepen.system.controller;
 
 import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
-import com.oriole.wisepen.system.api.domain.dto.FeedbackDTO;
+import com.oriole.wisepen.system.api.domain.dto.FeedbackRequest;
 import com.oriole.wisepen.system.service.FeedbackService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -29,8 +29,8 @@ public class UserFeedbackController {
     @Operation(summary = "提交用户反馈", description = "提交问题报错、功能建议、使用咨询等反馈信息")
     @CheckLogin
     @PostMapping("/submit")
-    public R<Void> submitFeedback(@Validated @RequestBody FeedbackDTO feedbackDTO) {
-        feedbackService.storeFeedback(feedbackDTO);
+    public R<Void> submitFeedback(@Validated @RequestBody FeedbackRequest feedbackRequest) {
+        feedbackService.storeFeedback(feedbackRequest);
         return R.ok();
     }
 }

@@ -13,7 +13,7 @@ import java.io.Serializable;
  */
 @Data
 @Schema(description = "用户反馈传输对象")
-public class FeedbackDTO implements Serializable {
+public class FeedbackRequest implements Serializable {
 
     private static final long serialVersionUID = 1L;
 
