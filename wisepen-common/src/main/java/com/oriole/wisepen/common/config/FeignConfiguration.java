@@ -1,5 +1,6 @@
 package com.oriole.wisepen.common.config;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
@@ -33,10 +34,10 @@ public class FeignConfiguration {
 
     private ObjectMapper feignObjectMapper() {
         ObjectMapper objectMapper = new ObjectMapper();
-        // 注册 Java 8 时间模块
-        objectMapper.registerModule(new JavaTimeModule());
+        objectMapper.findAndRegisterModules();
         // 禁用将日期序列化为时间戳
         objectMapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        objectMapper.disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
         return objectMapper;
     }
 
