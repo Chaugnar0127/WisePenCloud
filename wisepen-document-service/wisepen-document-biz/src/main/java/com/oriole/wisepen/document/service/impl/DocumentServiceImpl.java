@@ -151,7 +151,13 @@ public class DocumentServiceImpl implements IDocumentService {
         switch (entity.getDocumentStatus().getStatus()) {
             case FAILED:
                 this.updateStatus(documentId, new DocumentStatus(DocumentStatusEnum.UPLOADED));
-                eventPublisher.publishParseTask(BeanUtil.copyProperties(entity, DocumentParseTaskMessage.class));
+                eventPublisher.publishParseTask(
+                        DocumentParseTaskMessage.builder()
+                                .documentId(entity.getDocumentId())
+                                .sourceObjectKey(entity.getSourceObjectKey())
+                                .fileType(entity.getUploadMeta().getFileType())
+                                .build()
+                );
                 break;
             case REGISTERING_RES_TIMEOUT:
                 this.finalizeToReady(documentId);
