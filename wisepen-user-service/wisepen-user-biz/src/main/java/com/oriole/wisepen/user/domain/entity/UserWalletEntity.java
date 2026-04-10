@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
 @TableName("sys_user_wallets")
 public class UserWalletEntity implements Serializable {
 
-	@TableId(value="Id", type = IdType.INPUT)
+	@TableId(type = IdType.INPUT)
 	private Long userId;
 
 	private Integer tokenBalance;

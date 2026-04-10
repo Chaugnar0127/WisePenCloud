@@ -26,9 +26,9 @@ public interface IWalletService {
     // 更新组 Token 用量
     void updateGroupTokenUsed(Long groupId, Integer usedToken);
     // 更新组成员 Token 用量
-    Integer updateGroupMemberTokenUsed(Long groupId, Long userId, Long traceId, Integer tokenBill, String BillMeta);
+    Integer updateGroupMemberTokenUsed(Long groupId, Long userId, String traceId, Integer tokenBill, String BillMeta);
     // 更新个人 Token 用量
-    void updateUserTokenUsed(Long userId, Long traceId, Integer tokenBill, String BillMeta);
+    void updateUserTokenUsed(Long userId, String traceId, Integer tokenBill, String billMeta);
 
     // 转移 Token（仅限小组所有者）
     void transferTokenBetweenGroupAndUser(Long userId, WalletTransferTokenRequest req);

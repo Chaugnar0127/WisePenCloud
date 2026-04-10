@@ -64,14 +64,19 @@ public class WalletServiceImpl implements IWalletService {
         Long userId = message.getUserId();
         Long groupId = message.getGroupId();
 
-        Integer tokenBill = message.getUsageTokens() * message.getModelType().getRatio();
+        Integer tokenBill = message.getUsageTokens() * message.getBillingRatio();
+        String billMeta = "%s (%s | %d Tokens x%s )".formatted(
+                message.getModelName(),
+                message.getModelType().getDesc(),
+                message.getUsageTokens(),
+                message.getBillingRatio()
+        );
+
         if (groupId != null) {
-            tokenBill = this.updateGroupMemberTokenUsed(groupId, userId, message.getTraceId(), tokenBill,
-                    message.getModelType().getDesc()); // 从组成员侧扣除
+            tokenBill = this.updateGroupMemberTokenUsed(groupId, userId, message.getTraceId(), tokenBill, billMeta); // 从组成员侧扣除
         }
         if (tokenBill > 0) { // 即个人账单，或组内未能支付全部账单
-            this.updateUserTokenUsed(userId, message.getTraceId(), tokenBill,
-                    message.getModelType().getDesc()); // 从个人侧扣除
+            this.updateUserTokenUsed(userId, message.getTraceId(), tokenBill, billMeta); // 从个人侧扣除
         }
     }
 
@@ -198,7 +203,7 @@ public class WalletServiceImpl implements IWalletService {
 
     @Override
     // 更新组成员 Token 用量
-    public Integer updateGroupMemberTokenUsed(Long groupId, Long userId, Long traceId, Integer tokenBill, String BillMeta) {
+    public Integer updateGroupMemberTokenUsed(Long groupId, Long userId, String traceId, Integer tokenBill, String BillMeta) {
         // 查询组成员最新额度消耗情况
         LambdaQueryWrapper<GroupMemberEntity> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(GroupMemberEntity::getGroupId, groupId)
@@ -228,7 +233,7 @@ public class WalletServiceImpl implements IWalletService {
 
         // 记录交易
         TokenTransactionRecordEntity record = TokenTransactionRecordEntity.builder()
-                .traceId(traceId.toString())
+                .traceId(traceId)
                 .payerId(groupId).payerType(TokenPayerType.GROUP)
                 .tokenCount(tokenBill).tokenTransactionType(TokenTransactionType.SPEND)
                 .operatorId(userId)
@@ -239,7 +244,7 @@ public class WalletServiceImpl implements IWalletService {
 
     @Override
     // 更新个人 Token 用量
-    public void updateUserTokenUsed(Long userId, Long traceId, Integer tokenBill, String BillMeta) {
+    public void updateUserTokenUsed(Long userId, String traceId, Integer tokenBill, String billMeta) {
         // 个人允许小额透支，因此不事先检查余量
         UpdateWrapper<UserWalletEntity> wrapper = new UpdateWrapper<>();
         wrapper.eq("user_id", userId)
@@ -260,7 +265,7 @@ public class WalletServiceImpl implements IWalletService {
                 .payerId(userId).payerType(TokenPayerType.USER)
                 .tokenCount(tokenBill).tokenTransactionType(TokenTransactionType.SPEND)
                 .operatorId(userId)
-                .meta(BillMeta).build();
+                .meta(billMeta).build();
         tokenTransactionRecordMapper.insert(record);
     }
 

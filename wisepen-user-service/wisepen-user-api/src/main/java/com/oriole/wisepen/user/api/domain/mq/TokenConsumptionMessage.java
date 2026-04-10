@@ -7,7 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 @Data
 @Builder
@@ -17,7 +17,9 @@ public class TokenConsumptionMessage implements Serializable{
 	private Long userId;
 	private Long groupId;
 	private Integer usageTokens;
-	private Long traceId;
+	private Integer billingRatio;
+	private String traceId;
+	private String modelName;
 	private ModelType modelType;
-	private LocalDateTime requestTime;
+	private OffsetDateTime requestTime;
 }

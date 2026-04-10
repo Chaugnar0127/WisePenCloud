@@ -16,7 +16,12 @@ public class TokenConsumptionConsumer {
 
 	private final IWalletService walletService;
 
-	@KafkaListener(topics = TOPIC_TOKEN_CONSUMPTION, groupId = "wisepen-user-token-consumption-group")
+	@KafkaListener(topics = TOPIC_TOKEN_CONSUMPTION, groupId = "wisepen-user-token-consumption-group",
+			properties = {
+					"spring.json.use.type.headers:false",
+					"spring.json.value.default.type:com.oriole.wisepen.user.api.domain.mq.TokenConsumptionMessage"
+			}
+	)
 	public void onTokenConsumption(TokenConsumptionMessage message) {
 		log.debug("接收到 Token 消耗事件 TraceId={}", message.getTraceId());
 		walletService.consumptionToken(message);
