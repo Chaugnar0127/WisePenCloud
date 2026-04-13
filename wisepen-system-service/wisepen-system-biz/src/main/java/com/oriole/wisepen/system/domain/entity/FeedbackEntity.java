@@ -12,12 +12,12 @@ import java.time.LocalDateTime;
  */
 @Data
 @TableName("feedback")
-public class Feedback {
+public class FeedbackEntity {
     @TableId(type = IdType.AUTO)
     private Long id;
     private Long userId;
     private String content;
-    private String contactId;
+    private String contact;
     private String browser;
     private FeedbackType type;
     private FeedbackStatus status;

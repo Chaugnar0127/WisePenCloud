@@ -2,7 +2,7 @@ package com.oriole.wisepen.system.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.oriole.wisepen.system.api.domain.dto.SysOperLogDTO;
-import com.oriole.wisepen.system.domain.entity.SysOperLog;
+import com.oriole.wisepen.system.domain.entity.SysOperLogEntity;
 import com.oriole.wisepen.system.mapper.SysOperLogMapper;
 import com.oriole.wisepen.system.service.SysOperLogService;
 import lombok.extern.slf4j.Slf4j;
@@ -20,7 +20,7 @@ public class SysOperLogServiceImpl implements SysOperLogService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean saveLog(SysOperLogDTO dto) {
-        SysOperLog entity = BeanUtil.copyProperties(dto, SysOperLog.class);
+        SysOperLogEntity entity = BeanUtil.copyProperties(dto, SysOperLogEntity.class);
         int rows = sysOperLogMapper.insert(entity);
         return rows > 0;
     }

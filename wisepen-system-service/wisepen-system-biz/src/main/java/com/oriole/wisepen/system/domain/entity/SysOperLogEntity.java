@@ -8,7 +8,7 @@ import java.time.LocalDateTime;
 
 @Data
 @TableName("sys_oper_log")
-public class SysOperLog {
+public class SysOperLogEntity {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String title;
