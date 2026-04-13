@@ -275,7 +275,8 @@ public class ResourceServiceImpl implements IResourceService {
         BeanUtil.copyProperties(entity, resp);
         UserDisplayBase userDisplayBase;
         try {
-            userDisplayBase = remoteUserService.getUserDisplayInfo(List.of(dto.getUserId())).getData().get(dto.getUserId());
+            Long owner = Long.valueOf(entity.getOwnerId());
+            userDisplayBase = remoteUserService.getUserDisplayInfo(List.of(owner)).getData().get(owner);
         } catch (Exception ignored){
             userDisplayBase = new UserDisplayBase("UNKNOW", null, null, null);
         }
@@ -644,6 +645,7 @@ public class ResourceServiceImpl implements IResourceService {
         if (!noGroupContext) {
             // 遍历资源绑定的所有组
             for (GroupTagBind groupBind : entity.getGroupBinds()) {
+                if (groupBind.getGroupId().startsWith(ResourceConstants.PERSONAL_GROUP_PREFIX)) continue; // 个人Tag不参与计算
                 Long groupId = Long.valueOf(groupBind.getGroupId());
 
                 if (!dto.getGroupRoles() .containsKey(groupId)) { // 用户不在该组，跳过
