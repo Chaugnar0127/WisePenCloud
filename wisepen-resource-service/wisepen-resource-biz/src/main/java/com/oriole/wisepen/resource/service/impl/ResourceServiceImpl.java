@@ -231,48 +231,49 @@ public class ResourceServiceImpl implements IResourceService {
                 .orElseThrow(() -> new ServiceException(ResPermissionErrorCode.RESOURCE_NOT_FOUND));
 
         // 预计算 ACL 快速鉴权 (拦截非法越权访问)
-        boolean canView = false;
+        int currentActionsMask = 0;
+        String currentUserIdStr = dto.getUserId().toString();
+        if (currentUserIdStr.equals(entity.getOwnerId())) {
+            // 所有者拥有全权限
+            currentActionsMask = ResourceAction.ALL_ACTIONS;
+        } else {
+            // 检查资源级的“指定用户特权”
+            Integer userSpecifiedMask = entity.getSpecifiedUsersGrantedActionsMask() == null ? null : entity.getSpecifiedUsersGrantedActionsMask().get(currentUserIdStr);
+            if (userSpecifiedMask != null) currentActionsMask = userSpecifiedMask;
+            // 如果没有指定用户特权，则遍历预计算的群组 ACL
+            else if (dto.getGroupRoles() != null && !dto.getGroupRoles().isEmpty() && entity.getComputedGroupAcls() != null) {
+                for (Map.Entry<String, ComputedGroupAcl> entry : entity.getComputedGroupAcls().entrySet()) {
+                    Long groupId = Long.valueOf(entry.getKey());
+                    if (!dto.getGroupRoles().containsKey(groupId)) continue;
 
-        // 如果用户被资源级的“指定用户特权”单独授权了 VIEW 动作
-        Integer userMask = entity.getSpecifiedUsersGrantedActionsMask() == null ? null: entity.getSpecifiedUsersGrantedActionsMask().get(dto.getUserId().toString());
+                    GroupRoleType userRole = dto.getGroupRoles().get(groupId);
+                    // 如果是小组管理员或所有者，拥有该小组维度的全权限
+                    if (userRole == GroupRoleType.ADMIN || userRole == GroupRoleType.OWNER) {
+                        currentActionsMask = ResourceAction.ALL_ACTIONS;
+                        break;
+                    }
 
-        if (dto.getUserId().toString().equals(entity.getOwnerId())) {
-            // 所有者直接放行
-            canView = true;
-        } else if (userMask != null && ResourceAction.hasAction(userMask, ResourceAction.VIEW)) {
-            // 如果用户被资源级的“指定用户特权”单独授权了 VIEW 动作
-            canView = true;
-        } else if (dto.getGroupRoles() != null && !dto.getGroupRoles().isEmpty() && entity.getComputedGroupAcls() != null) {
-            // 遍历预计算的 ACL 列表
-            for (Map.Entry<String, ComputedGroupAcl> entry : entity.getComputedGroupAcls().entrySet()) {
-                Long groupId = Long.valueOf(entry.getKey());
-                if (!dto.getGroupRoles().containsKey(groupId)) continue;
-
-                GroupRoleType userRole = dto.getGroupRoles().get(groupId);
-                // 群组管理员/所有者直接放行
-                if (userRole == GroupRoleType.ADMIN || userRole == GroupRoleType.OWNER) {
-                    canView = true;
-                    break;
-                }
-
-                ComputedGroupAcl acl = entry.getValue();
-                Integer finalMask = acl.getUserMasks().getOrDefault(dto.getUserId().toString(), acl.getBaseMask());
-
-                if (ResourceAction.hasAction(finalMask, ResourceAction.VIEW)) {
-                    canView = true;
-                    break;
+                    // 累加普通成员在不同小组下获得的权限 (按位或)
+                    ComputedGroupAcl acl = entry.getValue();
+                    Integer groupFinalMask = acl.getUserMasks().getOrDefault(currentUserIdStr, acl.getBaseMask());
+                    currentActionsMask |= groupFinalMask;
                 }
             }
+            if (currentActionsMask != 0 && entity.getOverrideGrantedActionsMask() != null) {
+                currentActionsMask = entity.getOverrideGrantedActionsMask();
+            }
         }
-
-        // 彻底无权限，抛出异常阻断
-        if (!canView) {
+        // 鉴权：检查是否拥有 VIEW 权限
+        if (!ResourceAction.hasAction(currentActionsMask, ResourceAction.VIEW)) {
             throw new ServiceException(ResPermissionErrorCode.RESOURCE_PERMISSION_DENIED);
         }
 
         // 组装响应数据
         ResourceItemResponse resp = new ResourceItemResponse();
         BeanUtil.copyProperties(entity, resp);
+
+        resp.setCurrentActions(ResourceAction.permissionCodeToActions(currentActionsMask));
+
         UserDisplayBase userDisplayBase;
         try {
             Long owner = Long.valueOf(entity.getOwnerId());
@@ -309,6 +310,7 @@ public class ResourceServiceImpl implements IResourceService {
         }
         resp.setCurrentTags(tagMap);
 
+        // 仅所有者有此字段
         if (dto.getUserId().toString().equals(entity.getOwnerId())) {
             // 处理权限掩码解包
             if (entity.getOverrideGrantedActionsMask() != null) {

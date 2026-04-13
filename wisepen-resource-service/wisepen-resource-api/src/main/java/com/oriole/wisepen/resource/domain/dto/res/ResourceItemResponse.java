@@ -13,10 +13,11 @@ import java.util.Map;
 @Data
 public class ResourceItemResponse extends ResourceItemInfoBase {
     private String resourceId;
-
     private UserDisplayBase ownerInfo;
 
     private Map<String, String> currentTags;
+    private List<ResourceAction> currentActions;
+
     private List<ResourceAction> overrideGrantedActions;
     private Map<String, List<ResourceAction>> specifiedUsersGrantedActions;
 }
