@@ -2,7 +2,7 @@
   <configuration default="false" name="UserApplication" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot" nameIsGenerated="true">
     <envs>
       <env name="NACOS_USERNAME" value="nacos" />
-      <env name="NACOS_PASSWORD" value="oriole004" />
+      <env name="NACOS_PASSWORD" value="oriole003" />
     </envs>
     <module name="wisepen-user-biz" />
     <option name="SPRING_BOOT_MAIN_CLASS" value="com.oriole.wisepen.user.UserApplication" />
