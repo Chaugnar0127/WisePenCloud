@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static com.oriole.wisepen.common.core.util.LogIdUtils.summarizeIds;
 import static com.oriole.wisepen.resource.constant.ResourceConstants.TAGS_TRASH_COLLECTION;
 import static com.oriole.wisepen.resource.exception.ResPermissionErrorCode.CANNOT_SET_VISIBILITY;
 
@@ -99,7 +100,10 @@ public class TagServiceImpl implements ITagService {
             entity.setAncestors(new ArrayList<>());
         }
 
-        return tagRepository.save(entity).getTagId();
+        TagEntity saved = tagRepository.save(entity);
+        log.info("tag created groupId={} parentId={} tagId={} isPath={}",
+                saved.getGroupId(), saved.getParentId(), saved.getTagId(), saved.getIsPath());
+        return saved.getTagId();
     }
 
     @Override
@@ -133,7 +137,7 @@ public class TagServiceImpl implements ITagService {
             }
 
             if (initialized) {
-                log.info("用户空间 {} 已静默初始化系统节点", groupId);
+                log.info("personalSpace created groupId={} nodes=root,trash", groupId);
             }
         }
 
@@ -197,6 +201,8 @@ public class TagServiceImpl implements ITagService {
             throw new ServiceException(CANNOT_SET_VISIBILITY); // 个人组标签不能设置标签权限
         }
 
+        boolean nameChanged = newName != null && !newName.equals(entity.getTagName());
+
         // 更新基本信息和权限策略
         tagUpdateRequest.setIsPath(null); // IsPath始终不允许修改
         BeanUtil.copyProperties(tagUpdateRequest, entity, CopyOptions.create().ignoreNullValue());
@@ -204,7 +210,12 @@ public class TagServiceImpl implements ITagService {
 
         tagRepository.save(entity);
 
+        log.info("tag updated groupId={} tagId={} nameChanged={} permissionChanged={}",
+                groupID, targetId, nameChanged, isPermissionChanged);
+
         if (isPermissionChanged) {
+            log.info("tagPermission changed groupId={} tagId={} mode={}",
+                    groupID, targetId, entity.getAclGrantMode());
             // 通知所有挂在它以及它子孙节点上的资源重新计算权限
             // 个人组标签不能设置标签权限，已经提前抛出错误
             afterTagNodeChanged(groupID, targetId, false);
@@ -231,6 +242,8 @@ public class TagServiceImpl implements ITagService {
         // 获取当前节点
         TagEntity targetNode = tagRepository.findByGroupIdAndTagId(groupID, targetId)
                 .orElseThrow(() -> new ServiceException(ResPermissionErrorCode.TAG_NOT_FOUND));
+
+        String oldParentId = targetNode.getParentId();
 
         // 如果父节点没变直接返回
         if (newParentId.equals(targetNode.getParentId())) {
@@ -310,12 +323,16 @@ public class TagServiceImpl implements ITagService {
 
         // 如果是被移入回收站，触发Tag下所有资源的共享小组剥夺
         if (isNodeInTrash(groupID, newParentId) == TagType.TRASH) {
+            log.info("tag moved groupId={} tagId={} oldParentId={} newParentId={}(trash) descendantCount={}",
+                    groupID, targetId, oldParentId, newParentId, descendants.size());
+
             List<String> affectedTagIds = descendants.stream().map(TagEntity::getTagId).collect(Collectors.toList());
             affectedTagIds.add(targetId);
-
             // 发布移入回收站事件
             eventPublisher.publishEvent(new TagTrashedEvent(affectedTagIds));
         } else {
+            log.info("tag moved groupId={} tagId={} oldParentId={} newParentId={} descendantCount={}",
+                    groupID, targetId, oldParentId, newParentId, descendants.size());
             // 正常的移动，通知所有挂在它以及它子孙节点上的资源重新计算权限
             afterTagNodeChanged(groupID, targetId, groupID.startsWith(ResourceConstants.PERSONAL_GROUP_PREFIX));
         }
@@ -353,6 +370,8 @@ public class TagServiceImpl implements ITagService {
         tagRepository.deleteByGroupIdAndAncestorsContaining(groupID, targetId);
 
         // 发布彻底删除事件
+        log.info("tag deleted groupId={} tagId={} cascadeCount={} isPath={}",
+                groupID, targetId, deletedTagIds.size(), targetNode.getIsPath());
         eventPublisher.publishEvent(new TagDeletedEvent(deletedTagIds, groupID.startsWith(ResourceConstants.PERSONAL_GROUP_PREFIX), targetNode.getIsPath()));
     }
 
@@ -410,7 +429,7 @@ public class TagServiceImpl implements ITagService {
             mongoTemplate.save(tag, TAGS_TRASH_COLLECTION);
         }
         tagRepository.deleteByGroupId(groupId);
-        log.info("小组 {} Tag 树软删除：共移入 trash {} 个节点", groupId, tags.size());
+        log.info("tagTree deleted mode=soft groupId={} count={}", groupId, tags.size());
     }
 
     public void hardRemoveAllTagByGroupId(String groupId) {
@@ -422,9 +441,11 @@ public class TagServiceImpl implements ITagService {
         List<String> allTagIds = tags.stream().map(TagEntity::getTagId).collect(Collectors.toList());
         // 发布彻底删除事件
         eventPublisher.publishEvent(new TagDeletedEvent(allTagIds, false, false));
-        mongoTemplate.remove(
+        long deletedCount = mongoTemplate.remove(
                 Query.query(Criteria.where("groupId").is(groupId)),
                 TAGS_TRASH_COLLECTION
-        );
+        ).getDeletedCount();
+        log.info("tagTree deleted mode=hard groupId={} count={} tagIds={}",
+                groupId, deletedCount, summarizeIds(allTagIds));
     }
 }

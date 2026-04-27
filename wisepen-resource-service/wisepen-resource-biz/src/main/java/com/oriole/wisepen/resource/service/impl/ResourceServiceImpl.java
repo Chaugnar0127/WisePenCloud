@@ -39,6 +39,7 @@ import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
 import com.oriole.wisepen.user.api.feign.RemoteUserService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -56,7 +57,9 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.oriole.wisepen.resource.constant.ResourceConstants.RESOURCE_TRASH_COLLECTION;
+import static com.oriole.wisepen.common.core.util.LogIdUtils.summarizeIds;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class ResourceServiceImpl implements IResourceService {
@@ -76,17 +79,41 @@ public class ResourceServiceImpl implements IResourceService {
 
     @TransactionalEventListener
     public void handleTagTrashedEvent(TagTrashedEvent event) {
-        this.stripGroupPermission(event.getTrashedTagIds());
+        int tagCount = event.getTrashedTagIds() == null ? 0 : event.getTrashedTagIds().size();
+        log.info("tagTrashedEvent received tagCount={} tagIds={}",
+                tagCount, summarizeIds(event.getTrashedTagIds()));
+        try {
+            this.stripGroupPermission(event.getTrashedTagIds());
+        } catch (Exception e) {
+            log.error("tagTrashedEvent handle failed tagCount={} tagIds={}",
+                    tagCount, summarizeIds(event.getTrashedTagIds()), e);
+        }
     }
 
     @TransactionalEventListener
     public void handleTagChangedEvent(TagChangedEvent event) {
-        this.afterTagNodeChanged(event.getChangedTagIds(), event.getIsPersonalTag());
+        int tagCount = event.getChangedTagIds() == null ? 0 : event.getChangedTagIds().size();
+        log.info("tagChangedEvent received tagCount={} tagIds={} isPersonalTag={}",
+                tagCount, summarizeIds(event.getChangedTagIds()), event.getIsPersonalTag());
+        try {
+            this.afterTagNodeChanged(event.getChangedTagIds(), event.getIsPersonalTag());
+        } catch (Exception e) {
+            log.error("tagChangedEvent handle failed tagCount={} tagIds={} isPersonalTag={}",
+                    tagCount, summarizeIds(event.getChangedTagIds()), event.getIsPersonalTag(), e);
+        }
     }
 
     @TransactionalEventListener
     public void handleTagDeletedEvent(TagDeletedEvent event) {
-        this.afterTagNodeDeleted(event.getDeletedTagIds(), event.getIsPersonalTag(), event.getIsPathTag());
+        int tagCount = event.getDeletedTagIds() == null ? 0 : event.getDeletedTagIds().size();
+        log.info("tagDeletedEvent received tagCount={} tagIds={} isPathTag={}",
+                tagCount, summarizeIds(event.getDeletedTagIds()), event.getIsPathTag());
+        try {
+            this.afterTagNodeDeleted(event.getDeletedTagIds(), event.getIsPersonalTag(), event.getIsPathTag());
+        } catch (Exception e) {
+            log.error("tagDeletedEvent handle failed tagCount={} tagIds={} isPathTag={}",
+                    tagCount, summarizeIds(event.getDeletedTagIds()), event.getIsPathTag(), e);
+        }
     }
 
     @Override
@@ -94,6 +121,8 @@ public class ResourceServiceImpl implements IResourceService {
         ResourceItemEntity entity = resourceItemRepository.findById(resourceId)
                 .orElseThrow(() -> new ServiceException(ResPermissionErrorCode.RESOURCE_NOT_FOUND));
         if (!userId.equals(entity.getOwnerId())) {
+            log.warn("resource permission denied resourceId={} userId={} ownerId={}",
+                    resourceId, userId, entity.getOwnerId());
             throw new ServiceException(ResPermissionErrorCode.RESOURCE_PERMISSION_DENIED);
         }
     }
@@ -103,8 +132,11 @@ public class ResourceServiceImpl implements IResourceService {
         ResourceItemEntity entity = resourceItemRepository.findById(req.getResourceId())
                 .orElseThrow(() -> new ServiceException(ResPermissionErrorCode.RESOURCE_NOT_FOUND));
 
+        String oldName = entity.getResourceName();
         entity.setResourceName(req.getNewName());
         resourceItemRepository.save(entity);
+        log.info("resource renamed resourceId={} oldName={} newName={}",
+                entity.getResourceId(), oldName, req.getNewName());
     }
 
     @Override
@@ -188,6 +220,9 @@ public class ResourceServiceImpl implements IResourceService {
             }
         }
         resourceItemRepository.save(entity);
+        log.info("resourceTags changed resourceId={} groupId={} tagCount={}",
+                entity.getResourceId(), groupId, tagIds == null ? 0 : tagIds.size());
+
         if (groupId != null && groupId.startsWith(ResourceConstants.PERSONAL_GROUP_PREFIX)) {
             // 个人空间的普通路径变更不需要发通知，但如果是“进入回收站导致组分享被剥夺”则必须通知下游
             if (isTrashed) {
@@ -220,6 +255,10 @@ public class ResourceServiceImpl implements IResourceService {
         }
 
         resourceItemRepository.save(entity);
+        log.info("resourceActionPermission changed resourceId={} hasOverride={} specifiedUserCount={}",
+                entity.getResourceId(),
+                entity.getOverrideGrantedActionsMask() != null,
+                entity.getSpecifiedUsersGrantedActionsMask() == null ? 0 : entity.getSpecifiedUsersGrantedActionsMask().size());
 
         // 保存资源级权限覆盖后，触发重算
         eventPublisher.publishAclRecalculateEvent(entity.getResourceId(), "RESOURCE_ACTION_PERMISSION_CHANGED");
@@ -265,6 +304,8 @@ public class ResourceServiceImpl implements IResourceService {
         }
         // 鉴权：检查是否拥有 VIEW 权限
         if (!ResourceAction.hasAction(currentActionsMask, ResourceAction.VIEW)) {
+            log.warn("resource permission denied resourceId={} userId={} actionMask={}",
+                    entity.getResourceId(), dto.getUserId(), currentActionsMask);
             throw new ServiceException(ResPermissionErrorCode.RESOURCE_PERMISSION_DENIED);
         }
 
@@ -278,7 +319,10 @@ public class ResourceServiceImpl implements IResourceService {
         try {
             Long owner = Long.valueOf(entity.getOwnerId());
             userDisplayBase = remoteUserService.getUserDisplayInfo(List.of(owner)).getData().get(owner);
-        } catch (Exception ignored){
+        } catch (Exception e) {
+            // Feign 调用失败：降级为占位用户，避免阻塞资源详情接口
+            log.warn("ownerInfo degraded resourceId={} ownerId={}",
+                    entity.getResourceId(), entity.getOwnerId(), e);
             userDisplayBase = new UserDisplayBase("UNKNOW", null, null, null);
         }
         resp.setOwnerInfo(userDisplayBase);
@@ -427,8 +471,11 @@ public class ResourceServiceImpl implements IResourceService {
         } catch (Exception e) {
             // 创建资源失败，回滚
             resourceItemRepository.deleteById(entity.getResourceId());
+            log.warn("resourceItem compensated resourceId={}", entity.getResourceId(), e);
             throw e;
         }
+        log.info("resource created resourceId={} ownerId={} resourceType={} pathTagId={}",
+                entity.getResourceId(), dto.getOwnerId(), dto.getResourceType(), dto.getPathTagId());
         return entity.getResourceId();
     }
 
@@ -446,6 +493,8 @@ public class ResourceServiceImpl implements IResourceService {
             mongoTemplate.save(entity, RESOURCE_TRASH_COLLECTION); // 插入到回收集合（用于审计）中
         }
         resourceItemRepository.deleteAllById(resourceIds);// 从业务表中物理擦除
+        log.info("resources deleted mode=soft count={} resourceIds={}",
+                entities.size(), summarizeIds(resourceIds));
     }
 
     @Override
@@ -465,6 +514,8 @@ public class ResourceServiceImpl implements IResourceService {
 
         long deletedCount = mongoTemplate.remove(query, RESOURCE_TRASH_COLLECTION).getDeletedCount();
         if (deletedCount > 0) {
+            log.info("resources deleted mode=hard count={} resourceIds={}",
+                    deletedCount, summarizeIds(resourceIds));
             // 发送 Kafka 广播，通知文件存储等下游微服务抹除物理文件
             eventPublisher.publishResDeletedEvent(expiredResources);
         }
@@ -472,10 +523,11 @@ public class ResourceServiceImpl implements IResourceService {
 
     @Override
     public void updateResourceAttributes(ResourceUpdateReqDTO dto) {
-        resourceItemRepository.findById(dto.getResourceId()).ifPresent(entity -> {
+        resourceItemRepository.findById(dto.getResourceId()).ifPresentOrElse(entity -> {
             BeanUtil.copyProperties(dto, entity, CopyOptions.create().ignoreNullValue());
             resourceItemRepository.save(entity);
-        });
+            log.info("resourceAttributes updated resourceId={}", entity.getResourceId());
+        }, () -> log.warn("resourceAttributes update skipped resourceId={}", dto.getResourceId()));
     }
 
     @Override
@@ -487,10 +539,15 @@ public class ResourceServiceImpl implements IResourceService {
             return;
         // 查询所有涉及的资源绑定记录
         List<ResourceItemEntity> affectedBinds = resourceItemRepository.findByTagIdsIn(changedTagIds);
+        List<String> affectedResourceIds = affectedBinds.stream()
+                .map(ResourceItemEntity::getResourceId).collect(Collectors.toList());
         // 循环触发权限预计算
         for (ResourceItemEntity bind : affectedBinds) {
             eventPublisher.publishAclRecalculateEvent(bind.getResourceId(), "TAG_CHANGED");
         }
+        log.info("aclRecalc dispatched mode=batch tagCount={} tagIds={} affectedResources={} affectedResourceIds={}",
+                changedTagIds.size(), summarizeIds(changedTagIds),
+                affectedBinds.size(), summarizeIds(affectedResourceIds));
     }
 
     @Override
@@ -512,8 +569,13 @@ public class ResourceServiceImpl implements IResourceService {
             }
             // 从业务表中物理擦除
             resourceItemRepository.deleteAll(affectedBinds);
+            List<String> trashedResourceIds = affectedBinds.stream()
+                    .map(ResourceItemEntity::getResourceId).collect(Collectors.toList());
+            log.info("resources deleted mode=soft count={} resourceIds={}",
+                    affectedBinds.size(), summarizeIds(trashedResourceIds));
             // 资源已经彻底从业务流中消失，直接返回，无需重算 ACL
         } else {
+            List<String> recalcResourceIds = new ArrayList<>();
             for (ResourceItemEntity entity : affectedBinds) {
                 if (entity.getGroupBinds() != null) {
                     Iterator<GroupTagBind> iterator = entity.getGroupBinds().iterator();
@@ -536,7 +598,11 @@ public class ResourceServiceImpl implements IResourceService {
                     continue; // 个人Tag变更不需要重新计算Acl
                 }
                 eventPublisher.publishAclRecalculateEvent(entity.getResourceId(), "TAG_DELETED");
+                recalcResourceIds.add(entity.getResourceId());
             }
+            log.info("aclRecalc dispatched mode=batch tagCount={} tagIds={} affectedResources={} affectedResourceIds={}",
+                    deletedTagIds.size(), summarizeIds(deletedTagIds),
+                    recalcResourceIds.size(), summarizeIds(recalcResourceIds));
         }
     }
 
@@ -554,6 +620,10 @@ public class ResourceServiceImpl implements IResourceService {
                 entity.setComputedGroupAcls(null);
             }
             resourceItemRepository.saveAll(affectedResources);
+            List<String> affectedResourceIds = affectedResources.stream()
+                    .map(ResourceItemEntity::getResourceId).collect(Collectors.toList());
+            log.info("groupPermission stripped affectedResources={} affectedResourceIds={}",
+                    affectedResources.size(), summarizeIds(affectedResourceIds));
             for (ResourceItemEntity entity : affectedResources) {
                 eventPublisher.publishAclRecalculateEvent(entity.getResourceId(), "STRIP_GROUP_PERMISSION");
             }
@@ -562,13 +632,20 @@ public class ResourceServiceImpl implements IResourceService {
 
     @Override
     public void calculateResourceGroupAcl(String resourceId) {
+        long start = System.currentTimeMillis();
+        log.debug("aclRecalc started resourceId={}", resourceId);
         // 获取资源绑定记录
         ResourceItemEntity bindEntity = resourceItemRepository.findByResourceId(resourceId)
                 .orElse(null);
 
+        if (bindEntity == null) {
+            log.warn("aclRecalc skipped resourceId={}", resourceId);
+            return;
+        }
+
         Map<String, ComputedGroupAcl> computedGroupAcls = new HashMap<>();
 
-        if (bindEntity != null && bindEntity.getGroupBinds() != null && !bindEntity.getGroupBinds().isEmpty()) {
+        if (bindEntity.getGroupBinds() != null && !bindEntity.getGroupBinds().isEmpty()) {
             for (GroupTagBind groupBind : bindEntity.getGroupBinds()) {
                 if (groupBind.getTagIds() == null || groupBind.getTagIds().isEmpty()) continue;
                 if (groupBind.getGroupId().startsWith(ResourceConstants.PERSONAL_GROUP_PREFIX)) continue; // 个人Tag不参与计算Acl
@@ -615,6 +692,8 @@ public class ResourceServiceImpl implements IResourceService {
                 .set("computedGroupAcls", computedGroupAcls)
                 .set("updateTime", LocalDateTime.now());
         mongoTemplate.updateFirst(query, update, ResourceItemEntity.class);
+        log.debug("aclRecalc finished resourceId={} groupCount={} costMs={}",
+                resourceId, computedGroupAcls.size(), System.currentTimeMillis() - start);
     }
 
     @Override
@@ -622,12 +701,12 @@ public class ResourceServiceImpl implements IResourceService {
         // 如果资源不存在（或已进入回收站），直接拒绝
         ResourceItemEntity entity = resourceItemRepository.findById(dto.getResourceId()).orElse(null);
         if (entity == null) {
-            return new ResourceCheckPermissionResDTO(ResourceAccessRole.NONE);
+            return logResolved(dto, new ResourceCheckPermissionResDTO(ResourceAccessRole.NONE));
         }
         // 资源所有者有全部权限
         if (dto.getUserId().toString().equals(entity.getOwnerId())) {
-            return new ResourceCheckPermissionResDTO(ResourceAccessRole.OWNER, null,
-                    ResourceAction.permissionCodeToActions(ResourceAction.ALL_ACTIONS));
+            return logResolved(dto, new ResourceCheckPermissionResDTO(ResourceAccessRole.OWNER, null,
+                    ResourceAction.permissionCodeToActions(ResourceAction.ALL_ACTIONS)));
         }
         // 提前提取用户定向特权掩码
         Integer userMask = entity.getSpecifiedUsersGrantedActionsMask() == null ? null :
@@ -637,7 +716,7 @@ public class ResourceServiceImpl implements IResourceService {
                 (entity.getGroupBinds() == null || entity.getGroupBinds().isEmpty());
         // 如果既没有群组上下文，也没有被单独赋予特权，直接拒绝
         if (noGroupContext && userMask == null) {
-            return new ResourceCheckPermissionResDTO(ResourceAccessRole.NONE);
+            return logResolved(dto, new ResourceCheckPermissionResDTO(ResourceAccessRole.NONE));
         }
         ResourceAccessRole resourceAccessRole = ResourceAccessRole.NONE;
         Integer actionsMask = 0;
@@ -657,9 +736,9 @@ public class ResourceServiceImpl implements IResourceService {
 
                 // 用户是组管理员/拥有者，有全部权限
                 if (userRoleInThisGroup == GroupRoleType.ADMIN || userRoleInThisGroup == GroupRoleType.OWNER) {
-                    return new ResourceCheckPermissionResDTO(ResourceAccessRole.GROUP_ADMIN,
+                    return logResolved(dto, new ResourceCheckPermissionResDTO(ResourceAccessRole.GROUP_ADMIN,
                             new HashSet<>(Collections.singleton(groupBind.getGroupId())),
-                            ResourceAction.permissionCodeToActions(ResourceAction.ALL_ACTIONS));
+                            ResourceAction.permissionCodeToActions(ResourceAction.ALL_ACTIONS)));
                 }
 
                 // 提取首标并查询
@@ -701,7 +780,16 @@ public class ResourceServiceImpl implements IResourceService {
             permissionSources.clear();
         }
 
-        return new ResourceCheckPermissionResDTO(resourceAccessRole, permissionSources, ResourceAction.permissionCodeToActions(actionsMask));
+        return logResolved(dto, new ResourceCheckPermissionResDTO(resourceAccessRole, permissionSources, ResourceAction.permissionCodeToActions(actionsMask)));
+    }
+
+    /**
+     * 鉴权出口统一打 DEBUG，便于排查权限问题
+     */
+    private ResourceCheckPermissionResDTO logResolved(ResourceCheckPermissionReqDTO dto, ResourceCheckPermissionResDTO result) {
+        log.debug("permission resolved resourceId={} userId={} role={} actions={}",
+                dto.getResourceId(), dto.getUserId(), result.getResourceAccessRole(), result.getAllowedActions());
+        return result;
     }
 
     /**

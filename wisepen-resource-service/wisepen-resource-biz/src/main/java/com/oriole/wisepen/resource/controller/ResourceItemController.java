@@ -4,9 +4,11 @@ import com.alibaba.nacos.common.utils.StringUtils;
 import com.oriole.wisepen.common.core.context.SecurityContextHolder;
 import com.oriole.wisepen.common.core.domain.PageResult;
 import com.oriole.wisepen.common.core.domain.R;
+import com.oriole.wisepen.common.core.domain.enums.BusinessType;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.domain.enums.list.QueryLogicEnum;
 import com.oriole.wisepen.common.core.domain.enums.list.SortDirectionEnum;
+import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
 import com.oriole.wisepen.resource.constant.ResourceConstants;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateActionPermissionRequest;
@@ -35,6 +37,7 @@ public class ResourceItemController {
 
     // 重命名资源
     @Operation(summary = "重命名资源", description = "用户修改资源名称")
+    @Log(title = "重命名资源", businessType = BusinessType.UPDATE)
     @PostMapping("/renameResource")
     public R<Void> renameResource(@Validated @RequestBody ResourceRenameRequest req) {
         resourceService.assertResourceOwner(req.getResourceId(), SecurityContextHolder.getUserId().toString());
@@ -44,6 +47,7 @@ public class ResourceItemController {
 
     // 删除资源
     @Operation(summary = "删除资源", description = "用户删除资源")
+    @Log(title = "删除资源", businessType = BusinessType.DELETE)
     @PostMapping("/removeResources")
     public R<Void> deleteResource(@RequestParam List<String> resourceIds) {
         String currentUserId = SecurityContextHolder.getUserId().toString();
@@ -56,6 +60,7 @@ public class ResourceItemController {
 
     // 编辑资源的所属标签
     @Operation(summary = "更新资源标签", description = "用户修改资源的标签列表")
+    @Log(title = "修改资源标签", businessType = BusinessType.UPDATE)
     @PostMapping("/changeResourceTags")
     public R<Void> updateResourceTags(@Validated @RequestBody ResourceUpdateTagsRequest req) {
         String userId = SecurityContextHolder.getUserId().toString();
@@ -76,6 +81,7 @@ public class ResourceItemController {
     }
 
     @Operation(summary = "修改资源独立权限", description = "修改资源级别的覆盖动作权限，以及为特定用户单独授予的特权动作")
+    @Log(title = "修改资源权限", businessType = BusinessType.UPDATE)
     @PostMapping("/changeResourceActionPermission")
     public R<Void> updateResourceActionPermission(@Validated @RequestBody ResourceUpdateActionPermissionRequest req) {
         String userId = SecurityContextHolder.getUserId().toString();

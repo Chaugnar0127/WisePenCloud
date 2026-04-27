@@ -17,9 +17,11 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import static com.oriole.wisepen.common.core.util.LogIdUtils.summarizeIds;
 import static com.oriole.wisepen.resource.constant.ResourceConstants.*;
 
 
@@ -36,17 +38,18 @@ public class ResourceGcTask {
 
     @Scheduled(cron = "${wisepen.resource.physical-gc-cron:0 0 3 * * ?}")
     public void garbageCollection() {
-        LocalDateTime threshold = LocalDateTime.now().minusDays(resourceProperties.getDeletedRetentionDays());
+        int retentionDays = resourceProperties.getDeletedRetentionDays();
+        LocalDateTime threshold = LocalDateTime.now().minusDays(retentionDays);
 
-        log.info("开始执行资源生命周期定时清理任务...");
-        // 彻底删除TRASH_COLLECTION中超过 30 天的小组配置
+        log.info("resourceGc started retentionDays={}", retentionDays);
+        // 彻底删除 TRASH_COLLECTION 中超过保留期的小组配置
         cleanupExpiredGroups(threshold);
-        // 删除个人回收站 (.Trash) 中停留超过 30 天的资源，移入TRASH_COLLECTION
+        // 个人回收站 (.Trash) 中停留过久的资源，转移至 RESOURCE_TRASH_COLLECTION
         cleanupExpiredResourcesInUserTrash(threshold);
-        // 彻底删除TRASH_COLLECTION中超过 30 天的资源
+        // 彻底删除 RESOURCE_TRASH_COLLECTION 中超过保留期的资源
         cleanupExpiredResources(threshold);
 
-        log.info("资源生命周期清理任务执行完毕。");
+        log.info("resourceGc finished");
     }
 
     private void cleanupExpiredGroups(LocalDateTime threshold) {
@@ -60,7 +63,10 @@ public class ResourceGcTask {
                 tagService.hardRemoveAllTagByGroupId(record.getGroupId());
                 groupResService.hardRemoveGroupResConfigByGroupId(record.getGroupId());
             }
-            log.info("发现 {} 个过期小组，已经硬删除", expired.size());
+            List<String> groupIds = expired.stream()
+                    .map(GroupResConfigEntity::getGroupId).collect(Collectors.toList());
+            log.info("expiredGroups purged count={} groupIds={}",
+                    expired.size(), summarizeIds(groupIds));
         }
     }
 
@@ -71,8 +77,8 @@ public class ResourceGcTask {
                 .and("groupId").regex("^" + PERSONAL_GROUP_PREFIX));
         List<TagEntity> trashNodes = mongoTemplate.find(trashQuery, TagEntity.class);
 
-        int movedFolders = 0;
-        int movedFiles = 0;
+        List<String> purgedFolderIds = new ArrayList<>();
+        List<String> purgedFileIds = new ArrayList<>();
 
         for (TagEntity trashNode : trashNodes) {
             String groupId = trashNode.getGroupId();
@@ -88,7 +94,7 @@ public class ResourceGcTask {
                 req.setGroupId(groupId);
                 req.setTargetTagId(folder.getTagId());
                 tagService.deleteTag(req, true); // 强制删除该 FOLDER
-                movedFolders++;
+                purgedFolderIds.add(folder.getTagId());
             }
 
             // 处理直接孤立在 .Trash 根目录下的过期散落文件
@@ -102,11 +108,18 @@ public class ResourceGcTask {
                         .map(ResourceItemEntity::getResourceId)
                         .collect(Collectors.toList());
                 resourceService.softRemoveResources(fileIds); // 直接调批量软删接口，转移至 RESOURCE_TRASH_COLLECTION
-                movedFiles += fileIds.size();
+                purgedFileIds.addAll(fileIds);
             }
         }
-        if (movedFolders > 0 || movedFiles > 0) {
-            log.info("删除 {} 个过期文件夹， {} 个散落文件", movedFolders, movedFiles);
+
+        // 文件夹与散落文件分别独立出日志，避免混合统计两类不同实体
+        if (!purgedFolderIds.isEmpty()) {
+            log.info("userTrashFolders purged count={} folderIds={}",
+                    purgedFolderIds.size(), summarizeIds(purgedFolderIds));
+        }
+        if (!purgedFileIds.isEmpty()) {
+            log.info("userTrashFiles purged count={} resourceIds={}",
+                    purgedFileIds.size(), summarizeIds(purgedFileIds));
         }
     }
 
@@ -118,7 +131,8 @@ public class ResourceGcTask {
                     .map(ResourceItemEntity::getResourceId)
                     .collect(Collectors.toList());
             resourceService.hardRemoveResources(resourceIds);
-            log.info("发现 {} 个过期文件，已经硬删除", expired.size());
+            log.info("expiredResources purged count={} resourceIds={}",
+                    expired.size(), summarizeIds(resourceIds));
         }
     }
 }

@@ -2,7 +2,9 @@ package com.oriole.wisepen.resource.controller;
 
 import com.oriole.wisepen.common.core.context.SecurityContextHolder;
 import com.oriole.wisepen.common.core.domain.R;
+import com.oriole.wisepen.common.core.domain.enums.BusinessType;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
+import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
 import com.oriole.wisepen.resource.domain.dto.req.GroupResConfigUpdateRequest;
 import com.oriole.wisepen.resource.domain.dto.res.GroupResConfigResponse;
@@ -29,6 +31,7 @@ public class GroupResConfigController {
     }
 
     @Operation(summary = "设置小组资源配置", description = "仅小组 OWNER 或 ADMIN 可操作，首次调用时创建记录")
+    @Log(title = "修改小组资源配置", businessType = BusinessType.UPDATE)
     @PostMapping("/changeConfig")
     public R<Void> upsertConfig(@RequestBody GroupResConfigUpdateRequest req) {
         SecurityContextHolder.assertGroupRole(Long.parseLong(req.getGroupId()), GroupRoleType.OWNER, GroupRoleType.ADMIN);

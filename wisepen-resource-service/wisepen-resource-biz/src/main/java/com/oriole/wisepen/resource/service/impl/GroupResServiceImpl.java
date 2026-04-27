@@ -11,7 +11,6 @@ import com.oriole.wisepen.resource.repository.ResourceItemRepository;
 import com.oriole.wisepen.resource.mq.IEventPublisher;
 import com.oriole.wisepen.resource.service.IGroupResService;
 
-import cn.hutool.core.bean.BeanUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -20,6 +19,7 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -67,15 +67,18 @@ public class GroupResServiceImpl implements IGroupResService {
         if (req.getFileOrgLogic() != null) entity.setFileOrgLogic(req.getFileOrgLogic());
         groupResConfigRepository.save(entity);
 
-        // 如果兜底掩码发生了实质性变化，触发该组所有资源的重算
-        if (shouldRecalculate) {
-            // 从 MongoDB 查出所有绑定了该组的资源 ID
-            List<ResourceItemEntity> affectedResources = resourceItemRepository.findByGroupId(req.getGroupId());
-            if (affectedResources != null && !affectedResources.isEmpty()) {
-                for (ResourceItemEntity resource : affectedResources) {
-                    // 推送到 Kafka
-                    aclEventPublisher.publishAclRecalculateEvent(resource.getResourceId(), "GROUP_DEFAULT_MASK_CHANGED");
-                }
+        // 兜底掩码发生实质性变化时，触发该组所有资源的重算
+        List<ResourceItemEntity> affectedResources = shouldRecalculate
+                ? resourceItemRepository.findByGroupId(req.getGroupId())
+                : Collections.emptyList();
+        int affectedCount = affectedResources == null ? 0 : affectedResources.size();
+        log.info("groupResConfig upserted groupId={} fileOrgLogic={} defaultMask={} defaultMaskChanged={} affectedResources={}",
+                req.getGroupId(), entity.getFileOrgLogic(), entity.getDefaultMemberActionsMask(),
+                shouldRecalculate, affectedCount);
+
+        if (affectedCount > 0) {
+            for (ResourceItemEntity resource : affectedResources) {
+                aclEventPublisher.publishAclRecalculateEvent(resource.getResourceId(), "GROUP_DEFAULT_MASK_CHANGED");
             }
         }
     }
@@ -99,7 +102,7 @@ public class GroupResServiceImpl implements IGroupResService {
         config.setDissolvedAt(LocalDateTime.now());
         mongoTemplate.save(config, CONFIG_TRASH_COLLECTION);
         groupResConfigRepository.deleteByGroupId(groupId);
-        log.info("小组 {} 解散：资源配置已移入 TRASH_COLLECTION，供定时任务 30 天后清理", groupId);
+        log.info("groupResConfig deleted mode=soft groupId={}", groupId);
     }
 
     @Override
@@ -108,5 +111,6 @@ public class GroupResServiceImpl implements IGroupResService {
                 Query.query(Criteria.where("groupId").is(groupId)),
                 CONFIG_TRASH_COLLECTION
         );
+        log.info("groupResConfig deleted mode=hard groupId={}", groupId);
     }
 }

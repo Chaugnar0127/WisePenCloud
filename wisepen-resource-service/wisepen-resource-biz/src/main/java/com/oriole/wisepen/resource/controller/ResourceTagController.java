@@ -2,7 +2,9 @@ package com.oriole.wisepen.resource.controller;
 
 import com.oriole.wisepen.common.core.context.SecurityContextHolder;
 import com.oriole.wisepen.common.core.domain.R;
+import com.oriole.wisepen.common.core.domain.enums.BusinessType;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
+import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
 import com.oriole.wisepen.resource.domain.base.TagSpaceBase;
 import com.oriole.wisepen.resource.domain.dto.req.TagCreateRequest;
@@ -42,6 +44,7 @@ public class ResourceTagController {
     // 创建 Tag 节点
     @PostMapping("/addTag")
     @Operation(summary = "创建标签", description = "在个人或小组指定的父节点下创建新标签（小组需管理权限）")
+    @Log(title = "创建标签", businessType = BusinessType.INSERT)
     public R<String> createTag(@Validated @RequestBody TagCreateRequest tagCreateRequest) {
         checkPermission(tagCreateRequest, true);
         return R.ok(tagService.createTag(tagCreateRequest));
@@ -49,6 +52,7 @@ public class ResourceTagController {
 
     // 更新 Tag (重命名、修改可见性规则等)
     @Operation(summary = "更新标签", description = "修改个人或小组标签的元信息（小组需管理权限，个人不可设置可见性规则）")
+    @Log(title = "修改标签", businessType = BusinessType.UPDATE)
     @PostMapping("/changeTag")
     public R<Void> updateTag(@Validated @RequestBody TagUpdateRequest tagUpdateRequest) {
         checkPermission(tagUpdateRequest, true);
@@ -58,6 +62,7 @@ public class ResourceTagController {
 
     // 拖拽移动 Tag (改变树形层级结构)
     @Operation(summary = "拖拽/移动标签", description = "修改个人或小组标签的树形层级结构（小组需管理权限）")
+    @Log(title = "移动标签", businessType = BusinessType.UPDATE)
     @PostMapping("/moveTag")
     public R<Void> moveTag(@Validated @RequestBody TagMoveRequest tagMoveRequest) {
         checkPermission(tagMoveRequest, true);
@@ -68,6 +73,7 @@ public class ResourceTagController {
     // 级联删除 Tag 及其子孙节点
     @PostMapping("/removeTag")
     @Operation(summary = "级联删除标签", description = "删除个人或小组指定标签及其所有的子孙节点")
+    @Log(title = "删除标签", businessType = BusinessType.DELETE)
     public R<Void> deleteTag(@Validated @RequestBody TagDeleteRequest tagDeleteRequest) {
         checkPermission(tagDeleteRequest, true);
         tagService.deleteTag(tagDeleteRequest, false);

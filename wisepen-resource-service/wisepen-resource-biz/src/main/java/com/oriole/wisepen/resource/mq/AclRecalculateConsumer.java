@@ -18,8 +18,16 @@ public class AclRecalculateConsumer {
 
     @KafkaListener(topics = TOPIC_ACL_RECALC, groupId = "wisepen-resource-acl-recalc-group")
     public void onAclRecalculate(AclRecalculateMessage message) {
-        log.debug("接收到 ACL 重算事件 ResourceId: {}", message.getResourceId());
-        resourceService.calculateResourceGroupAcl(message.getResourceId());
-        log.debug("已处理 ACL 重算事件 ResourceId: {}", message.getResourceId());
+        log.info("aclRecalc received topic={} resourceId={} trigger={}",
+                TOPIC_ACL_RECALC, message.getResourceId(), message.getTriggerSource());
+        try {
+            resourceService.calculateResourceGroupAcl(message.getResourceId());
+            log.debug("aclRecalc consumed topic={} resourceId={}",
+                    TOPIC_ACL_RECALC, message.getResourceId());
+        } catch (Exception e) {
+            log.error("aclRecalc consume failed topic={} resourceId={}",
+                    TOPIC_ACL_RECALC, message.getResourceId(), e);
+            throw e;
+        }
     }
 }
