@@ -1,4 +1,4 @@
-package com.oriole.wisepen.file.storage.customer;
+package com.oriole.wisepen.file.storage.consumer;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
