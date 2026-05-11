@@ -2,13 +2,14 @@ package com.oriole.wisepen.note.controller;
 
 import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.note.api.domain.dto.res.NoteSnapshotResponse;
+import com.oriole.wisepen.note.api.domain.dto.req.NoteForkReqDTO;
 import com.oriole.wisepen.note.api.feign.RemoteNoteService;
+import com.oriole.wisepen.note.service.INoteService;
 import com.oriole.wisepen.note.service.INoteVersionService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
-
 
 @Tag(name = "内部笔记服务", description = "供 Node.js 协同服务和其他微服务调用的内部接口")
 @RestController
@@ -17,11 +18,20 @@ import org.springframework.web.bind.annotation.*;
 public class InternalNoteController implements RemoteNoteService {
 
     private final INoteVersionService noteVersionService;
+    private final INoteService noteService;
 
     @Operation(summary = "获取最新快照")
     @GetMapping("/getNoteLatestVersion")
     @Override
     public R<NoteSnapshotResponse> getNoteLatestVersion(@RequestParam("resourceId") String resourceId) {
         return R.ok(noteVersionService.getLatestVersion(resourceId));
+    }
+
+    @Operation(summary = "Fork (深拷贝) 笔记元数据和协同版本")
+    @PostMapping("/forkNote")
+    @Override
+    public R<Void> forkNote(@RequestBody NoteForkReqDTO req) {
+        noteService.forkNote(req);
+        return R.ok();
     }
 }

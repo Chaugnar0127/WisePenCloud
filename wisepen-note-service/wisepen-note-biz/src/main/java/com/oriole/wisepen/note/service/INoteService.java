@@ -2,6 +2,7 @@ package com.oriole.wisepen.note.service;
 
 import com.oriole.wisepen.note.api.domain.base.NoteInfoBase;
 import com.oriole.wisepen.note.api.domain.dto.req.NoteCreateRequest;
+import com.oriole.wisepen.note.api.domain.dto.req.NoteForkReqDTO;
 
 import java.util.List;
 
@@ -12,4 +13,6 @@ public interface INoteService {
     void deleteNotes(List<String> resourceIds);
 
     NoteInfoBase getNoteInfo(String resourceId);
+
+    void forkNote(NoteForkReqDTO req);
 }

@@ -58,6 +58,7 @@ public class InternalResourceItemController implements RemoteResourceService {
         return R.ok();
     }
 
+    //资源fork
     @PostMapping("/forkRes")
     public R<String> forkRes(@Validated @RequestBody ResourceForkReqDTO dto) {
         return R.ok(forkResService.forkRes(dto));

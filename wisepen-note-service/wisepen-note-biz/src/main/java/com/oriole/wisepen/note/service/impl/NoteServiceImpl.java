@@ -4,9 +4,13 @@ import cn.hutool.core.bean.BeanUtil;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.note.api.domain.base.NoteInfoBase;
 import com.oriole.wisepen.note.api.domain.dto.req.NoteCreateRequest;
+import com.oriole.wisepen.note.api.domain.dto.req.NoteForkReqDTO;
 import com.oriole.wisepen.note.domain.entity.NoteInfoEntity;
+import com.oriole.wisepen.note.domain.entity.NoteVersionEntity;
+import com.oriole.wisepen.note.api.domain.enums.VersionType;
 import com.oriole.wisepen.note.exception.NoteError;
 import com.oriole.wisepen.note.repository.NoteDocumentRepository;
+import com.oriole.wisepen.note.repository.NoteVersionRepository;
 import com.oriole.wisepen.note.service.INoteOperationLogService;
 import com.oriole.wisepen.note.service.INoteService;
 import com.oriole.wisepen.note.service.INoteVersionService;
@@ -20,7 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 @Slf4j
 @Service
@@ -28,6 +34,7 @@ import java.util.List;
 public class NoteServiceImpl implements INoteService {
 
     private final NoteDocumentRepository noteDocumentRepository;
+    private final NoteVersionRepository noteVersionRepository;
 
     private final INoteVersionService noteVersionService;
     private final INoteOperationLogService noteOperationLogService;
@@ -70,5 +77,48 @@ public class NoteServiceImpl implements INoteService {
         NoteInfoEntity noteInfoEntity = noteDocumentRepository.findByResourceId(resourceId)
                 .orElseThrow(() -> new ServiceException(NoteError.NOTE_NOT_FOUND));
         return BeanUtil.copyProperties(noteInfoEntity, NoteInfoBase.class);
+    }
+
+    @Override
+    @Transactional
+    public void forkNote(NoteForkReqDTO req) {
+        String originalId = req.getOriginalResourceId();
+        String newId = req.getNewResourceId();
+        Long newOwnerId = req.getNewOwnerId();
+
+        // 获取并拷贝原笔记的 Info 元数据
+        NoteInfoEntity originalInfo = noteDocumentRepository.findByResourceId(originalId)
+                .orElseThrow(() -> new ServiceException(NoteError.NOTE_NOT_FOUND));
+
+        NoteInfoEntity newInfo = BeanUtil.copyProperties(originalInfo, NoteInfoEntity.class);
+        newInfo.setResourceId(newId);
+        newInfo.setAuthors(Collections.singletonList(newOwnerId));
+        newInfo.setLastUpdatedAt(LocalDateTime.now());
+        noteDocumentRepository.save(newInfo);
+
+
+        Optional<NoteVersionEntity> latestFullVersionOpt = noteVersionRepository
+                .findFirstByResourceIdAndTypeOrderByVersionDesc(originalId, VersionType.FULL);
+        Long latestFullVersion = latestFullVersionOpt.map(NoteVersionEntity::getVersion).orElse(0L);
+        List<NoteVersionEntity> versionsToCopy = new ArrayList<>();
+        latestFullVersionOpt.ifPresent(versionsToCopy::add);
+        List<NoteVersionEntity> deltaVersions = noteVersionRepository
+                .findByResourceIdAndVersionGreaterThanAndTypeOrderByVersionAsc(
+                        originalId, latestFullVersion, VersionType.DELTA);
+        versionsToCopy.addAll(deltaVersions);
+
+        // 插入版本记录
+        List<NoteVersionEntity> newVersions = versionsToCopy.stream().map(v -> {
+            NoteVersionEntity newV = BeanUtil.copyProperties(v, NoteVersionEntity.class);
+            newV.setId(null);
+            newV.setResourceId(newId);
+            newV.setCreatedBy(Collections.singletonList(newOwnerId));
+            newV.setCreatedAt(LocalDateTime.now());
+            return newV;
+        }).toList();
+
+        if (!newVersions.isEmpty()) {
+            noteVersionRepository.saveAll(newVersions);
+        }
     }
 }
