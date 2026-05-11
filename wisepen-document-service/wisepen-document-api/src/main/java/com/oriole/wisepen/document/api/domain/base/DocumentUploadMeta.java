@@ -13,6 +13,8 @@ import lombok.NoArgsConstructor;
 public class DocumentUploadMeta {
     private String documentName;
     private Long uploaderId;
+    /** 原始作者 ID，fork 链中始终保留最初上传者，不会被覆盖 */
+    private Long originalAuthorId;
     private ResourceType fileType;
     private Long size;
 }
