@@ -8,6 +8,7 @@ import com.oriole.wisepen.document.api.constant.DocumentConstants;
 import com.oriole.wisepen.document.api.domain.base.DocumentInfoBase;
 import com.oriole.wisepen.document.api.domain.base.DocumentStatus;
 import com.oriole.wisepen.document.api.domain.base.DocumentUploadMeta;
+import com.oriole.wisepen.document.api.domain.dto.DocumentInternalInfoDTO;
 import com.oriole.wisepen.document.api.domain.dto.req.DocumentUploadInitRequest;
 import com.oriole.wisepen.document.api.domain.dto.res.DocumentUploadInitResponse;
 import com.oriole.wisepen.document.api.domain.mq.DocumentParseTaskMessage;
@@ -312,5 +313,53 @@ public class DocumentServiceImpl implements IDocumentService {
                 .build());
 
         log.debug("文档已就绪 DocumentId={}", documentId);
+    }
+
+    @Override
+    public void forkDocumentInfo(com.oriole.wisepen.document.api.domain.dto.req.DocumentForkReqDTO req) {
+        DocumentInfoEntity originalInfo = documentInfoRepository.findByResourceId(req.getOriginalResourceId())
+                .orElseThrow(() -> new ServiceException(DocumentError.DOCUMENT_NOT_FOUND));
+
+        String newDocumentId = IdUtil.fastSimpleUUID();
+
+        // 克隆 DocumentInfoEntity
+        DocumentUploadMeta newMeta = BeanUtil.copyProperties(originalInfo.getUploadMeta(), DocumentUploadMeta.class);
+        newMeta.setUploaderId(req.getNewOwnerId());
+
+        DocumentInfoEntity newInfo = BeanUtil.copyProperties(originalInfo, DocumentInfoEntity.class, "id", "documentId", "uploadMeta", "resourceId", "sourceObjectKey", "previewObjectKey", "createTime", "updateTime");
+        newInfo.setDocumentId(newDocumentId);
+        newInfo.setUploadMeta(newMeta);
+        newInfo.setResourceId(req.getNewResourceId());
+        newInfo.setSourceObjectKey(req.getNewSourceObjectKey());
+        newInfo.setPreviewObjectKey(req.getNewPreviewObjectKey());
+        documentInfoRepository.save(newInfo);
+
+        // 克隆 DocumentPdfMetaEntity
+        documentPdfMetaRepository.findById(originalInfo.getDocumentId()).ifPresent(originalPdfMeta -> {
+            DocumentPdfMetaEntity newPdfMeta = BeanUtil.copyProperties(originalPdfMeta, DocumentPdfMetaEntity.class, "id", "documentId", "createTime", "updateTime");
+            newPdfMeta.setDocumentId(newDocumentId);
+            documentPdfMetaRepository.save(newPdfMeta);
+        });
+
+        // 克隆 DocumentContentEntity
+        documentContentRepository.findById(originalInfo.getDocumentId()).ifPresent(originalContent -> {
+            DocumentContentEntity newContent = BeanUtil.copyProperties(originalContent, DocumentContentEntity.class, "id", "documentId", "createTime", "updateTime");
+            newContent.setDocumentId(newDocumentId);
+            documentContentRepository.save(newContent);
+        });
+
+        log.info("文档克隆完成: 原resourceId={} -> 新resourceId={} (新documentId={})", req.getOriginalResourceId(), req.getNewResourceId(), newDocumentId);
+    }
+
+    @Override
+    public DocumentInternalInfoDTO getInternalDocumentInfo(String resourceId) {
+        DocumentInfoEntity entity = documentInfoRepository.findByResourceId(resourceId)
+                .orElseThrow(() -> new ServiceException(DocumentError.DOCUMENT_NOT_FOUND));
+        return DocumentInternalInfoDTO.builder()
+                .documentId(entity.getDocumentId())
+                .resourceId(entity.getResourceId())
+                .sourceObjectKey(entity.getSourceObjectKey())
+                .previewObjectKey(entity.getPreviewObjectKey())
+                .build();
     }
 }

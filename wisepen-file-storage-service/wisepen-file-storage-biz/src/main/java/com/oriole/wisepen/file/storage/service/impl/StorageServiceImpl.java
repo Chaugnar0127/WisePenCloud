@@ -288,4 +288,38 @@ public class StorageServiceImpl implements IStorageService {
         }
         return null;
     }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public StorageRecordDTO copyFile(String originalObjectKey){
+        StorageRecordEntity existRecord = storageRecordMapper.selectOne(
+                Wrappers.<StorageRecordEntity>lambdaQuery()
+                        .eq(StorageRecordEntity::getObjectKey, originalObjectKey)
+                        .ne(StorageRecordEntity::getStatus,StorageStatusEnum.DELETED)
+                        .last("LIMIT 1")
+        );
+        if (existRecord == null) {
+            throw new ServiceException(FileStorageError.FILE_RECORD_NOT_FOUND);
+        }
+        StorageProvider provider = storageManager.getProvider(existRecord.getConfigId());
+        String extension = FileUtil.extName(originalObjectKey).toLowerCase();
+        String newObjectKey = buildObjectKey(existRecord.getScene().getPrefix(), null, extension);
+
+        try {
+            provider.copyObject(originalObjectKey, newObjectKey);
+        } catch (Exception e) {
+            log.error("物理克隆文件失败: 原文件={}, 新文件={}", originalObjectKey, newObjectKey, e);
+            throw new ServiceException(FileStorageError.STORAGE_PROVIDER_COPY_FILE_FAILED, "物理克隆文件失败");
+        }
+
+        StorageRecordEntity newRecord = BeanUtil.copyProperties(existRecord, StorageRecordEntity.class,
+                "fileId", "createTime", "updateTime", "objectKey");
+        newRecord.setObjectKey(newObjectKey);
+        storageRecordMapper.insert(newRecord);
+
+        StorageRecordDTO dto = BeanUtil.copyProperties(newRecord, StorageRecordDTO.class);
+        dto.setDomain(provider.getDomain());
+
+        return dto;
+    }
 }

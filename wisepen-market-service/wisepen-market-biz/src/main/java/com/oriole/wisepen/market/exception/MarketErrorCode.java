@@ -19,6 +19,6 @@ public enum MarketErrorCode implements IErrorCode {
 
     @EnumValue
     @JsonValue
-    public final int code;
+    public final Integer code;
     public final String msg;
 }

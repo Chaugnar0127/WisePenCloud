@@ -55,4 +55,6 @@ public interface IStorageService {
     StorageRecordDTO getFileRecord(String objectKey);
 
     StorageRecordDTO compensateStatus(StorageRecordEntity record);
+
+    StorageRecordDTO copyFile(String originalObjectKey);
 }

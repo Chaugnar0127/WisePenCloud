@@ -9,6 +9,7 @@ public interface ResourceValidationMsg {
     String OWNER_ID_NOT_BLANK = "资源所有者ID不能为空";
     String USER_ID_NOT_NULL = "用户ID不能为空";
     String USER_GROUP_ROLES_NOT_NULL = "用户组-角色表不能为null";
+    String OWNERSHIP_TIER_NOT_NULL = "再分发权限上限不能为null";
 
     // 拓扑与组织关系校验
     String GROUP_ID_NOT_BLANK = "组ID不能为空";

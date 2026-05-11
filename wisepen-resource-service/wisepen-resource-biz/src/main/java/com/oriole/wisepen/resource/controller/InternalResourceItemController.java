@@ -7,6 +7,7 @@ import com.oriole.wisepen.resource.feign.RemoteResourceService;
 import com.oriole.wisepen.resource.service.IGroupResService;
 import com.oriole.wisepen.resource.service.IResourceService;
 import com.oriole.wisepen.resource.service.ITagService;
+import com.oriole.wisepen.resource.service.IForkResService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +21,7 @@ public class InternalResourceItemController implements RemoteResourceService {
     private final IResourceService resourceService;
     private final IGroupResService groupResService;
     private final ITagService tagService;
+    private final IForkResService forkResService;
 
     // 注册/新增资源摘要
     @PostMapping("/addRes")
@@ -54,6 +56,11 @@ public class InternalResourceItemController implements RemoteResourceService {
         tagService.softRemoveAllTagByGroupId(groupId.toString());
         groupResService.softRemoveGroupResConfigByGroupId(groupId.toString());
         return R.ok();
+    }
+
+    @PostMapping("/forkRes")
+    public R<String> forkRes(@Validated @RequestBody ResourceForkReqDTO dto) {
+        return R.ok(forkResService.forkRes(dto));
     }
 
 }
