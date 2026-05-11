@@ -324,6 +324,10 @@ public class DocumentServiceImpl implements IDocumentService {
 
         // 克隆 DocumentInfoEntity
         DocumentUploadMeta newMeta = BeanUtil.copyProperties(originalInfo.getUploadMeta(), DocumentUploadMeta.class);
+        // 保留原始作者 ID：如果已有（二次 fork），则保留；否则取原上传者
+        if (newMeta.getOriginalAuthorId() == null) {
+            newMeta.setOriginalAuthorId(newMeta.getUploaderId());
+        }
         newMeta.setUploaderId(req.getNewOwnerId());
 
         DocumentInfoEntity newInfo = BeanUtil.copyProperties(originalInfo, DocumentInfoEntity.class, "id", "documentId", "uploadMeta", "resourceId", "sourceObjectKey", "previewObjectKey", "createTime", "updateTime");

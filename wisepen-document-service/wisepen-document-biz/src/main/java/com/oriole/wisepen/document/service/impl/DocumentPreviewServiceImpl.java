@@ -40,6 +40,7 @@ import java.util.regex.Pattern;
  * 文档预览服务实现：O(1) 预埋 + Range Request 劫持模式。
  *
  * <h3>虚拟文件布局</h3>
+ * 
  * <pre>
  *   byte 0 ────────────── originalSize-1   ← OSS 预埋 PDF（含空 /WisepenWM 占位符）
  *   byte originalSize ─── totalSize-1      ← 动态水印增量附录（真实 userId + 时间戳）
@@ -47,9 +48,9 @@ import java.util.regex.Pattern;
  *
  * <h3>Range 路由</h3>
  * <ul>
- *   <li>落在原始段：向 OSS 发起同 Range 请求，InputStream → OutputStream 管道透传（零内存拷贝）。</li>
- *   <li>落在附录段：动态生成 appendix byte[]，按偏移切片写出。</li>
- *   <li>跨界：先透传 OSS 尾部，再写附录头部。</li>
+ * <li>落在原始段：向 OSS 发起同 Range 请求，InputStream → OutputStream 管道透传（零内存拷贝）。</li>
+ * <li>落在附录段：动态生成 appendix byte[]，按偏移切片写出。</li>
+ * <li>跨界：先透传 OSS 尾部，再写附录头部。</li>
  * </ul>
  */
 @Slf4j
@@ -75,13 +76,13 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
 
     @Override
     public void handlePreviewRequest(HttpServletRequest request,
-                                     HttpServletResponse response,
-                                     String resourceId,
-                                     String userId) {
+            HttpServletResponse response,
+            String resourceId,
+            String userId) {
         DocumentInfoEntity doc = documentInfoRepository.findByResourceId(resourceId)
                 .orElseThrow(() -> new ServiceException(DocumentErrorCode.DOCUMENT_NOT_FOUND));
 
-        if (doc.getDocumentStatus().getStatus() != DocumentStatusEnum.READY){
+        if (doc.getDocumentStatus().getStatus() != DocumentStatusEnum.READY) {
             throw new ServiceException(DocumentErrorCode.DOCUMENT_NOT_READY);
         }
 
@@ -92,6 +93,14 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
         long totalSize = originalSize + meta.getAppendixSize();
 
         String ossUrl = remoteStorageService.getDownloadUrl(doc.getPreviewObjectKey(), null).getData();
+
+        // 从文档元数据中提取原作者 ID，用于水印标注
+        // 优先使用 originalAuthorId（fork 链中始终指向最初上传者），回退到 uploaderId（未 fork 的文档）
+        String authorId = userId;
+        if (doc.getUploadMeta() != null) {
+            Long origAuthor = doc.getUploadMeta().getOriginalAuthorId();
+            authorId = String.valueOf(origAuthor != null ? origAuthor : doc.getUploadMeta().getUploaderId());
+        }
 
         // 在时间戳确定之前生成附录，保证同一请求内明/暗水印时间一致
         LocalDateTime previewTime = LocalDateTime.now();
@@ -120,10 +129,10 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
                 response.setStatus(HttpStatus.OK.value());
                 ServletOutputStream out = response.getOutputStream();
                 pipeOssRange(ossUrl, 0, originalSize - 1, out);
-                out.write(buildAppendix(meta, userId, previewTime));
+                out.write(buildAppendix(meta, userId, authorId, previewTime));
             } else {
                 handleRangeRequest(rangeHeader, totalSize, originalSize,
-                        ossUrl, meta, userId, previewTime, response);
+                        ossUrl, meta, userId, authorId, previewTime, response);
             }
         } catch (IOException e) {
             log.error("文档预览响应写入失败 ResourceId={}", resourceId, e);
@@ -135,11 +144,11 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
     }
 
     private void handleRangeRequest(String rangeHeader,
-                                     long totalSize, long originalSize,
-                                     String ossUrl,
-                                     DocumentPdfMetaEntity meta,
-                                     String userId, LocalDateTime previewTime,
-                                     HttpServletResponse response) throws Exception {
+            long totalSize, long originalSize,
+            String ossUrl,
+            DocumentPdfMetaEntity meta,
+            String userId, String authorId, LocalDateTime previewTime,
+            HttpServletResponse response) throws Exception {
         Matcher m = RANGE_PATTERN.matcher(rangeHeader.trim());
         if (!m.matches()) {
             response.setStatus(HttpStatus.REQUESTED_RANGE_NOT_SATISFIABLE.value());
@@ -169,7 +178,7 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
 
         } else if (start >= originalSize) {
             // 情形 2：完全落在附录段 → 内存生成后切片
-            byte[] appendix = buildAppendix(meta, userId, previewTime);
+            byte[] appendix = buildAppendix(meta, userId, authorId, previewTime);
             int offset = (int) (start - originalSize);
             int length = (int) (end - start + 1);
             out.write(appendix, offset, length);
@@ -177,7 +186,7 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
         } else {
             // 情形 3：跨越两段边界 → OSS 尾部 + 附录头部
             pipeOssRange(ossUrl, start, originalSize - 1, out);
-            byte[] appendix = buildAppendix(meta, userId, previewTime);
+            byte[] appendix = buildAppendix(meta, userId, authorId, previewTime);
             int lengthInAppendix = (int) (end - originalSize + 1);
             out.write(appendix, 0, lengthInAppendix);
         }
@@ -187,7 +196,7 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
      * 向 OSS 发起 Range 请求，将响应体以 64 KB 缓冲管道写入 {@code out}（零内存拷贝）。
      */
     private void pipeOssRange(String ossUrl, long rangeStart, long rangeEnd,
-                               OutputStream out) throws Exception {
+            OutputStream out) throws Exception {
         HttpRequest req = HttpRequest.newBuilder()
                 .uri(URI.create(ossUrl))
                 .header("Range", "bytes=" + rangeStart + "-" + rangeEnd)
@@ -210,12 +219,12 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
         }
     }
 
-    //  附录生成
+    // 附录生成
     private byte[] buildAppendix(DocumentPdfMetaEntity meta,
-                                  String userId,
-                                  LocalDateTime time) {
+            String userId, String authorId,
+            LocalDateTime time) {
         try {
-            return WatermarkAppendixBuilder.build(meta, userId, time,
+            return WatermarkAppendixBuilder.build(meta, userId, authorId, time,
                     documentProperties.getWatermarkSecretKey());
         } catch (Exception e) {
             throw new ServiceException(DocumentErrorCode.DOCUMENT_READ_ERROR);
