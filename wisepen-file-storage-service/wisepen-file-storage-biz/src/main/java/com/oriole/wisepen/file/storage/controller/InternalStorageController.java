@@ -66,4 +66,12 @@ public class InternalStorageController {
     public R<StorageRecordDTO> getFileRecord(@RequestParam("objectKey") String objectKey) {
         return R.ok(storageService.getFileRecord(objectKey));
     }
+
+    /**
+     * 物理克隆文件
+     */
+    @PostMapping("/copyFile")
+    public R<StorageRecordDTO> copyFile(@RequestParam("originalObjectKey") String originalObjectKey) {
+        return R.ok(storageService.copyFile(originalObjectKey));
+    }
 }

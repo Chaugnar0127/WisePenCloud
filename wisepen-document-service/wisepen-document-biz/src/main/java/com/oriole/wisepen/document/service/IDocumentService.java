@@ -6,7 +6,8 @@ import com.oriole.wisepen.document.api.domain.dto.req.DocumentUploadInitRequest;
 import com.oriole.wisepen.document.api.domain.dto.res.DocumentUploadInitResponse;
 import com.oriole.wisepen.document.domain.entity.DocumentContentEntity;
 import com.oriole.wisepen.document.domain.entity.DocumentPdfMetaEntity;
-
+import com.oriole.wisepen.document.api.domain.dto.DocumentInternalInfoDTO;
+import com.oriole.wisepen.document.api.domain.dto.req.DocumentForkReqDTO;
 import java.util.List;
 import java.util.Optional;
 
@@ -47,4 +48,10 @@ public interface IDocumentService {
 
     // 文档就绪
     void finalizeToReady(String documentId);
+
+    // 克隆文档信息
+    void forkDocumentInfo(DocumentForkReqDTO req);
+
+    // 获取内部文档信息
+    DocumentInternalInfoDTO getInternalDocumentInfo(String resourceId);
 }

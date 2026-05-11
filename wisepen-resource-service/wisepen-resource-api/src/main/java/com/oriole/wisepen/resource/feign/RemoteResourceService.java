@@ -39,4 +39,7 @@ public interface RemoteResourceService {
     @PostMapping("/internal/resource/dissolveGroup")
     R<Void> dissolveGroup(@RequestParam("groupId") Long groupId);
 
+    @Operation(summary = "fork资源",description = "fork一份资源")
+    @PostMapping("/internal/resource/forkRes")
+    R<String> forkRes(@RequestBody ResourceForkReqDTO dto);
 }

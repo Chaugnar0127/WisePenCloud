@@ -59,6 +59,18 @@
             <version>2.3.0</version>
         </dependency>
 
+        <dependency>
+            <groupId>com.oriole</groupId>
+            <artifactId>wisepen-document-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        
+        <dependency>
+            <groupId>com.oriole</groupId>
+            <artifactId>wisepen-file-storage-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
     </dependencies>
 
 

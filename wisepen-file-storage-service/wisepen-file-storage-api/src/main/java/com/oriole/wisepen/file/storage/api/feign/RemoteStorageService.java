@@ -51,4 +51,10 @@ public interface RemoteStorageService {
      */
     @GetMapping("/getFileRecord")
     R<StorageRecordDTO> getFileRecord(@RequestParam("objectKey") String objectKey);
+
+    /**
+     * 物理克隆文件
+     */
+    @PostMapping("/copyFile")
+    R<StorageRecordDTO> copyFile(@RequestParam("originalObjectKey") String originalObjectKey);
 }

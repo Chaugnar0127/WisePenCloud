@@ -6,8 +6,10 @@ import com.fasterxml.jackson.annotation.JsonValue;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 平台资源类型枚举。
@@ -34,7 +36,18 @@ public enum ResourceType {
     PPTX("pptx"),
     XLS("xls"),
     XLSX("xlsx"),
+    /**PYTHON SKILL,由skill管理**/
+    SKILL("skill"),
     UNKNOWN("unknown");
+
+    //Office文件枚举集合
+    private static final Set<ResourceType> OFFICE_TYPES = EnumSet.of(
+            PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX
+    );
+    /**判断是不是Office**/
+    public boolean isOffice() {
+        return OFFICE_TYPES.contains(this);
+    }
 
     /** 枚举标识值（文件类扩展名小写，NOTE 使用逻辑标识），同时作为 DB 存储值和 JSON 序列化值 */
     @EnumValue

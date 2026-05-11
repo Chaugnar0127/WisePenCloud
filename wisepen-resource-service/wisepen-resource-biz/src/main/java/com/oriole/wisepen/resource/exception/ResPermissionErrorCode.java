@@ -32,6 +32,7 @@ public enum ResPermissionErrorCode implements IErrorCode {
     RESOURCE_PERMISSION_DENIED(50102, "对不起，您没有该资源的访问/操作权限"),
     PERSONAL_SPACE_MUST_HAVE_ONE_PATH(50103, "个人空间的资源必须且只能存在一个路径目录"),
     PATH_MUST_BE_FIRST_TAG(50104, "资源的路径目录必须位于标签列表的首位"),
+    RESOURCE_FORK_UNSUPPORTED(50105,"该类型资源不支持fork"),
 
     // --- 小组资源配置相关异常 ---
     FOLDER_MODE_ONLY_ONE_TAG(50201, "文件夹模式下每个资源在同一小组内至多只能挂载一个标签");
