@@ -71,6 +71,12 @@
             <version>${project.version}</version>
         </dependency>
 
+        <dependency>
+            <groupId>com.oriole</groupId>
+            <artifactId>wisepen-note-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+
     </dependencies>
 
 

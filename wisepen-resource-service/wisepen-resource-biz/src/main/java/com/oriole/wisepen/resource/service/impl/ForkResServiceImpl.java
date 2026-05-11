@@ -7,6 +7,8 @@ import com.oriole.wisepen.document.api.domain.dto.DocumentInternalInfoDTO;
 import com.oriole.wisepen.document.api.feign.RemoteDocumentService;
 import com.oriole.wisepen.file.storage.api.domain.dto.StorageRecordDTO;
 import com.oriole.wisepen.file.storage.api.feign.RemoteStorageService;
+import com.oriole.wisepen.note.api.domain.dto.req.NoteForkReqDTO;
+import com.oriole.wisepen.note.api.feign.RemoteNoteService;
 import com.oriole.wisepen.resource.domain.dto.ResourceCreateReqDTO;
 import com.oriole.wisepen.resource.domain.dto.ResourceForkReqDTO;
 import com.oriole.wisepen.resource.domain.entity.ResourceItemEntity;
@@ -27,35 +29,62 @@ public class ForkResServiceImpl implements IForkResService {
     private final IResourceService resourceService;
     private final RemoteDocumentService remoteDocumentService;
     private final RemoteStorageService remoteStorageService;
+    private final RemoteNoteService remoteNoteService;
 
     @Override
-    public String forkRes(ResourceForkReqDTO req){
-        String resId =  req.getResourceId();
+    public String forkRes(ResourceForkReqDTO req) {
+        String resId = req.getResourceId();
         ResourceItemEntity originalItem = resourceItemRepository.findById(resId)
                 .orElseThrow(() -> new ServiceException(ResPermissionErrorCode.RESOURCE_NOT_FOUND));
 
-        if (req.getResourceType()== ResourceType.NOTE){
+        if (req.getResourceType() == ResourceType.NOTE) {
             return forkNote(req, originalItem);
         }
-        if (req.getResourceType().isOffice()){
+        if (req.getResourceType().isOffice()) {
             return forkDocument(req, originalItem);
         }
         throw new ServiceException(ResPermissionErrorCode.RESOURCE_FORK_UNSUPPORTED);
     }
 
-    private String forkNote(ResourceForkReqDTO req, ResourceItemEntity originalItem){
-        return null; // TODO: implement later
+    private String forkNote(ResourceForkReqDTO req, ResourceItemEntity originalItem) {
+
+        ResourceCreateReqDTO createReqDTO = ResourceCreateReqDTO.builder()
+                .resourceName(originalItem.getResourceName())
+                .resourceType(originalItem.getResourceType())
+                .ownerId(req.getNewOwnerId())
+                .size(originalItem.getSize())
+                .preview(originalItem.getPreview())
+                .build();
+        String newResourceId = resourceService.createResourceItem(createReqDTO);
+
+
+        NoteForkReqDTO noteForkReq = NoteForkReqDTO.builder()
+                .originalResourceId(req.getResourceId())
+                .newResourceId(newResourceId)
+                .newOwnerId(Long.valueOf(req.getNewOwnerId()))
+                .build();
+        R<Void> forkR = remoteNoteService.forkNote(noteForkReq);
+        if (forkR.getCode() != 200) {
+            throw new ServiceException(ResPermissionErrorCode.RESOURCE_FORK_UNSUPPORTED, "克隆笔记数据失败");
+        }
+
+        ResourceItemEntity newEntity = resourceItemRepository.findById(newResourceId).orElseThrow();
+        newEntity.setOverrideGrantedActionsMask(req.getTier().getPermissionMask());
+        resourceItemRepository.save(newEntity);
+
+        log.info("Note fork成功: oldId={} newId={}", req.getResourceId(), newResourceId);
+        return newResourceId;
     }
 
-    private String forkDocument(ResourceForkReqDTO req, ResourceItemEntity originalItem){
-        // Step 1: Query internal document info
+    private String forkDocument(ResourceForkReqDTO req, ResourceItemEntity originalItem) {
+
         R<DocumentInternalInfoDTO> docInfoR = remoteDocumentService.getInternalDocumentInfo(req.getResourceId());
         if (docInfoR.getCode() != 200 || docInfoR.getData() == null) {
             throw new ServiceException(ResPermissionErrorCode.RESOURCE_FORK_UNSUPPORTED, "无法获取原文档的底层数据");
         }
         DocumentInternalInfoDTO docInfo = docInfoR.getData();
 
-        // Step 2: Copy physical files (source and preview)
+
         R<StorageRecordDTO> sourceCopyR = remoteStorageService.copyFile(docInfo.getSourceObjectKey());
         if (sourceCopyR.getCode() != 200 || sourceCopyR.getData() == null) {
             throw new ServiceException(ResPermissionErrorCode.RESOURCE_FORK_UNSUPPORTED, "克隆源文件失败");
@@ -70,7 +99,7 @@ public class ForkResServiceImpl implements IForkResService {
             }
         }
 
-        // Step 3: Create ResourceItemEntity (this also binds to personal space)
+
         ResourceCreateReqDTO createReqDTO = ResourceCreateReqDTO.builder()
                 .resourceName(originalItem.getResourceName())
                 .resourceType(originalItem.getResourceType())
@@ -80,7 +109,7 @@ public class ForkResServiceImpl implements IForkResService {
                 .build();
         String newResourceId = resourceService.createResourceItem(createReqDTO);
 
-        // Step 4: Clone Document Info
+
         DocumentForkReqDTO docForkReq = DocumentForkReqDTO.builder()
                 .originalResourceId(req.getResourceId())
                 .newResourceId(newResourceId)
@@ -90,12 +119,12 @@ public class ForkResServiceImpl implements IForkResService {
                 .build();
         remoteDocumentService.forkDocumentInfo(docForkReq);
 
-        // Step 5: Update Permissions
+
         ResourceItemEntity newEntity = resourceItemRepository.findById(newResourceId).orElseThrow();
         newEntity.setOverrideGrantedActionsMask(req.getTier().getPermissionMask());
         resourceItemRepository.save(newEntity);
 
-        log.info("Document forked successfully: oldId={} newId={}", req.getResourceId(), newResourceId);
+        log.info("Document fork成功: oldId={} newId={}", req.getResourceId(), newResourceId);
         return newResourceId;
     }
 }

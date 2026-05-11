@@ -1,5 +1,5 @@
 server:
-  port: 9200 # 本地启动占用 9200 端口
+  port: 10000 # 本地启动占用 10000 端口
 
 spring:
   application:
