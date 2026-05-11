@@ -22,6 +22,7 @@
         <module>wisepen-document-service</module>
         <module>wisepen-fudan-extension-service</module>
         <module>wisepen-note-service</module>
+        <module>wisepen-market-service</module>
     </modules>
 
     <properties>
