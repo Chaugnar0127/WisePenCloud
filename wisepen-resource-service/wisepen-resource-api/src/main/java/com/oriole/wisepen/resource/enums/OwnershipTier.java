@@ -3,6 +3,8 @@ package com.oriole.wisepen.resource.enums;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+import java.util.Arrays;
+
 @Getter
 @AllArgsConstructor
 public enum OwnershipTier {
@@ -12,4 +14,14 @@ public enum OwnershipTier {
     private final int code;
     private final String desc;
     private final int permissionMask;
+
+    public static OwnershipTier getByCode(Integer code) {
+        if (code == null) {
+            return WATERMARK;
+        }
+        return Arrays.stream(values())
+                .filter(t -> t.code == code)
+                .findFirst()
+                .orElse(WATERMARK);
+    }
 }

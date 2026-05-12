@@ -36,8 +36,6 @@ public class MarketProductEntity implements Serializable {
 
     private Integer price;
 
-    private Integer stock;
-
     private String category;
 
     private String productDesc;
