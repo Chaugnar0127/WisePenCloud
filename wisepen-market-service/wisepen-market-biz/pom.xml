@@ -24,6 +24,12 @@
             <artifactId>wisepen-user-api</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!--Resource服务 Feign 接口（资源权限校验与Tag操作）-->
+        <dependency>
+            <groupId>com.oriole</groupId>
+            <artifactId>wisepen-resource-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <!--业务日志包-->
         <dependency>
             <groupId>com.oriole</groupId>

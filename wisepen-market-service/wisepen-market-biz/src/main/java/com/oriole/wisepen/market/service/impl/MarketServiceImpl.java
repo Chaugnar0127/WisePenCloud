@@ -17,10 +17,17 @@ import com.oriole.wisepen.market.mapper.MarketOrderMapper;
 import com.oriole.wisepen.market.mapper.MarketProductMapper;
 import com.oriole.wisepen.market.service.IInfoPointService;
 import com.oriole.wisepen.market.service.IMarketService;
+import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionReqDTO;
+import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionResDTO;
+import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateTagsRequest;
+import com.oriole.wisepen.resource.enums.ResourceAccessRole;
+import com.oriole.wisepen.resource.feign.RemoteResourceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -32,6 +39,7 @@ public class MarketServiceImpl implements IMarketService {
     private final MarketProductMapper marketProductMapper;
     private final MarketOrderMapper marketOrderMapper;
     private final IInfoPointService infoPointService;
+    private final RemoteResourceService remoteResourceService;
 
     @Override
     public PageResult<ProductInfoResponse> getProductList(ProductSearchRequest dto, Integer page, Integer size) {
@@ -94,21 +102,54 @@ public class MarketServiceImpl implements IMarketService {
 
     @Override
     public void addProduct(ProductCreateRequest dto) {
+        Long currentUserId = SecurityContextHolder.getUserId();
+        SecurityContextHolder.assertInGroup(dto.getGroupId());
+
+        // Feign 校验资源所有权
+        ResourceCheckPermissionResDTO perm = remoteResourceService.checkResPermission(
+                ResourceCheckPermissionReqDTO.builder()
+                        .resourceId(dto.getResourceId().toString())
+                        .userId(currentUserId)
+                        .groupRoles(SecurityContextHolder.getGroupRoleMap())
+                        .build()
+        ).getData();
+        if (perm.getResourceAccessRole() != ResourceAccessRole.OWNER) {
+            throw new ServiceException(MarketErrorCode.NOT_RESOURCE_OWNER);
+        }
+
+        // 入库（唯一索引）
         MarketProductEntity product = BeanUtil.copyProperties(dto, MarketProductEntity.class);
+        product.setSellerId(currentUserId);
         product.setStatus(ProductStatus.ON_SHELF);
-        marketProductMapper.insert(product);
+        try {
+            marketProductMapper.insert(product);
+        } catch (DuplicateKeyException e) {
+            throw new ServiceException(MarketErrorCode.PRODUCT_ALREADY_LISTED);
+        }
+
+        // Feign 挂载资源到集市组 Tag
+        ResourceUpdateTagsRequest tagReq = new ResourceUpdateTagsRequest();
+        tagReq.setResourceId(dto.getResourceId().toString());
+        tagReq.setGroupId(dto.getGroupId().toString());
+        tagReq.setTagIds(Collections.singletonList(dto.getTagId().toString()));
+        remoteResourceService.updateResourceTags(tagReq);
     }
 
     @Override
     public void updateProduct(ProductCreateRequest dto) {
+        Long currentUserId = SecurityContextHolder.getUserId();
         Long productId = dto.getProductId();
         MarketProductEntity product = marketProductMapper.selectById(productId);
         if (product == null) {
             throw new ServiceException(MarketErrorCode.PRODUCT_NOT_FOUND);
         }
+        if (!product.getSellerId().equals(currentUserId)) {
+            throw new ServiceException(MarketErrorCode.PRODUCT_PERMISSION_DENIED);
+        }
 
-        // 默认只更新非 null 字段，防一下不能更新的字段
-        BeanUtil.copyProperties(dto, product, "productId", "sellerId", "createTime");
+        // 只允许改价格和描述，不允许改交易类型、资源ID等核心字段
+        BeanUtil.copyProperties(dto, product, "productId", "sellerId", "resourceId",
+                "groupId", "tradeContentType", "ownershipTier", "grantedActions", "createTime");
         marketProductMapper.updateById(product);
     }
 
@@ -158,6 +199,13 @@ public class MarketServiceImpl implements IMarketService {
         }
         product.setStatus(ProductStatus.OFF_SHELF);
         marketProductMapper.updateById(product);
+
+        // Feign 解除集市组 Tag 绑定（tagIds 传空列表 = 清空该组绑定）
+        ResourceUpdateTagsRequest tagReq = new ResourceUpdateTagsRequest();
+        tagReq.setResourceId(product.getResourceId().toString());
+        tagReq.setGroupId(product.getGroupId().toString());
+        tagReq.setTagIds(Collections.emptyList());
+        remoteResourceService.updateResourceTags(tagReq);
     }
 
     @Override
