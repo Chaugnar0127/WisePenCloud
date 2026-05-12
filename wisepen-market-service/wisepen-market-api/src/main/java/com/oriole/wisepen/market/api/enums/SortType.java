@@ -15,7 +15,7 @@ public enum SortType {
     SALESCOUNT_ASC(4,"销量降序"),
     SALESCOUNT_DESC(5,"销量降序"),
     HOTSCORE_ASC(6,"热门降序"),
-    HOTSCORE_DESC(67,"热门降序");
+    HOTSCORE_DESC(7,"热门降序");
 
     @EnumValue
     @JsonValue

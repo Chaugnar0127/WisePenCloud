@@ -88,20 +88,7 @@ public class IMarketServiceImpl implements IMarketService {
 
     @Override
     public void addProduct(ProductCreateRequest dto) {
-        MarketProductEntity product = MarketProductEntity.builder()
-                .productName(dto.getProductName())
-                .productDesc(dto.getProductDesc())
-                .price(dto.getPrice())
-                .stock(dto.getStock())
-                .category(dto.getCategory())
-                .groupId(dto.getGroupId())
-                .resourceId(dto.getResourceId())
-                .tradeContentType(dto.getTradeContentType())
-                .ownershipTier(dto.getOwnershipTier())
-                .grantedActions(dto.getGrantedActions())
-                .tagId(dto.getTagId())
-                .build();
-
+        MarketProductEntity product = BeanUtil.copyProperties(dto, MarketProductEntity.class);
         marketProductMapper.insert(product);
     }
 
