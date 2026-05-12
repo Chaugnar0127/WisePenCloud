@@ -2,6 +2,8 @@ package com.oriole.wisepen.resource.controller;
 
 import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.resource.domain.dto.*;
+import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateActionPermissionRequest;
+import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateTagsRequest;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
 import com.oriole.wisepen.resource.feign.RemoteResourceService;
 import com.oriole.wisepen.resource.service.IGroupResService;
@@ -58,10 +60,24 @@ public class InternalResourceItemController implements RemoteResourceService {
         return R.ok();
     }
 
-    //资源fork
+    // 资源fork
     @PostMapping("/forkRes")
     public R<String> forkRes(@Validated @RequestBody ResourceForkReqDTO dto) {
         return R.ok(forkResService.forkRes(dto));
+    }
+
+    // 更新资源标签绑定
+    @PostMapping("/updateResourceTags")
+    public R<Void> updateResourceTags(@Validated @RequestBody ResourceUpdateTagsRequest req) {
+        resourceService.updateResourceTags(req);
+        return R.ok();
+    }
+
+    // 更新资源指定用户权限
+    @PostMapping("/updateActionPermission")
+    public R<Void> updateResourceActionPermission(@Validated @RequestBody ResourceUpdateActionPermissionRequest req) {
+        resourceService.updateResourceActionPermission(req);
+        return R.ok();
     }
 
 }

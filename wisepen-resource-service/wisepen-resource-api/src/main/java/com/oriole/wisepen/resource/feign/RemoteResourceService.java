@@ -1,6 +1,8 @@
 package com.oriole.wisepen.resource.feign;
 
 import com.oriole.wisepen.resource.domain.dto.*;
+import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateActionPermissionRequest;
+import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateTagsRequest;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -39,7 +41,15 @@ public interface RemoteResourceService {
     @PostMapping("/internal/resource/dissolveGroup")
     R<Void> dissolveGroup(@RequestParam("groupId") Long groupId);
 
-    @Operation(summary = "fork资源",description = "fork一份资源")
+    @Operation(summary = "fork资源", description = "fork一份资源")
     @PostMapping("/internal/resource/forkRes")
     R<String> forkRes(@RequestBody ResourceForkReqDTO dto);
+
+    @Operation(summary = "更新资源标签绑定", description = "将资源挂载到指定的标签节点")
+    @PostMapping("/internal/resource/updateResourceTags")
+    R<Void> updateResourceTags(@RequestBody ResourceUpdateTagsRequest req);
+
+    @Operation(summary = "更新资源指定用户权限", description = "设置资源对指定用户的动作权限掩码")
+    @PostMapping("/internal/resource/updateActionPermission")
+    R<Void> updateResourceActionPermission(@RequestBody ResourceUpdateActionPermissionRequest req);
 }
