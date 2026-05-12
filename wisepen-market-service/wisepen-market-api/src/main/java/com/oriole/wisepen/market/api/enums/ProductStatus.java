@@ -6,17 +6,14 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 
 /**
- * 订单状态枚举
+ * 商品状态枚举
  */
 @Getter
 @AllArgsConstructor
-public enum OrderStatus {
+public enum ProductStatus {
 
-    PENDING(0, "待支付"),
-    PAID(1, "已支付"),
-    COMPLETED(2, "已完成"),
-    CANCELLED(3, "已取消"),
-    FAILED(4, "交割失败");
+    OFF_SHELF(0, "已下架"),
+    ON_SHELF(1, "已上架");
 
     @EnumValue
     @JsonValue

@@ -10,7 +10,7 @@ public interface IMarketService {
     ProductInfoResponse getProductDetail(Long productId);
     void addProduct(ProductCreateRequest dto);
     void updateProduct(ProductCreateRequest dto);
-    void purchase(Long productId, Long buyerId);
-    PageResult<ProductInfoResponse> getMyList(Long userLd, Integer page, Integer size);
+    void purchase(Long productId);
     void deleteProduct(Long productId);
+    PageResult<ProductInfoResponse> getMyList(Integer page, Integer size);
 }

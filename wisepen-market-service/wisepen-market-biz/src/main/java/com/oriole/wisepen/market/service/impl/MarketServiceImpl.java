@@ -3,11 +3,13 @@ package com.oriole.wisepen.market.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.oriole.wisepen.common.core.context.SecurityContextHolder;
 import com.oriole.wisepen.common.core.domain.PageResult;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.market.api.domain.dto.req.ProductCreateRequest;
 import com.oriole.wisepen.market.api.domain.dto.req.ProductSearchRequest;
 import com.oriole.wisepen.market.api.domain.dto.res.ProductInfoResponse;
+import com.oriole.wisepen.market.api.enums.ProductStatus;
 import com.oriole.wisepen.market.domain.entity.MarketOrderEntity;
 import com.oriole.wisepen.market.domain.entity.MarketProductEntity;
 import com.oriole.wisepen.market.exception.MarketErrorCode;
@@ -25,7 +27,7 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class IMarketServiceImpl implements IMarketService {
+public class MarketServiceImpl implements IMarketService {
 
     private final MarketProductMapper marketProductMapper;
     private final MarketOrderMapper marketOrderMapper;
@@ -38,6 +40,7 @@ public class IMarketServiceImpl implements IMarketService {
 
         LambdaQueryWrapper<MarketProductEntity> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(MarketProductEntity::getGroupId, dto.getGroupId());
+        wrapper.eq(MarketProductEntity::getStatus, ProductStatus.ON_SHELF);
         // TODO: tag/类型搜索
 
         if (dto.getSortBy() == null) {
@@ -81,6 +84,9 @@ public class IMarketServiceImpl implements IMarketService {
     @Override
     public ProductInfoResponse getProductDetail(Long productId) {
         MarketProductEntity product = marketProductMapper.selectById(productId);
+        if (product == null) {
+            throw new ServiceException(MarketErrorCode.PRODUCT_NOT_FOUND);
+        }
         ProductInfoResponse productInfoResponse = new ProductInfoResponse();
         BeanUtil.copyProperties(product, productInfoResponse);
         return productInfoResponse;
@@ -89,6 +95,7 @@ public class IMarketServiceImpl implements IMarketService {
     @Override
     public void addProduct(ProductCreateRequest dto) {
         MarketProductEntity product = BeanUtil.copyProperties(dto, MarketProductEntity.class);
+        product.setStatus(ProductStatus.ON_SHELF);
         marketProductMapper.insert(product);
     }
 
@@ -106,14 +113,20 @@ public class IMarketServiceImpl implements IMarketService {
     }
 
     @Override
-    public void purchase(Long productId, Long buyerId) {
+    public void purchase(Long productId) {
+        Long buyerId = SecurityContextHolder.getUserId();
+
         MarketProductEntity product = marketProductMapper.selectById(productId);
         if (product == null) {
             throw new ServiceException(MarketErrorCode.PRODUCT_NOT_FOUND);
         }
 
+        if (product.getStatus() != ProductStatus.ON_SHELF) {
+            throw new ServiceException(MarketErrorCode.PRODUCT_OFF_SHELF);
+        }
+
         if (product.getSellerId() != null && product.getSellerId().equals(buyerId)) {
-            throw new ServiceException(MarketErrorCode.SELF_TRANSACTION_NOT_ALLOWED);
+            throw new ServiceException(MarketErrorCode.CANNOT_BUY_OWN_PRODUCT);
         }
 
         if (product.getStock() != null && product.getStock() <= 0) {
@@ -125,21 +138,37 @@ public class IMarketServiceImpl implements IMarketService {
                 .productId(productId)
                 .sellerId(product.getSellerId())
                 .buyerId(buyerId)
+                .price(product.getPrice())
                 .build();
         marketOrderMapper.insert(order);
 
         // 处理订单
-        infoPointService.handleTransaction(buyerId,order.getSellerId(),product.getPrice(),order.getOrderId());
+        infoPointService.handleTransaction(buyerId, order.getSellerId(), product.getPrice(), order.getOrderId());
     }
 
     @Override
-    public PageResult<ProductInfoResponse> getMyList(Long userId, Integer page, Integer size) {
+    public void deleteProduct(Long productId) {
+        Long currentUserId = SecurityContextHolder.getUserId();
+        MarketProductEntity product = marketProductMapper.selectById(productId);
+        if (product == null) {
+            throw new ServiceException(MarketErrorCode.PRODUCT_NOT_FOUND);
+        }
+        if (!product.getSellerId().equals(currentUserId)) {
+            throw new ServiceException(MarketErrorCode.PRODUCT_PERMISSION_DENIED);
+        }
+        product.setStatus(ProductStatus.OFF_SHELF);
+        marketProductMapper.updateById(product);
+    }
+
+    @Override
+    public PageResult<ProductInfoResponse> getMyList(Integer page, Integer size) {
+        Long userId = SecurityContextHolder.getUserId();
+
         Page<MarketProductEntity> recordPage = new Page<>(page, size);
 
         LambdaQueryWrapper<MarketProductEntity> wrapper = new LambdaQueryWrapper<>();
         wrapper.eq(MarketProductEntity::getSellerId, userId);
         wrapper.orderByDesc(MarketProductEntity::getCreateTime);
-
 
         // 分页查询
         Page<MarketProductEntity> resultPage = marketProductMapper.selectPage(recordPage, wrapper);
@@ -156,15 +185,6 @@ public class IMarketServiceImpl implements IMarketService {
 
         pageResult.addAll(responses);
         return pageResult;
-    }
-
-    @Override
-    public void deleteProduct(Long productId) {
-        MarketProductEntity product = marketProductMapper.selectById(productId);
-        if (product == null) {
-            throw new ServiceException(MarketErrorCode.PRODUCT_NOT_FOUND);
-        }
-        marketProductMapper.deleteById(productId);
     }
 
 }

@@ -1,6 +1,7 @@
 package com.oriole.wisepen.market.domain.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.oriole.wisepen.market.api.enums.ProductStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -44,6 +45,14 @@ public class MarketProductEntity implements Serializable {
     private Long tagId;
 
     private String meta;
+
+    private ProductStatus status;
+
+    @Builder.Default
+    private Integer viewCount = 0;
+
+    @Builder.Default
+    private Integer buyerCount = 0;
 
     @TableField(value = "create_time", fill = FieldFill.INSERT)
     private LocalDateTime createTime;
