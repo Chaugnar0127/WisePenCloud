@@ -14,7 +14,7 @@ import lombok.experimental.SuperBuilder;
 public class InfoPointChangeRequest extends InfoPointBase {
 
     // 订单id
-    private String relatedId;
+    private Long relatedId;
 
     // 交易类型
     private InfoPointChangeType changeType;

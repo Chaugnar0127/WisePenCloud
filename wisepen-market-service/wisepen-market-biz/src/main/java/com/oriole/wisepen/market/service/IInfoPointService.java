@@ -8,7 +8,7 @@ import com.oriole.wisepen.market.api.enums.InfoPointChangeType;
 
 public interface IInfoPointService {
     void changeBalance(InfoPointChangeRequest req);
-    void handleTransaction(Long buyerId, Long sellerId, Integer price, String relatedId);
+    void handleTransaction(Long buyerId, Long sellerId, Integer price, Long relatedId);
     void exchangeCurrency(CurrencyExchangeRequest req);
     Integer getBalance(Long userId);
     PageResult<InfoPointTransactionRecordResponse> getRecordlist(Long userId, InfoPointChangeType changeType, Integer page, Integer size);

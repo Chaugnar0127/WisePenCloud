@@ -1,7 +1,6 @@
 package com.oriole.wisepen.market.domain.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
-import com.oriole.wisepen.market.api.enums.InfoPointChangeType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,27 +13,18 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("sys_mkt_info_point_record")
-public class InfoPointTransactionRecordEntity implements Serializable {
+@TableName("sys_mkt_order")
+public class MarketOrderEntity implements Serializable {
 
     @TableId(type = IdType.ASSIGN_ID)
-    private Long recordId;
+    private Long orderId;
 
-
-    private Long userId;
-    private Integer amount;
-    private InfoPointChangeType changeType;
-
-    // 关联业务ID（如订单ID）
-    private Long relatedId;
-
-    private Integer balanceAfter;
+    private Long productId;
+    private Long sellerId;
+    private Long buyerId;
 
     // JSON 格式的元数据
     private String meta;
-
-    // 操作人ID（管理员操作时记录）
-    private Long operatorId;
 
     @TableField(value = "create_time", fill = FieldFill.INSERT)
     private LocalDateTime createTime;
