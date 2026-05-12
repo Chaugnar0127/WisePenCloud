@@ -8,14 +8,12 @@ import com.oriole.wisepen.market.api.enums.InfoPointChangeType;
 import com.oriole.wisepen.market.service.IInfoPointService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 
 @RestController
 @RequestMapping("/market")
 @RequiredArgsConstructor
-@Validated
 public class InfoPointController {
 
     private final IInfoPointService infoPointService;
@@ -31,8 +29,8 @@ public class InfoPointController {
         return R.ok(infoPointService.getBalance(userId));
     }
 
-    @GetMapping("/wallet/listRecords")
-    public R<PageResult<InfoPointTransactionRecordResponse>> getRecordlist(Long userId, InfoPointChangeType changeType, Integer page, Integer size) {
+    @GetMapping("/wallet/getRecordList")
+    public R<PageResult<InfoPointTransactionRecordResponse>> getRecordList(@RequestParam Long userId, @RequestParam InfoPointChangeType changeType, @RequestParam Integer page, @RequestParam Integer size) {
         return R.ok(infoPointService.getRecordlist(userId, changeType, page, size));
     }
 

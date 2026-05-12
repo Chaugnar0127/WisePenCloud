@@ -83,7 +83,7 @@ public class InfoPointServiceImpl implements IInfoPointService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void handleTransaction(Long buyerId, Long sellerId, Integer price, String relatedId) {
+    public void handleTransaction(Long buyerId, Long sellerId, Integer price, Long relatedId) {
         if (buyerId.equals(sellerId)) {
             throw new ServiceException(MarketErrorCode.SELF_TRANSACTION_NOT_ALLOWED);
         }
