@@ -1,6 +1,7 @@
 package com.oriole.wisepen.market.domain.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.oriole.wisepen.market.api.enums.OrderStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -22,6 +23,8 @@ public class MarketOrderEntity implements Serializable {
     private Long productId;
     private Long sellerId;
     private Long buyerId;
+    private Integer price;
+    private OrderStatus status;
 
     // JSON 格式的元数据
     private String meta;
