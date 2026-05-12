@@ -9,7 +9,9 @@ import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.market.api.domain.dto.req.ProductCreateRequest;
 import com.oriole.wisepen.market.api.domain.dto.req.ProductSearchRequest;
 import com.oriole.wisepen.market.api.domain.dto.res.ProductInfoResponse;
+import com.oriole.wisepen.market.api.enums.OrderStatus;
 import com.oriole.wisepen.market.api.enums.ProductStatus;
+import com.oriole.wisepen.market.api.enums.TradeType;
 import com.oriole.wisepen.market.domain.entity.MarketOrderEntity;
 import com.oriole.wisepen.market.domain.entity.MarketProductEntity;
 import com.oriole.wisepen.market.exception.MarketErrorCode;
@@ -19,16 +21,20 @@ import com.oriole.wisepen.market.service.IInfoPointService;
 import com.oriole.wisepen.market.service.IMarketService;
 import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionReqDTO;
 import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionResDTO;
+import com.oriole.wisepen.resource.domain.dto.ResourceForkReqDTO;
+import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateActionPermissionRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateTagsRequest;
+import com.oriole.wisepen.resource.enums.OwnershipTier;
 import com.oriole.wisepen.resource.enums.ResourceAccessRole;
+import com.oriole.wisepen.resource.enums.ResourceAction;
 import com.oriole.wisepen.resource.feign.RemoteResourceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -153,38 +159,118 @@ public class MarketServiceImpl implements IMarketService {
         marketProductMapper.updateById(product);
     }
 
+    /**
+     * 购买流程（本地事务 + 异步交割）
+     *
+     * 阶段一（@Transactional 本地事务）：
+     *   1. 校验商品状态、库存、自购
+     *   2. 创建订单（唯一索引 uk_buyer_product 防重复购买）
+     *   3. 扣款/加款（infoPointService.handleTransaction）
+     *   4. 更新商品统计（buyerCount + 1）
+     *   → 任一步骤异常，整个事务回滚
+     *
+     * 阶段二（事务提交后，异步 Feign 交割）：
+     *   5. 根据 tradeContentType 调用 resource-service 交割权限
+     *   → Feign 失败时标记订单为 FAILED，不影响资金安全
+     */
     @Override
     public void purchase(Long productId) {
         Long buyerId = SecurityContextHolder.getUserId();
 
+        // 校验
         MarketProductEntity product = marketProductMapper.selectById(productId);
         if (product == null) {
             throw new ServiceException(MarketErrorCode.PRODUCT_NOT_FOUND);
         }
-
         if (product.getStatus() != ProductStatus.ON_SHELF) {
             throw new ServiceException(MarketErrorCode.PRODUCT_OFF_SHELF);
         }
-
         if (product.getSellerId() != null && product.getSellerId().equals(buyerId)) {
             throw new ServiceException(MarketErrorCode.CANNOT_BUY_OWN_PRODUCT);
         }
 
-        if (product.getStock() != null && product.getStock() <= 0) {
-            throw new ServiceException(MarketErrorCode.PRODUCT_STOCK_INSUFFICIENT);
-        }
+        // 阶段一：本地事务（创建订单 + 扣款 + 更新商品统计）
+        MarketOrderEntity order = executeLocalTransaction(product, buyerId);
 
-        // 新建订单
+        // 阶段二：异步交割权限（Feign 调用在事务外执行）
+        deliverPermission(product, order);
+    }
+
+    /**
+     * 阶段一：本地事务
+     * 创建订单 → 积分转移 → 更新商品统计
+     * 任一失败则整体回滚
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public MarketOrderEntity executeLocalTransaction(MarketProductEntity product, Long buyerId) {
+        // 创建订单（唯一索引 uk_buyer_product 防重复购买）
         MarketOrderEntity order = MarketOrderEntity.builder()
-                .productId(productId)
+                .productId(product.getProductId())
                 .sellerId(product.getSellerId())
                 .buyerId(buyerId)
                 .price(product.getPrice())
+                .status(OrderStatus.PAID)
                 .build();
-        marketOrderMapper.insert(order);
+        try {
+            marketOrderMapper.insert(order);
+        } catch (DuplicateKeyException e) {
+            throw new ServiceException(MarketErrorCode.DUPLICATE_PURCHASE);
+        }
 
-        // 处理订单
-        infoPointService.handleTransaction(buyerId, order.getSellerId(), product.getPrice(), order.getOrderId());
+        // 积分扣款（内部也是 @Transactional，会加入当前事务）
+        infoPointService.handleTransaction(buyerId, product.getSellerId(), product.getPrice(), order.getOrderId());
+
+        // 更新商品统计
+        product.setBuyerCount(product.getBuyerCount() + 1);
+        marketProductMapper.updateById(product);
+
+        return order;
+    }
+
+    /**
+     * 阶段二：异步权限交割
+     * 根据交易类型（使用权/所有权），调用 resource-service 的 Feign 接口
+     * 失败时标记订单为 FAILED，等待人工或定时任务重试
+     */
+    private void deliverPermission(MarketProductEntity product, MarketOrderEntity order) {
+        try {
+            if (product.getTradeContentType() != null
+                    && product.getTradeContentType() == TradeType.OWNERSHIP.getCode()) {
+                // 所有权交易：fork 资源给买家
+                OwnershipTier tier = OwnershipTier.getByCode(product.getOwnershipTier());
+
+                remoteResourceService.forkRes(ResourceForkReqDTO.builder()
+                        .resourceId(product.getResourceId().toString())
+                        .newOwnerId(order.getBuyerId().toString())
+                        .tier(tier)
+                        .build());
+            } else {
+                // 使用权交易：设置 specifiedUsersGrantedActions
+                int grantedMask = (product.getGrantedActions() != null)
+                        ? product.getGrantedActions()
+                        : ResourceAction.DEFAULT_MEMBER_ACTIONS;
+
+                List<ResourceAction> actions = ResourceAction.permissionCodeToActions(grantedMask);
+                Map<String, List<ResourceAction>> specifiedMap = new HashMap<>();
+                specifiedMap.put(order.getBuyerId().toString(), actions);
+
+                ResourceUpdateActionPermissionRequest permReq = new ResourceUpdateActionPermissionRequest();
+                permReq.setResourceId(product.getResourceId().toString());
+                permReq.setSpecifiedUsersGrantedActions(specifiedMap);
+                remoteResourceService.updateResourceActionPermission(permReq);
+            }
+
+            // 交割成功，更新订单状态
+            order.setStatus(OrderStatus.COMPLETED);
+            marketOrderMapper.updateById(order);
+
+        } catch (Exception e) {
+            // 交割失败，标记订单为 FAILED（资金已到位，权限待补偿）
+            log.error("权限交割失败, orderId={}, productId={}, error={}",
+                    order.getOrderId(), product.getProductId(), e.getMessage(), e);
+            order.setStatus(OrderStatus.FAILED);
+            marketOrderMapper.updateById(order);
+        }
     }
 
     @Override

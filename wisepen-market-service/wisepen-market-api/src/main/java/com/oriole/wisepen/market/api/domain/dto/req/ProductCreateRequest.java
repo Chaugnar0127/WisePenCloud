@@ -21,8 +21,6 @@ public class ProductCreateRequest implements Serializable {
     @Positive(message = "商品价格必须为正数")
     private Integer price;
 
-    private Integer stock;
-
     private String category;
 
     private Long groupId;
