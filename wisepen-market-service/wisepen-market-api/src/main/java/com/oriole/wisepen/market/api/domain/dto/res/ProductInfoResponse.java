@@ -17,9 +17,17 @@ public class ProductInfoResponse extends ProductBase {
     private Integer ownershipTier;
     private Integer grantedActions;
     private Integer price;
-    private Integer stock;
     private String category;
     private String tagId;
     private String meta;
     private LocalDateTime createTime;
+
+    // 状态与统计
+    private Integer status;
+    private Integer viewCount;
+    private Integer buyerCount;
+
+    // 聚合展示字段（由服务端填充）
+    private String sellerName;
+    private Boolean isPurchased;
 }

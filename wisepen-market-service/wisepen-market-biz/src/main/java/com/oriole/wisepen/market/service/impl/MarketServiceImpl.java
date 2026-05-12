@@ -28,6 +28,8 @@ import com.oriole.wisepen.resource.enums.OwnershipTier;
 import com.oriole.wisepen.resource.enums.ResourceAccessRole;
 import com.oriole.wisepen.resource.enums.ResourceAction;
 import com.oriole.wisepen.resource.feign.RemoteResourceService;
+import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
+import com.oriole.wisepen.user.api.feign.RemoteUserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
@@ -46,6 +48,7 @@ public class MarketServiceImpl implements IMarketService {
     private final MarketOrderMapper marketOrderMapper;
     private final IInfoPointService infoPointService;
     private final RemoteResourceService remoteResourceService;
+    private final RemoteUserService remoteUserService;
 
     @Override
     public PageResult<ProductInfoResponse> getProductList(ProductSearchRequest dto, Integer page, Integer size) {
@@ -101,9 +104,29 @@ public class MarketServiceImpl implements IMarketService {
         if (product == null) {
             throw new ServiceException(MarketErrorCode.PRODUCT_NOT_FOUND);
         }
-        ProductInfoResponse productInfoResponse = new ProductInfoResponse();
-        BeanUtil.copyProperties(product, productInfoResponse);
-        return productInfoResponse;
+        ProductInfoResponse response = BeanUtil.copyProperties(product, ProductInfoResponse.class);
+
+        // 填充卖家昵称
+        try {
+            Map<Long, UserDisplayBase> userMap = remoteUserService
+                    .getUserDisplayInfo(Collections.singletonList(product.getSellerId())).getData();
+            if (userMap != null && userMap.containsKey(product.getSellerId())) {
+                response.setSellerName(userMap.get(product.getSellerId()).getNickname());
+            }
+        } catch (Exception e) {
+            log.warn("获取卖家信息失败, sellerId={}", product.getSellerId());
+        }
+
+        // 填充当前用户是否已购买
+        Long currentUserId = SecurityContextHolder.getUserId();
+        if (currentUserId != null) {
+            LambdaQueryWrapper<MarketOrderEntity> orderQuery = new LambdaQueryWrapper<>();
+            orderQuery.eq(MarketOrderEntity::getProductId, productId)
+                    .eq(MarketOrderEntity::getBuyerId, currentUserId);
+            response.setIsPurchased(marketOrderMapper.selectCount(orderQuery) > 0);
+        }
+
+        return response;
     }
 
     @Override

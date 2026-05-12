@@ -81,6 +81,12 @@
             <artifactId>commons-pool2</artifactId>
         </dependency>
 
+        <!--Kafka-->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+
         <!--测试框架-->
         <dependency>
             <groupId>org.springframework.boot</groupId>

@@ -25,7 +25,8 @@ public enum MarketErrorCode implements IErrorCode {
     CANNOT_BUY_OWN_PRODUCT(6014, "不能购买自己的商品"),
     ALREADY_PURCHASED(6015, "已购买过该商品"),
     DELIVERY_FAILED(6016, "权益交割失败，已退款"),
-    PRODUCT_OFF_SHELF(6017, "商品已下架");
+    PRODUCT_OFF_SHELF(6017, "商品已下架"),
+    DUPLICATE_PURCHASE(6018, "不可重复购买同一商品");
 
     @EnumValue
     @JsonValue

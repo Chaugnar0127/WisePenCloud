@@ -8,15 +8,6 @@
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
       </profile>
-      <profile name="Annotation profile for wisepen-resource-biz" enabled="true">
-        <sourceOutputDir name="target/generated-sources/annotations" />
-        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
-        <outputRelativeToContentRoot value="true" />
-        <processorPath useClasspath="false">
-          <entry name="$MAVEN_REPOSITORY$/org/projectlombok/lombok/1.18.30/lombok-1.18.30.jar" />
-        </processorPath>
-        <module name="wisepen-resource-biz" />
-      </profile>
       <profile name="Annotation profile for wisepen-cloud" enabled="true">
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
@@ -31,15 +22,15 @@
         <module name="wisepen-note-biz" />
         <module name="wisepen-document-biz" />
         <module name="wisepen-market-biz" />
+        <module name="wisepen-resource-biz" />
         <module name="wisepen-file-storage-biz" />
         <module name="wisepen-file-storage-api" />
         <module name="wisepen-fudan-extension-biz" />
         <module name="wisepen-resource-api" />
         <module name="wisepen-system-biz" />
         <module name="wisepen-fudan-extension-api" />
-        <module name="wisepen-common" />
-        <module name="wisepen-user-biz" />
         <module name="wisepen-market-api" />
+        <module name="wisepen-user-biz" />
         <module name="wisepen-document-api" />
       </profile>
     </annotationProcessing>
