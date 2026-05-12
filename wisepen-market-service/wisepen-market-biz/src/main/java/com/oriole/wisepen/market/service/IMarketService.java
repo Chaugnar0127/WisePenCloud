@@ -13,4 +13,5 @@ public interface IMarketService {
     void purchase(Long productId);
     void deleteProduct(Long productId);
     PageResult<ProductInfoResponse> getMyList(Integer page, Integer size);
+    void retryDelivery(Long orderId);
 }

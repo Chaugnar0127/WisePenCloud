@@ -34,7 +34,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -49,6 +49,7 @@ public class MarketServiceImpl implements IMarketService {
     private final IInfoPointService infoPointService;
     private final RemoteResourceService remoteResourceService;
     private final RemoteUserService remoteUserService;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
     public PageResult<ProductInfoResponse> getProductList(ProductSearchRequest dto, Integer page, Integer size) {
@@ -68,34 +69,15 @@ public class MarketServiceImpl implements IMarketService {
                     wrapper.orderByAsc(MarketProductEntity::getCreateTime);
                     break;
                 case TIME_DESC:
-                    wrapper.orderByDesc(MarketProductEntity::getCreateTime);
-                    break;
-                case PRICE_ASC:
-                    wrapper.orderByAsc(MarketProductEntity::getPrice);
-                    break;
-                case PRICE_DESC:
-                    wrapper.orderByDesc(MarketProductEntity::getPrice);
-                    break;
                 default:
                     wrapper.orderByDesc(MarketProductEntity::getCreateTime);
+                    break;
             }
         }
 
         // 分页查询
         Page<MarketProductEntity> resultPage = marketProductMapper.selectPage(recordPage, wrapper);
-        PageResult<ProductInfoResponse> pageResult = new PageResult<>(resultPage.getTotal(), page, size);
-
-        List<MarketProductEntity> records = resultPage.getRecords();
-        if (records.isEmpty()) {
-            return pageResult;
-        }
-
-        List<ProductInfoResponse> responses = records.stream()
-                .map(record -> BeanUtil.copyProperties(record, ProductInfoResponse.class))
-                .collect(Collectors.toList());
-
-        pageResult.addAll(responses);
-        return pageResult;
+        return convertToPageResult(resultPage, page, size);
     }
 
     @Override
@@ -184,14 +166,12 @@ public class MarketServiceImpl implements IMarketService {
 
     /**
      * 购买流程（本地事务 + 异步交割）
-     *
      * 阶段一（@Transactional 本地事务）：
      *   1. 校验商品状态、库存、自购
      *   2. 创建订单（唯一索引 uk_buyer_product 防重复购买）
      *   3. 扣款/加款（infoPointService.handleTransaction）
      *   4. 更新商品统计（buyerCount + 1）
      *   → 任一步骤异常，整个事务回滚
-     *
      * 阶段二（事务提交后，异步 Feign 交割）：
      *   5. 根据 tradeContentType 调用 resource-service 交割权限
      *   → Feign 失败时标记订单为 FAILED，不影响资金安全
@@ -213,41 +193,33 @@ public class MarketServiceImpl implements IMarketService {
         }
 
         // 阶段一：本地事务（创建订单 + 扣款 + 更新商品统计）
-        MarketOrderEntity order = executeLocalTransaction(product, buyerId);
+        MarketOrderEntity order = transactionTemplate.execute(status -> {
+            // 创建订单（唯一索引 uk_buyer_product 防重复购买）
+            MarketOrderEntity newOrder = MarketOrderEntity.builder()
+                    .productId(product.getProductId())
+                    .sellerId(product.getSellerId())
+                    .buyerId(buyerId)
+                    .price(product.getPrice())
+                    .status(OrderStatus.PAID)
+                    .build();
+            try {
+                marketOrderMapper.insert(newOrder);
+            } catch (DuplicateKeyException e) {
+                throw new ServiceException(MarketErrorCode.DUPLICATE_PURCHASE);
+            }
+
+            // 积分扣款（内部也是 @Transactional，会加入当前事务）
+            infoPointService.handleTransaction(buyerId, product.getSellerId(), product.getPrice(), newOrder.getOrderId());
+
+            // 更新商品统计
+            product.setBuyerCount(product.getBuyerCount() + 1);
+            marketProductMapper.updateById(product);
+
+            return newOrder;
+        });
 
         // 阶段二：异步交割权限（Feign 调用在事务外执行）
         deliverPermission(product, order);
-    }
-
-    /**
-     * 阶段一：本地事务
-     * 创建订单 → 积分转移 → 更新商品统计
-     * 任一失败则整体回滚
-     */
-    @Transactional(rollbackFor = Exception.class)
-    public MarketOrderEntity executeLocalTransaction(MarketProductEntity product, Long buyerId) {
-        // 创建订单（唯一索引 uk_buyer_product 防重复购买）
-        MarketOrderEntity order = MarketOrderEntity.builder()
-                .productId(product.getProductId())
-                .sellerId(product.getSellerId())
-                .buyerId(buyerId)
-                .price(product.getPrice())
-                .status(OrderStatus.PAID)
-                .build();
-        try {
-            marketOrderMapper.insert(order);
-        } catch (DuplicateKeyException e) {
-            throw new ServiceException(MarketErrorCode.DUPLICATE_PURCHASE);
-        }
-
-        // 积分扣款（内部也是 @Transactional，会加入当前事务）
-        infoPointService.handleTransaction(buyerId, product.getSellerId(), product.getPrice(), order.getOrderId());
-
-        // 更新商品统计
-        product.setBuyerCount(product.getBuyerCount() + 1);
-        marketProductMapper.updateById(product);
-
-        return order;
     }
 
     /**
@@ -318,6 +290,22 @@ public class MarketServiceImpl implements IMarketService {
     }
 
     @Override
+    public void retryDelivery(Long orderId) {
+        MarketOrderEntity order = marketOrderMapper.selectById(orderId);
+        if (order == null || order.getStatus() != OrderStatus.FAILED) {
+            return;
+        }
+        MarketProductEntity product = marketProductMapper.selectById(order.getProductId());
+        if (product == null) {
+            log.warn("补偿跳过: 商品已不存在, orderId={}, productId={}", orderId, order.getProductId());
+            return;
+        }
+        
+        deliverPermission(product, order);
+        log.info("补偿交割完成: orderId={}", orderId);
+    }
+
+    @Override
     public PageResult<ProductInfoResponse> getMyList(Integer page, Integer size) {
         Long userId = SecurityContextHolder.getUserId();
 
@@ -329,6 +317,10 @@ public class MarketServiceImpl implements IMarketService {
 
         // 分页查询
         Page<MarketProductEntity> resultPage = marketProductMapper.selectPage(recordPage, wrapper);
+        return convertToPageResult(resultPage, page, size);
+    }
+
+    private PageResult<ProductInfoResponse> convertToPageResult(Page<MarketProductEntity> resultPage, Integer page, Integer size) {
         PageResult<ProductInfoResponse> pageResult = new PageResult<>(resultPage.getTotal(), page, size);
 
         List<MarketProductEntity> records = resultPage.getRecords();
