@@ -7,9 +7,6 @@ import lombok.Data;
 
 import java.io.Serializable;
 
-/**
- * 创建商品请求 DTO
- */
 @Data
 public class ProductCreateRequest implements Serializable {
 
