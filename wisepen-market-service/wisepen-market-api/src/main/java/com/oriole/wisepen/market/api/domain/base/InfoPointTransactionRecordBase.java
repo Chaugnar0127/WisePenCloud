@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 public class InfoPointTransactionRecordBase implements Serializable {
     private Long recordId;
     private Long userId;
-    private Integer amount;
+    private Integer changeAmount;
     private InfoPointChangeType changeType;
     private String relatedId;
     private Integer balanceAfter;
