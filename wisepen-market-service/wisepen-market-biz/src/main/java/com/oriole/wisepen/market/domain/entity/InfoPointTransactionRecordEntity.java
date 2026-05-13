@@ -22,7 +22,7 @@ public class InfoPointTransactionRecordEntity implements Serializable {
 
 
     private Long userId;
-    private Integer amount;
+    private Integer changeAmount;
     private InfoPointChangeType changeType;
 
     // 关联业务ID（如订单ID）
