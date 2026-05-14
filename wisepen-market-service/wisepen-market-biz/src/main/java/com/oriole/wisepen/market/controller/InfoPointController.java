@@ -19,7 +19,7 @@ public class InfoPointController {
     private final IInfoPointService infoPointService;
 
     @PostMapping("/wallet/exchangeCurrency")
-    public R<Void> exchangeCurrency(@RequestParam @Valid CurrencyExchangeRequest dto) {
+    public R<Void> exchangeCurrency(@RequestBody @Valid CurrencyExchangeRequest dto) {
         infoPointService.exchangeCurrency(dto);
         return R.ok();
     }

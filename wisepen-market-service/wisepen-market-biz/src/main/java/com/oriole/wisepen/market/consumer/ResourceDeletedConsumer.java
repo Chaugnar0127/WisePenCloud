@@ -1,6 +1,5 @@
 package com.oriole.wisepen.market.consumer;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.oriole.wisepen.market.api.enums.ProductStatus;
 import com.oriole.wisepen.market.domain.entity.MarketProductEntity;
