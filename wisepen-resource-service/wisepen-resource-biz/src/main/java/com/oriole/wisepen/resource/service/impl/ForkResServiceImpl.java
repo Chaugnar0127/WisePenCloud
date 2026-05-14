@@ -43,7 +43,7 @@ public class ForkResServiceImpl implements IForkResService {
         if (req.getResourceType().isOffice()) {
             return forkDocument(req, originalItem);
         }
-        throw new ServiceException(ResourceError.RESOURCE_FORK_UNSUPPORTED);
+        throw new ServiceException(ResourceError.RESOURCE_PERMISSION_DENIED, "该类型资源不支持fork");
     }
 
     private String forkNote(ResourceForkReqDTO req, ResourceItemEntity originalItem) {
@@ -65,7 +65,7 @@ public class ForkResServiceImpl implements IForkResService {
                 .build();
         R<Void> forkR = remoteNoteService.forkNote(noteForkReq);
         if (forkR.getCode() != 200) {
-            throw new ServiceException(ResPermissionErrorCode.RESOURCE_FORK_UNSUPPORTED, "克隆笔记数据失败");
+            throw new ServiceException(ResourceError.RESOURCE_NOT_FOUND, "克隆笔记数据失败");
         }
 
         ResourceItemEntity newEntity = resourceItemRepository.findById(newResourceId).orElseThrow();
@@ -80,14 +80,14 @@ public class ForkResServiceImpl implements IForkResService {
 
         R<DocumentInternalInfoDTO> docInfoR = remoteDocumentService.getInternalDocumentInfo(req.getResourceId());
         if (docInfoR.getCode() != 200 || docInfoR.getData() == null) {
-            throw new ServiceException(ResourceError.RESOURCE_FORK_UNSUPPORTED, "无法获取原文档的底层数据");
+            throw new ServiceException(ResourceError.RESOURCE_NOT_FOUND, "无法获取原文档的底层数据");
         }
         DocumentInternalInfoDTO docInfo = docInfoR.getData();
 
 
         R<StorageRecordDTO> sourceCopyR = remoteStorageService.copyFile(docInfo.getSourceObjectKey());
         if (sourceCopyR.getCode() != 200 || sourceCopyR.getData() == null) {
-            throw new ServiceException(ResourceError.RESOURCE_FORK_UNSUPPORTED, "克隆源文件失败");
+            throw new ServiceException(ResourceError.RESOURCE_NOT_FOUND, "克隆源文件失败");
         }
         String newSourceObjectKey = sourceCopyR.getData().getObjectKey();
 

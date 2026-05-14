@@ -55,46 +55,46 @@ class InfoPointServiceTest {
     @Captor
     private ArgumentCaptor<LambdaUpdateWrapper<UserInfoPointEntity>> updateWrapperCaptor;
 
-    private Long testUserId = 1L;
-    private Long testSellerId = 2L;
-    private Long testBuyerId = 3L;
-    private Long testRelatedId = 100L;
-    private int testRate = 10;
+    private static final Long TEST_USER_ID = 1L;
+    private static final Long TEST_SELLER_ID = 2L;
+    private static final Long TEST_BUYER_ID = 3L;
+    private static final Long TEST_RELATED_ID = 100L;
+    private static final int TEST_RATE = 10;
 
     @BeforeEach
     void setUp() {
-        ReflectionTestUtils.setField(infoPointService, "rate", testRate);
+        ReflectionTestUtils.setField(infoPointService, "rate", TEST_RATE);
     }
 
     @Test
     @DisplayName("changeBalance - 新用户创建账户并增加余额")
     void changeBalance_NewUser_Success() {
         InfoPointChangeRequest req = InfoPointChangeRequest.builder()
-                .userId(testUserId)
+                .userId(TEST_USER_ID)
                 .changeAmount(100)
                 .changeType(InfoPointChangeType.ADMIN_GRANT)
-                .relatedId(testRelatedId)
+                .relatedId(TEST_RELATED_ID)
                 .build();
 
         when(infoPointMapper.exists(any())).thenReturn(false);
         when(infoPointMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
 
         UserInfoPointEntity mockUser = UserInfoPointEntity.builder()
-                .userId(testUserId)
+                .userId(TEST_USER_ID)
                 .infoPointBalance(100)
                 .build();
-        when(infoPointMapper.selectById(testUserId)).thenReturn(mockUser);
+        when(infoPointMapper.selectById(TEST_USER_ID)).thenReturn(mockUser);
 
         assertDoesNotThrow(() -> infoPointService.changeBalance(req));
 
         verify(infoPointMapper).insert(userInfoPointCaptor.capture());
         UserInfoPointEntity savedUser = userInfoPointCaptor.getValue();
-        assertEquals(testUserId, savedUser.getUserId());
+        assertEquals(TEST_USER_ID, savedUser.getUserId());
         assertEquals(0, savedUser.getInfoPointBalance());
 
         verify(recordMapper).insert(recordCaptor.capture());
         InfoPointTransactionRecordEntity savedRecord = recordCaptor.getValue();
-        assertEquals(testUserId, savedRecord.getUserId());
+        assertEquals(TEST_USER_ID, savedRecord.getUserId());
         assertEquals(100, savedRecord.getChangeAmount());
         assertEquals(InfoPointChangeType.ADMIN_GRANT, savedRecord.getChangeType());
     }
@@ -103,20 +103,20 @@ class InfoPointServiceTest {
     @DisplayName("changeBalance - 现有用户增加余额")
     void changeBalance_ExistingUser_AddBalance_Success() {
         InfoPointChangeRequest req = InfoPointChangeRequest.builder()
-                .userId(testUserId)
+                .userId(TEST_USER_ID)
                 .changeAmount(50)
                 .changeType(InfoPointChangeType.MARKET_INCOME)
-                .relatedId(testRelatedId)
+                .relatedId(TEST_RELATED_ID)
                 .build();
 
         when(infoPointMapper.exists(any())).thenReturn(true);
         when(infoPointMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
 
         UserInfoPointEntity mockUser = UserInfoPointEntity.builder()
-                .userId(testUserId)
+                .userId(TEST_USER_ID)
                 .infoPointBalance(150)
                 .build();
-        when(infoPointMapper.selectById(testUserId)).thenReturn(mockUser);
+        when(infoPointMapper.selectById(TEST_USER_ID)).thenReturn(mockUser);
 
         assertDoesNotThrow(() -> infoPointService.changeBalance(req));
 
@@ -129,10 +129,10 @@ class InfoPointServiceTest {
     @DisplayName("changeBalance - 扣款时余额不足")
     void changeBalance_InsufficientBalance() {
         InfoPointChangeRequest req = InfoPointChangeRequest.builder()
-                .userId(testUserId)
+                .userId(TEST_USER_ID)
                 .changeAmount(-100)
                 .changeType(InfoPointChangeType.MARKET_PURCHASE)
-                .relatedId(testRelatedId)
+                .relatedId(TEST_RELATED_ID)
                 .build();
 
         when(infoPointMapper.exists(any())).thenReturn(true);
@@ -148,10 +148,10 @@ class InfoPointServiceTest {
     @DisplayName("changeBalance - 更新失败抛出异常")
     void changeBalance_UpdateFailed() {
         InfoPointChangeRequest req = InfoPointChangeRequest.builder()
-                .userId(testUserId)
+                .userId(TEST_USER_ID)
                 .changeAmount(50)
                 .changeType(InfoPointChangeType.ADMIN_GRANT)
-                .relatedId(testRelatedId)
+                .relatedId(TEST_RELATED_ID)
                 .build();
 
         when(infoPointMapper.exists(any())).thenReturn(true);
@@ -170,12 +170,12 @@ class InfoPointServiceTest {
         when(infoPointMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
 
         UserInfoPointEntity mockUser = UserInfoPointEntity.builder()
-                .userId(testBuyerId)
+                .userId(TEST_BUYER_ID)
                 .infoPointBalance(100)
                 .build();
         when(infoPointMapper.selectById(anyLong())).thenReturn(mockUser);
 
-        assertDoesNotThrow(() -> infoPointService.handleTransaction(testBuyerId, testSellerId, 100, testRelatedId));
+        assertDoesNotThrow(() -> infoPointService.handleTransaction(TEST_BUYER_ID, TEST_SELLER_ID, 100, TEST_RELATED_ID));
 
         verify(recordMapper, times(2)).insert(any(InfoPointTransactionRecordEntity.class));
     }
@@ -184,7 +184,7 @@ class InfoPointServiceTest {
     @DisplayName("handleTransaction - 自买自卖被拒绝")
     void handleTransaction_SelfTransaction() {
         ServiceException exception = assertThrows(ServiceException.class,
-                () -> infoPointService.handleTransaction(testBuyerId, testBuyerId, 100, testRelatedId));
+                () -> infoPointService.handleTransaction(TEST_BUYER_ID, TEST_BUYER_ID, 100, TEST_RELATED_ID));
 
         assertEquals(MarketErrorCode.SELF_TRANSACTION_NOT_ALLOWED.getCode(), exception.getCode());
         verify(infoPointMapper, never()).update(any(), any());
@@ -194,7 +194,7 @@ class InfoPointServiceTest {
     @DisplayName("handleTransaction - 无效价格")
     void handleTransaction_InvalidPrice() {
         ServiceException exception = assertThrows(ServiceException.class,
-                () -> infoPointService.handleTransaction(testBuyerId, testSellerId, 0, testRelatedId));
+                () -> infoPointService.handleTransaction(TEST_BUYER_ID, TEST_SELLER_ID, 0, TEST_RELATED_ID));
 
         assertEquals(MarketErrorCode.INVALID_PRICE.getCode(), exception.getCode());
     }
@@ -203,7 +203,7 @@ class InfoPointServiceTest {
     @DisplayName("handleTransaction - 负数价格")
     void handleTransaction_NegativePrice() {
         ServiceException exception = assertThrows(ServiceException.class,
-                () -> infoPointService.handleTransaction(testBuyerId, testSellerId, -50, testRelatedId));
+                () -> infoPointService.handleTransaction(TEST_BUYER_ID, TEST_SELLER_ID, -50, TEST_RELATED_ID));
 
         assertEquals(MarketErrorCode.INVALID_PRICE.getCode(), exception.getCode());
     }
@@ -212,7 +212,7 @@ class InfoPointServiceTest {
     @DisplayName("handleTransaction - null价格")
     void handleTransaction_NullPrice() {
         ServiceException exception = assertThrows(ServiceException.class,
-                () -> infoPointService.handleTransaction(testBuyerId, testSellerId, null, testRelatedId));
+                () -> infoPointService.handleTransaction(TEST_BUYER_ID, TEST_SELLER_ID, null, TEST_RELATED_ID));
 
         assertEquals(MarketErrorCode.INVALID_PRICE.getCode(), exception.getCode());
     }
@@ -221,7 +221,7 @@ class InfoPointServiceTest {
     @DisplayName("exchangeCurrency - 信息点兑换Token成功")
     void exchangeCurrency_InfoPointToToken_Success() {
         CurrencyExchangeRequest req = CurrencyExchangeRequest.builder()
-                .userId(testUserId)
+                .userId(TEST_USER_ID)
                 .changeAmount(100)
                 .exchangeDirection(ExchangeDirection.INFOPOINT_TO_TOKEN)
                 .build();
@@ -230,10 +230,10 @@ class InfoPointServiceTest {
         when(infoPointMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
 
         UserInfoPointEntity mockUser = UserInfoPointEntity.builder()
-                .userId(testUserId)
+                .userId(TEST_USER_ID)
                 .infoPointBalance(0)
                 .build();
-        when(infoPointMapper.selectById(testUserId)).thenReturn(mockUser);
+        when(infoPointMapper.selectById(TEST_USER_ID)).thenReturn(mockUser);
 
         assertDoesNotThrow(() -> infoPointService.exchangeCurrency(req));
 
@@ -248,7 +248,7 @@ class InfoPointServiceTest {
     @DisplayName("exchangeCurrency - 信息点兑换Token金额不合法（非倍数）")
     void exchangeCurrency_InfoPointToToken_InvalidAmount() {
         CurrencyExchangeRequest req = CurrencyExchangeRequest.builder()
-                .userId(testUserId)
+                .userId(TEST_USER_ID)
                 .changeAmount(15)
                 .exchangeDirection(ExchangeDirection.INFOPOINT_TO_TOKEN)
                 .build();
@@ -263,7 +263,7 @@ class InfoPointServiceTest {
     @DisplayName("exchangeCurrency - Token兑换信息点成功")
     void exchangeCurrency_TokenToInfoPoint_Success() {
         CurrencyExchangeRequest req = CurrencyExchangeRequest.builder()
-                .userId(testUserId)
+                .userId(TEST_USER_ID)
                 .changeAmount(5)
                 .exchangeDirection(ExchangeDirection.TOKEN_TO_INFOPOINT)
                 .build();
@@ -272,10 +272,10 @@ class InfoPointServiceTest {
         when(infoPointMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
 
         UserInfoPointEntity mockUser = UserInfoPointEntity.builder()
-                .userId(testUserId)
+                .userId(TEST_USER_ID)
                 .infoPointBalance(150)
                 .build();
-        when(infoPointMapper.selectById(testUserId)).thenReturn(mockUser);
+        when(infoPointMapper.selectById(TEST_USER_ID)).thenReturn(mockUser);
 
         assertDoesNotThrow(() -> infoPointService.exchangeCurrency(req));
 
@@ -290,7 +290,7 @@ class InfoPointServiceTest {
     @DisplayName("exchangeCurrency - 非法兑换金额（零）")
     void exchangeCurrency_ZeroAmount() {
         CurrencyExchangeRequest req = CurrencyExchangeRequest.builder()
-                .userId(testUserId)
+                .userId(TEST_USER_ID)
                 .changeAmount(0)
                 .exchangeDirection(ExchangeDirection.INFOPOINT_TO_TOKEN)
                 .build();
@@ -305,7 +305,7 @@ class InfoPointServiceTest {
     @DisplayName("exchangeCurrency - 非法兑换金额（负数）")
     void exchangeCurrency_NegativeAmount() {
         CurrencyExchangeRequest req = CurrencyExchangeRequest.builder()
-                .userId(testUserId)
+                .userId(TEST_USER_ID)
                 .changeAmount(-10)
                 .exchangeDirection(ExchangeDirection.TOKEN_TO_INFOPOINT)
                 .build();
@@ -320,7 +320,7 @@ class InfoPointServiceTest {
     @DisplayName("exchangeCurrency - null金额")
     void exchangeCurrency_NullAmount() {
         CurrencyExchangeRequest req = CurrencyExchangeRequest.builder()
-                .userId(testUserId)
+                .userId(TEST_USER_ID)
                 .changeAmount(null)
                 .exchangeDirection(ExchangeDirection.INFOPOINT_TO_TOKEN)
                 .build();
@@ -335,12 +335,12 @@ class InfoPointServiceTest {
     @DisplayName("getBalance - 用户存在")
     void getBalance_UserExists() {
         UserInfoPointEntity mockUser = UserInfoPointEntity.builder()
-                .userId(testUserId)
+                .userId(TEST_USER_ID)
                 .infoPointBalance(500)
                 .build();
-        when(infoPointMapper.selectById(testUserId)).thenReturn(mockUser);
+        when(infoPointMapper.selectById(TEST_USER_ID)).thenReturn(mockUser);
 
-        Integer balance = infoPointService.getBalance(testUserId);
+        Integer balance = infoPointService.getBalance(TEST_USER_ID);
 
         assertEquals(500, balance);
     }
@@ -348,9 +348,9 @@ class InfoPointServiceTest {
     @Test
     @DisplayName("getBalance - 用户不存在")
     void getBalance_UserNotExists() {
-        when(infoPointMapper.selectById(testUserId)).thenReturn(null);
+        when(infoPointMapper.selectById(TEST_USER_ID)).thenReturn(null);
 
-        Integer balance = infoPointService.getBalance(testUserId);
+        Integer balance = infoPointService.getBalance(TEST_USER_ID);
 
         assertEquals(0, balance);
     }
@@ -363,7 +363,7 @@ class InfoPointServiceTest {
 
         InfoPointTransactionRecordEntity record = InfoPointTransactionRecordEntity.builder()
                 .recordId(1L)
-                .userId(testUserId)
+                .userId(TEST_USER_ID)
                 .changeAmount(100)
                 .changeType(InfoPointChangeType.MARKET_INCOME)
                 .balanceAfter(200)
@@ -373,12 +373,12 @@ class InfoPointServiceTest {
 
         when(recordMapper.selectPage(any(Page.class), any())).thenReturn(mockPage);
 
-        PageResult<InfoPointTransactionRecordResponse> result = infoPointService.getRecordlist(testUserId, null, 1, 10);
+        PageResult<InfoPointTransactionRecordResponse> result = infoPointService.getRecordlist(TEST_USER_ID, null, 1, 10);
 
         assertNotNull(result);
         assertEquals(20, result.getTotal());
         assertEquals(1, result.getList().size());
-        assertEquals(100, result.getList().get(0).getChangeAmount());
+        assertEquals(100, result.getList().getFirst().getChangeAmount());
     }
 
     @Test
@@ -389,7 +389,7 @@ class InfoPointServiceTest {
 
         InfoPointTransactionRecordEntity record = InfoPointTransactionRecordEntity.builder()
                 .recordId(1L)
-                .userId(testUserId)
+                .userId(TEST_USER_ID)
                 .changeAmount(-50)
                 .changeType(InfoPointChangeType.MARKET_PURCHASE)
                 .balanceAfter(150)
@@ -399,13 +399,13 @@ class InfoPointServiceTest {
 
         when(recordMapper.selectPage(any(Page.class), any())).thenReturn(mockPage);
 
-        PageResult<InfoPointTransactionRecordResponse> result = infoPointService.getRecordlist(testUserId,
+        PageResult<InfoPointTransactionRecordResponse> result = infoPointService.getRecordlist(TEST_USER_ID,
                 InfoPointChangeType.MARKET_PURCHASE, 1, 10);
 
         assertNotNull(result);
         assertEquals(5, result.getTotal());
         assertEquals(1, result.getList().size());
-        assertEquals(InfoPointChangeType.MARKET_PURCHASE, result.getList().get(0).getChangeType());
+        assertEquals(InfoPointChangeType.MARKET_PURCHASE, result.getList().getFirst().getChangeType());
     }
 
     @Test
@@ -417,7 +417,7 @@ class InfoPointServiceTest {
 
         when(recordMapper.selectPage(any(Page.class), any())).thenReturn(mockPage);
 
-        PageResult<InfoPointTransactionRecordResponse> result = infoPointService.getRecordlist(testUserId, null, 1, 10);
+        PageResult<InfoPointTransactionRecordResponse> result = infoPointService.getRecordlist(TEST_USER_ID, null, 1, 10);
 
         assertNotNull(result);
         assertEquals(0, result.getTotal());
