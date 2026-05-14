@@ -1,8 +1,6 @@
 package com.oriole.wisepen.market.service;
 
-import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.oriole.wisepen.common.core.context.SecurityContextHolder;
 import com.oriole.wisepen.common.core.domain.PageResult;
@@ -80,18 +78,18 @@ class MarketServiceTest {
     @Captor
     private ArgumentCaptor<MarketOrderEntity> orderCaptor;
 
-    private Long testUserId = 1L;
-    private Long testSellerId = 2L;
-    private Long testGroupId = 100L;
-    private Long testOrderId = 999L;
-    private Long testProductId = 1000L;
-    private Long testResourceId = 2000L;
+    private static final Long TEST_USER_ID = 1L;
+    private static final Long TEST_SELLER_ID = 2L;
+    private static final Long TEST_GROUP_ID = 100L;
+    private static final Long TEST_ORDER_ID = 999L;
+    private static final Long TEST_PRODUCT_ID = 1000L;
+    private static final Long TEST_RESOURCE_ID = 2000L;
 
     @BeforeEach
     void setUp() {
-        SecurityContextHolder.setUserId(testUserId);
+        SecurityContextHolder.setUserId(TEST_USER_ID);
         Map<String, Integer> groupRoles = new HashMap<>();
-        groupRoles.put(testGroupId.toString(), 1);
+        groupRoles.put(TEST_GROUP_ID.toString(), 1);
         String groupRoleJson = JSONUtil.toJsonStr(groupRoles);
         SecurityContextHolder.setGroupRoleMap(groupRoleJson);
     }
@@ -100,7 +98,7 @@ class MarketServiceTest {
     @DisplayName("getProductList - 正常分页查询")
     void getProductList_Success() {
         ProductSearchRequest searchReq = new ProductSearchRequest();
-        searchReq.setGroupId(testGroupId);
+        searchReq.setGroupId(TEST_GROUP_ID);
         searchReq.setSortBy(SortType.TIME_DESC);
 
         Page<MarketProductEntity> mockPage = new Page<>(1, 10);
@@ -114,25 +112,25 @@ class MarketServiceTest {
         assertNotNull(result);
         assertEquals(20, result.getTotal());
         assertEquals(1, result.getList().size());
-        assertEquals(testProductId, result.getList().get(0).getProductId());
+        assertEquals(TEST_PRODUCT_ID, result.getList().get(0).getProductId());
     }
 
     @Test
     @DisplayName("getProductDetail - 商品存在")
     void getProductDetail_Success() {
         MarketProductEntity mockProduct = createMockProduct();
-        when(marketProductMapper.selectById(testProductId)).thenReturn(mockProduct);
+        when(marketProductMapper.selectById(TEST_PRODUCT_ID)).thenReturn(mockProduct);
 
         Map<Long, UserDisplayBase> userMap = new HashMap<>();
-        userMap.put(testUserId, new UserDisplayBase("testUser", "测试用户", null, null));
+        userMap.put(TEST_USER_ID, new UserDisplayBase("testUser", "测试用户", null, null));
         when(remoteUserService.getUserDisplayInfo(anyList()))
                 .thenReturn(mock(R.class));
         when(remoteUserService.getUserDisplayInfo(anyList()).getData()).thenReturn(userMap);
 
-        ProductInfoResponse result = marketService.getProductDetail(testProductId);
+        ProductInfoResponse result = marketService.getProductDetail(TEST_PRODUCT_ID);
 
         assertNotNull(result);
-        assertEquals(testProductId, result.getProductId());
+        assertEquals(TEST_PRODUCT_ID, result.getProductId());
         assertEquals("测试商品", result.getProductName());
         assertEquals("testUser", result.getSellerName());
     }
@@ -140,10 +138,10 @@ class MarketServiceTest {
     @Test
     @DisplayName("getProductDetail - 商品不存在")
     void getProductDetail_NotFound() {
-        when(marketProductMapper.selectById(testProductId)).thenReturn(null);
+        when(marketProductMapper.selectById(TEST_PRODUCT_ID)).thenReturn(null);
 
         ServiceException exception = assertThrows(ServiceException.class,
-                () -> marketService.getProductDetail(testProductId));
+                () -> marketService.getProductDetail(TEST_PRODUCT_ID));
 
         assertEquals(MarketErrorCode.PRODUCT_NOT_FOUND.getCode(), exception.getCode());
     }
@@ -152,12 +150,12 @@ class MarketServiceTest {
     @DisplayName("addProduct - 正常创建商品")
     void addProduct_Success() {
         ProductCreateRequest createReq = new ProductCreateRequest();
-        createReq.setGroupId(testGroupId);
-        createReq.setResourceId(testResourceId);
+        createReq.setGroupId(TEST_GROUP_ID);
+        createReq.setResourceId(TEST_RESOURCE_ID);
         createReq.setTagId(1L);
         createReq.setProductName("测试商品");
         createReq.setPrice(100);
-        createReq.setTradeContentType(1);
+        createReq.setTradeContentType(TradeType.OWNERSHIP);
 
         ResourceCheckPermissionResDTO permRes = new ResourceCheckPermissionResDTO(ResourceAccessRole.OWNER);
         when(remoteResourceService.checkResPermission(any()))
@@ -170,7 +168,7 @@ class MarketServiceTest {
 
         verify(marketProductMapper).insert(productCaptor.capture());
         MarketProductEntity savedProduct = productCaptor.getValue();
-        assertEquals(testUserId, savedProduct.getSellerId());
+        assertEquals(TEST_USER_ID, savedProduct.getSellerId());
         assertEquals(ProductStatus.ON_SHELF, savedProduct.getStatus());
         assertEquals("测试商品", savedProduct.getProductName());
     }
@@ -179,8 +177,8 @@ class MarketServiceTest {
     @DisplayName("addProduct - 非资源所有者")
     void addProduct_NotOwner() {
         ProductCreateRequest createReq = new ProductCreateRequest();
-        createReq.setGroupId(testGroupId);
-        createReq.setResourceId(testResourceId);
+        createReq.setGroupId(TEST_GROUP_ID);
+        createReq.setResourceId(TEST_RESOURCE_ID);
 
         ResourceCheckPermissionResDTO permRes = new ResourceCheckPermissionResDTO(ResourceAccessRole.GROUP_MEMBER);
         when(remoteResourceService.checkResPermission(any())).thenReturn(mock(R.class));
@@ -196,8 +194,8 @@ class MarketServiceTest {
     @DisplayName("addProduct - 商品已上架")
     void addProduct_Duplicate() {
         ProductCreateRequest createReq = new ProductCreateRequest();
-        createReq.setGroupId(testGroupId);
-        createReq.setResourceId(testResourceId);
+        createReq.setGroupId(TEST_GROUP_ID);
+        createReq.setResourceId(TEST_RESOURCE_ID);
 
         ResourceCheckPermissionResDTO permRes = new ResourceCheckPermissionResDTO(ResourceAccessRole.OWNER);
         when(remoteResourceService.checkResPermission(any()))
@@ -216,10 +214,10 @@ class MarketServiceTest {
     @DisplayName("updateProduct - 正常更新")
     void updateProduct_Success() {
         MarketProductEntity existingProduct = createMockProduct();
-        when(marketProductMapper.selectById(testProductId)).thenReturn(existingProduct);
+        when(marketProductMapper.selectById(TEST_PRODUCT_ID)).thenReturn(existingProduct);
 
         ProductCreateRequest updateReq = new ProductCreateRequest();
-        updateReq.setProductId(testProductId);
+        updateReq.setProductId(TEST_PRODUCT_ID);
         updateReq.setProductName("更新后的商品名");
         updateReq.setPrice(200);
 
@@ -229,16 +227,16 @@ class MarketServiceTest {
         MarketProductEntity updatedProduct = productCaptor.getValue();
         assertEquals("更新后的商品名", updatedProduct.getProductName());
         assertEquals(200, updatedProduct.getPrice());
-        assertEquals(testResourceId, updatedProduct.getResourceId());
+        assertEquals(TEST_RESOURCE_ID, updatedProduct.getResourceId());
     }
 
     @Test
     @DisplayName("updateProduct - 商品不存在")
     void updateProduct_NotFound() {
-        when(marketProductMapper.selectById(testProductId)).thenReturn(null);
+        when(marketProductMapper.selectById(TEST_PRODUCT_ID)).thenReturn(null);
 
         ProductCreateRequest updateReq = new ProductCreateRequest();
-        updateReq.setProductId(testProductId);
+        updateReq.setProductId(TEST_PRODUCT_ID);
 
         ServiceException exception = assertThrows(ServiceException.class,
                 () -> marketService.updateProduct(updateReq));
@@ -251,10 +249,10 @@ class MarketServiceTest {
     void updateProduct_NoPermission() {
         MarketProductEntity existingProduct = createMockProduct();
         existingProduct.setSellerId(999L);
-        when(marketProductMapper.selectById(testProductId)).thenReturn(existingProduct);
+        when(marketProductMapper.selectById(TEST_PRODUCT_ID)).thenReturn(existingProduct);
 
         ProductCreateRequest updateReq = new ProductCreateRequest();
-        updateReq.setProductId(testProductId);
+        updateReq.setProductId(TEST_PRODUCT_ID);
 
         ServiceException exception = assertThrows(ServiceException.class,
                 () -> marketService.updateProduct(updateReq));
@@ -267,13 +265,13 @@ class MarketServiceTest {
     void purchase_Owner() {
         MarketProductEntity product = createMockProduct();
         product.setPrice(100);
-        product.setSellerId(testSellerId);
+        product.setSellerId(TEST_SELLER_ID);
         product.setTradeContentType(TradeType.OWNERSHIP.getCode());
-        when(marketProductMapper.selectById(testProductId)).thenReturn(product);
+        when(marketProductMapper.selectById(TEST_PRODUCT_ID)).thenReturn(product);
 
         doAnswer(invocation -> {
             MarketOrderEntity order = invocation.getArgument(0);
-            order.setOrderId(testOrderId);
+            order.setOrderId(TEST_ORDER_ID);
             return null;
         }).when(marketOrderMapper).insert(any(MarketOrderEntity.class));
 
@@ -282,14 +280,14 @@ class MarketServiceTest {
             return callback.doInTransaction(null);
         });
 
-        doNothing().when(infoPointService).handleTransaction(anyLong(), anyLong(), anyInt(), eq(testOrderId));
+        doNothing().when(infoPointService).handleTransaction(anyLong(), anyLong(), anyInt(), eq(TEST_ORDER_ID));
 
-        assertDoesNotThrow(() -> marketService.purchase(testProductId));
+        assertDoesNotThrow(() -> marketService.purchase(TEST_PRODUCT_ID));
 
         verify(marketOrderMapper).insert(orderCaptor.capture());
         MarketOrderEntity order = orderCaptor.getValue();
-        assertEquals(testProductId, order.getProductId());
-        assertEquals(testUserId, order.getBuyerId());
+        assertEquals(TEST_PRODUCT_ID, order.getProductId());
+        assertEquals(TEST_USER_ID, order.getBuyerId());
         assertEquals(product.getSellerId(), order.getSellerId());
         assertEquals(OrderStatus.COMPLETED, order.getStatus());
     }
@@ -299,13 +297,13 @@ class MarketServiceTest {
     void purchase_Use() {
         MarketProductEntity product = createMockProduct();
         product.setPrice(100);
-        product.setSellerId(testSellerId);
+        product.setSellerId(TEST_SELLER_ID);
         product.setTradeContentType(TradeType.USE_RIGHT.getCode());
-        when(marketProductMapper.selectById(testProductId)).thenReturn(product);
+        when(marketProductMapper.selectById(TEST_PRODUCT_ID)).thenReturn(product);
 
         doAnswer(invocation -> {
             MarketOrderEntity order = invocation.getArgument(0);
-            order.setOrderId(testOrderId);
+            order.setOrderId(TEST_ORDER_ID);
             return null;
         }).when(marketOrderMapper).insert(any(MarketOrderEntity.class));
 
@@ -314,16 +312,16 @@ class MarketServiceTest {
             return callback.doInTransaction(null);
         });
 
-        doNothing().when(infoPointService).handleTransaction(anyLong(), anyLong(), anyInt(), eq(testOrderId));
+        doNothing().when(infoPointService).handleTransaction(anyLong(), anyLong(), anyInt(), eq(TEST_ORDER_ID));
 
         when(remoteResourceService.updateResourceActionPermission(any())).thenReturn(R.ok());
 
-        assertDoesNotThrow(() -> marketService.purchase(testProductId));
+        assertDoesNotThrow(() -> marketService.purchase(TEST_PRODUCT_ID));
 
         verify(marketOrderMapper).insert(orderCaptor.capture());
         MarketOrderEntity order = orderCaptor.getValue();
-        assertEquals(testProductId, order.getProductId());
-        assertEquals(testUserId, order.getBuyerId());
+        assertEquals(TEST_PRODUCT_ID, order.getProductId());
+        assertEquals(TEST_USER_ID, order.getBuyerId());
         assertEquals(product.getSellerId(), order.getSellerId());
         assertEquals(OrderStatus.COMPLETED, order.getStatus());
     }
@@ -331,10 +329,10 @@ class MarketServiceTest {
     @Test
     @DisplayName("purchase - 商品不存在")
     void purchase_ProductNotFound() {
-        when(marketProductMapper.selectById(testProductId)).thenReturn(null);
+        when(marketProductMapper.selectById(TEST_PRODUCT_ID)).thenReturn(null);
 
         ServiceException exception = assertThrows(ServiceException.class,
-                () -> marketService.purchase(testProductId));
+                () -> marketService.purchase(TEST_PRODUCT_ID));
 
         assertEquals(MarketErrorCode.PRODUCT_NOT_FOUND.getCode(), exception.getCode());
     }
@@ -344,10 +342,10 @@ class MarketServiceTest {
     void purchase_ProductOffShelf() {
         MarketProductEntity product = createMockProduct();
         product.setStatus(ProductStatus.OFF_SHELF);
-        when(marketProductMapper.selectById(testProductId)).thenReturn(product);
+        when(marketProductMapper.selectById(TEST_PRODUCT_ID)).thenReturn(product);
 
         ServiceException exception = assertThrows(ServiceException.class,
-                () -> marketService.purchase(testProductId));
+                () -> marketService.purchase(TEST_PRODUCT_ID));
 
         assertEquals(MarketErrorCode.PRODUCT_OFF_SHELF.getCode(), exception.getCode());
     }
@@ -356,11 +354,11 @@ class MarketServiceTest {
     @DisplayName("purchase - 购买自己的商品")
     void purchase_OwnProduct() {
         MarketProductEntity product = createMockProduct();
-        product.setSellerId(testUserId);
-        when(marketProductMapper.selectById(testProductId)).thenReturn(product);
+        product.setSellerId(TEST_USER_ID);
+        when(marketProductMapper.selectById(TEST_PRODUCT_ID)).thenReturn(product);
 
         ServiceException exception = assertThrows(ServiceException.class,
-                () -> marketService.purchase(testProductId));
+                () -> marketService.purchase(TEST_PRODUCT_ID));
 
         assertEquals(MarketErrorCode.CANNOT_BUY_OWN_PRODUCT.getCode(), exception.getCode());
     }
@@ -369,11 +367,11 @@ class MarketServiceTest {
     @DisplayName("deleteProduct - 正常下架")
     void deleteProduct_Success() {
         MarketProductEntity product = createMockProduct();
-        when(marketProductMapper.selectById(testProductId)).thenReturn(product);
+        when(marketProductMapper.selectById(TEST_PRODUCT_ID)).thenReturn(product);
 
         when(remoteResourceService.updateResourceTags(any())).thenReturn(R.ok());
 
-        assertDoesNotThrow(() -> marketService.deleteProduct(testProductId));
+        assertDoesNotThrow(() -> marketService.deleteProduct(TEST_PRODUCT_ID));
 
         verify(marketProductMapper).updateById(productCaptor.capture());
         assertEquals(ProductStatus.OFF_SHELF, productCaptor.getValue().getStatus());
@@ -382,10 +380,10 @@ class MarketServiceTest {
     @Test
     @DisplayName("deleteProduct - 商品不存在")
     void deleteProduct_NotFound() {
-        when(marketProductMapper.selectById(testProductId)).thenReturn(null);
+        when(marketProductMapper.selectById(TEST_PRODUCT_ID)).thenReturn(null);
 
         ServiceException exception = assertThrows(ServiceException.class,
-                () -> marketService.deleteProduct(testProductId));
+                () -> marketService.deleteProduct(TEST_PRODUCT_ID));
 
         assertEquals(MarketErrorCode.PRODUCT_NOT_FOUND.getCode(), exception.getCode());
     }
@@ -408,11 +406,11 @@ class MarketServiceTest {
 
     private MarketProductEntity createMockProduct() {
         return MarketProductEntity.builder()
-                .productId(testProductId)
+                .productId(TEST_PRODUCT_ID)
                 .productName("测试商品")
-                .sellerId(testUserId)
-                .groupId(testGroupId)
-                .resourceId(testResourceId)
+                .sellerId(TEST_USER_ID)
+                .groupId(TEST_GROUP_ID)
+                .resourceId(TEST_RESOURCE_ID)
                 .price(100)
                 .status(ProductStatus.ON_SHELF)
                 .buyerCount(0)
