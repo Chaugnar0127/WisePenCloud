@@ -18,7 +18,7 @@ public class InfoPointTransactionRecordBase implements Serializable {
     private Long userId;
     private Integer changeAmount;
     private InfoPointChangeType changeType;
-    private String relatedId;
+    private Long relatedId;
     private Integer balanceAfter;
     private String meta;
     private LocalDateTime createTime;
