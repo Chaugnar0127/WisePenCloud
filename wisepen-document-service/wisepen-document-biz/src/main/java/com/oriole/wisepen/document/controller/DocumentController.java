@@ -27,7 +27,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
-import static com.oriole.wisepen.document.exception.DocumentErrorCode.DOCUMENT_PERMISSION_DENIED;
+import static com.oriole.wisepen.document.exception.DocumentError.DOCUMENT_PERMISSION_DENIED;
 
 
 @RestController

@@ -1,10 +1,8 @@
 package com.oriole.wisepen.note.controller;
 
-import cn.hutool.core.convert.Convert;
 import com.oriole.wisepen.common.core.context.SecurityContextHolder;
-import com.oriole.wisepen.common.core.domain.PageResult;
+import com.oriole.wisepen.common.core.domain.PageR;
 import com.oriole.wisepen.common.core.domain.R;
-import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
 import com.oriole.wisepen.note.api.domain.base.NoteInfoBase;
@@ -27,10 +25,9 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.Map;
 
-import static com.oriole.wisepen.note.exception.NoteErrorCode.NOTE_PERMISSION_DENIED;
+import static com.oriole.wisepen.note.exception.NoteError.NOTE_PERMISSION_DENIED;
 
 @Tag(name = "笔记服务", description = "笔记的创建、删除、版本管理与操作日志")
 @RestController
@@ -77,7 +74,7 @@ public class NoteController {
 
     @Operation(summary = "查询版本历史列表")
     @GetMapping("/listNoteHistoryVersions")
-    public R<PageResult<NoteVersionListResponse>> listNoteHistoryVersions(
+    public R<PageR<NoteVersionListResponse>> listNoteHistoryVersions(
             @RequestParam String resourceId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
@@ -85,7 +82,7 @@ public class NoteController {
                 resourceId, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap()
         )).getData();
         if (permission.getResourceAccessRole() == ResourceAccessRole.OWNER){
-            PageResult<NoteVersionListResponse> noteVersionListResponses = noteVersionService.listVersions(resourceId, page, size);
+            PageR<NoteVersionListResponse> noteVersionListResponses = noteVersionService.listVersions(resourceId, page, size);
             return R.ok(noteVersionListResponses);
         } else {
             throw new ServiceException(NOTE_PERMISSION_DENIED);
