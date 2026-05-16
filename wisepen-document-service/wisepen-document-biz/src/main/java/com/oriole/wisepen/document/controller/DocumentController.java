@@ -14,6 +14,7 @@ import com.oriole.wisepen.document.service.IDocumentService;
 import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionReqDTO;
 import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionResDTO;
 import com.oriole.wisepen.resource.domain.dto.ResourceInfoGetReqDTO;
+import com.oriole.wisepen.resource.domain.dto.ResourceReadRecordReqDTO;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
 import com.oriole.wisepen.resource.enums.ResourceAccessRole;
 import com.oriole.wisepen.resource.enums.ResourceAction;
@@ -23,6 +24,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -30,6 +32,7 @@ import java.util.List;
 import static com.oriole.wisepen.document.exception.DocumentError.DOCUMENT_PERMISSION_DENIED;
 
 
+@Slf4j
 @RestController
 @RequestMapping("/document")
 @RequiredArgsConstructor
@@ -87,6 +90,7 @@ public class DocumentController {
                 resourceId, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap()
         )).getData();
         if (permission.getResourceAccessRole() == ResourceAccessRole.OWNER || permission.getAllowedActions().contains(ResourceAction.VIEW)) {
+            // 预览不计入有效阅读量，此处不调用 recordResourceRead
             documentPreviewService.handlePreviewRequest(request, response, resourceId, userId);
         } else {
             throw new ServiceException(DOCUMENT_PERMISSION_DENIED);
@@ -102,6 +106,20 @@ public class DocumentController {
         )).getData();
         DocumentInfoBase documentInfo = documentService.getDocumentInfo(resourceId);
         DocumentInfoResponse documentInfoResponse = DocumentInfoResponse.builder().resourceInfo(resourceInfo).documentInfo(documentInfo).build();
+
+        // 有效阅读事件上报（fire-and-forget：上报失败不影响用户获取文档内容）
+        try {
+            remoteResourceService.recordResourceRead(
+                    ResourceReadRecordReqDTO.builder()
+                            .resourceId(resourceId)
+                            .userId(SecurityContextHolder.getUserId())
+                            .source("DOC_INFO")
+                            .build()
+            );
+        } catch (Exception e) {
+            log.warn("recordResourceRead failed resourceId={} userId={}", resourceId, SecurityContextHolder.getUserId(), e);
+        }
+
         return R.ok(documentInfoResponse);
     }
 }

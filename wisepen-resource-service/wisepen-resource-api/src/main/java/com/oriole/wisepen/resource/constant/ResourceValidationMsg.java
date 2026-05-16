@@ -23,4 +23,7 @@ public interface ResourceValidationMsg {
     String SIZE_MIN_INVALID = "每页条数不能小于1";
 
     String FILE_ORG_LOGIC_NOT_NULL = "资源组织模式不能为空";
+
+    // 阅读上报相关校验
+    String READ_SOURCE_NOT_BLANK = "阅读来源标识不能为空";
 }

@@ -13,6 +13,7 @@ import java.util.Map;
 @Data
 public class ResourceItemResponse extends ResourceItemInfoBase {
     private String resourceId;
+    private Long readCount;   // 聚合自资源互动信息表，缺失时返回 0
     private UserDisplayBase ownerInfo;
 
     private Map<String, String> currentTags;

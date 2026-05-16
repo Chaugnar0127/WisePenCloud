@@ -10,8 +10,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
-import java.util.Map;
-
 /**
  * 提供给其他微服务的权限 RPC 接口
  */
@@ -38,5 +36,9 @@ public interface RemoteResourceService {
     @Operation(summary = "解散小组", description = "软删除小组下的 Tag 树与资源配置，30 天后由定时任务彻底清理")
     @PostMapping("/internal/resource/dissolveGroup")
     R<Void> dissolveGroup(@RequestParam("groupId") Long groupId);
+
+    @Operation(summary = "上报阅读事件", description = "业务服务在用户查看资源详情时调用，资源服务执行去重后更新阅读量；预览接口不应调用此接口")
+    @PostMapping("/internal/resource/recordRead")
+    R<Void> recordResourceRead(@RequestBody ResourceReadRecordReqDTO dto);
 
 }
