@@ -17,7 +17,6 @@ import com.oriole.wisepen.market.domain.entity.MarketProductEntity;
 import com.oriole.wisepen.market.exception.MarketErrorCode;
 import com.oriole.wisepen.market.mapper.MarketOrderMapper;
 import com.oriole.wisepen.market.mapper.MarketProductMapper;
-import com.oriole.wisepen.market.service.IInfoPointService;
 import com.oriole.wisepen.market.service.IMarketService;
 import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionReqDTO;
 import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionResDTO;
@@ -28,6 +27,7 @@ import com.oriole.wisepen.resource.enums.OwnershipTier;
 import com.oriole.wisepen.resource.enums.ResourceAccessRole;
 import com.oriole.wisepen.resource.enums.ResourceAction;
 import com.oriole.wisepen.resource.feign.RemoteResourceService;
+import com.oriole.wisepen.user.api.feign.RemoteWalletService;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
 import com.oriole.wisepen.user.api.feign.RemoteUserService;
 import lombok.RequiredArgsConstructor;
@@ -46,9 +46,9 @@ public class MarketServiceImpl implements IMarketService {
 
     private final MarketProductMapper marketProductMapper;
     private final MarketOrderMapper marketOrderMapper;
-    private final IInfoPointService infoPointService;
     private final RemoteResourceService remoteResourceService;
     private final RemoteUserService remoteUserService;
+    private final RemoteWalletService remoteWalletService;
     private final TransactionTemplate transactionTemplate;
 
     @Override
@@ -208,8 +208,8 @@ public class MarketServiceImpl implements IMarketService {
                 throw new ServiceException(MarketErrorCode.DUPLICATE_PURCHASE);
             }
 
-            // 积分扣款（内部也是 @Transactional，会加入当前事务）
-            infoPointService.handleTransaction(buyerId, product.getSellerId(), product.getPrice(), newOrder.getOrderId());
+            // 结算信息点
+            remoteWalletService.settleInfoPointTrade(buyerId, product.getSellerId(), product.getPrice(), newOrder.getOrderId());
 
             // 更新商品统计
             product.setBuyerCount(product.getBuyerCount() + 1);

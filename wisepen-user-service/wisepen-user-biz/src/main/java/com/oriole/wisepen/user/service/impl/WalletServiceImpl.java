@@ -2,15 +2,22 @@ package com.oriole.wisepen.user.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.IdUtil;
+import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.oriole.wisepen.common.core.domain.PageResult;
 import com.oriole.wisepen.common.core.domain.PageR;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
+import com.oriole.wisepen.user.api.config.UserProperties;
+import com.oriole.wisepen.user.api.domain.dto.req.CurrencyExchangeRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.WalletTransferTokenRequest;
+import com.oriole.wisepen.user.api.domain.dto.req.InfoPointChangeRequest;
+import com.oriole.wisepen.user.api.domain.dto.res.InfoPointTransactionRecordResponse;
 import com.oriole.wisepen.user.api.enums.*;
 import com.oriole.wisepen.common.core.domain.enums.GroupType;
 import com.oriole.wisepen.common.core.exception.ServiceException;
@@ -49,8 +56,11 @@ public class WalletServiceImpl implements IWalletService {
     private final UserWalletsMapper userWalletsMapper;
     private final TokenTransactionRecordMapper tokenTransactionRecordMapper;
     private final TokenVoucherMapper tokenVoucherMapper;
+    private final InfoPointMapper infoPointMapper;
+    private final InfoPointTransactionRecordMapper infoPointTransactionRecordMapper;
 
     private final RedisCacheManager redisCacheManager;
+    private final UserProperties userProperties;
 
     @Override
     // 消费Token
@@ -115,6 +125,14 @@ public class WalletServiceImpl implements IWalletService {
     // 改变个人 Token 余额
     public void changeUserTokenBalance(Long userId, Long operator, Integer changedToken, TokenTransactionType type, String Meta) {
         UserWalletEntity walletEntity = userWalletsMapper.selectById(userId);
+        if (walletEntity == null) {
+            walletEntity = UserWalletEntity.builder()
+                    .userId(userId)
+                    .tokenBalance(0)
+                    .tokenUsed(0)
+                    .build();
+            userWalletsMapper.insert(walletEntity);
+        }
 
         LambdaUpdateWrapper<UserWalletEntity> wrapper = new LambdaUpdateWrapper<>();
         wrapper.eq(UserWalletEntity::getUserId, userId)
@@ -134,6 +152,157 @@ public class WalletServiceImpl implements IWalletService {
         } else {
             redisCacheManager.blockUserChat(userId);
         }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void changeInfoPointBalance(InfoPointChangeRequest req) {
+        Long userId = req.getUserId();
+        Integer changeAmount = req.getChangeAmount();
+
+        if (!infoPointMapper.exists(Wrappers.<UserInfoPointEntity>lambdaQuery().eq(UserInfoPointEntity::getUserId, userId))) {
+            UserInfoPointEntity userInfoPointEntity = UserInfoPointEntity.builder()
+                    .userId(userId)
+                    .infoPointBalance(0)
+                    .build();
+            infoPointMapper.insert(userInfoPointEntity);
+        }
+
+        LambdaUpdateWrapper<UserInfoPointEntity> updateWrapper = Wrappers.<UserInfoPointEntity>lambdaUpdate()
+                .eq(UserInfoPointEntity::getUserId, userId);
+
+        if (changeAmount < 0) {
+            updateWrapper.ge(UserInfoPointEntity::getInfoPointBalance, -changeAmount);
+        }
+        updateWrapper.setSql("info_point_balance = info_point_balance + {0}", changeAmount);
+
+        int affectedRows = infoPointMapper.update(null, updateWrapper);
+        if (affectedRows == 0) {
+            if (changeAmount < 0) {
+                throw new ServiceException(UserError.WALLET_INFO_POINT_INSUFFICIENT);
+            }
+            throw new ServiceException(UserError.WALLET_INFO_POINT_CHANGE_FAILED);
+        }
+
+        InfoPointTransactionRecordEntity record = BeanUtil.copyProperties(req, InfoPointTransactionRecordEntity.class);
+        UserInfoPointEntity updated = infoPointMapper.selectById(userId);
+        record.setBalanceAfter(updated == null ? 0 : updated.getInfoPointBalance());
+        infoPointTransactionRecordMapper.insert(record);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void settleInfoPointTrade(Long buyerId, Long sellerId, Integer price, Long relatedId) {
+        if (buyerId.equals(sellerId)) {
+            throw new ServiceException(UserError.WALLET_INFO_POINT_SELF_TRANSACTION_NOT_ALLOWED);
+        }
+        if (price == null || price <= 0) {
+            throw new ServiceException(UserError.WALLET_INFO_POINT_INVALID_PRICE);
+        }
+
+        changeInfoPointBalance(InfoPointChangeRequest.builder()
+                .userId(buyerId)
+                .changeAmount(-price)
+                .changeType(InfoPointChangeType.MARKET_PURCHASE)
+                .relatedId(relatedId)
+                .operatorId(buyerId)
+                .build());
+
+        changeInfoPointBalance(InfoPointChangeRequest.builder()
+                .userId(sellerId)
+                .changeAmount(price)
+                .changeType(InfoPointChangeType.MARKET_INCOME)
+                .relatedId(relatedId)
+                .operatorId(buyerId)
+                .build());
+
+        log.info("信息点交易完成: buyer={}, seller={}, price={}, relatedId={}", buyerId, sellerId, price, relatedId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void exchangeCurrency(CurrencyExchangeRequest req) {
+        Long userId = req.getUserId();
+        Integer amount = req.getChangeAmount();
+        ExchangeDirection direction = req.getExchangeDirection();
+        int rate = Optional.ofNullable(userProperties.getWallet())
+                .map(UserProperties.Wallet::getExchangeRate)
+                .filter(value -> value > 0)
+                .orElse(10);
+
+        if (amount == null || amount <= 0) {
+            throw new ServiceException(UserError.WALLET_INFO_POINT_EXCHANGE_AMOUNT_INVALID);
+        }
+
+        if (direction == ExchangeDirection.INFOPOINT_TO_TOKEN) {
+            if (amount % rate != 0) {
+                throw new ServiceException(UserError.WALLET_INFO_POINT_EXCHANGE_AMOUNT_INVALID);
+            }
+            int tokenAmount = amount / rate;
+            changeInfoPointBalance(InfoPointChangeRequest.builder()
+                    .userId(userId)
+                    .changeAmount(-amount)
+                    .changeType(InfoPointChangeType.EXCHANGE_TO_TOKEN)
+                    .meta(JSONUtil.toJsonStr(Map.of("exchangeRate", rate, "tokenAmount", tokenAmount)))
+                    .operatorId(userId)
+                    .build());
+            changeUserTokenBalance(userId, userId, tokenAmount, TokenTransactionType.TRANSFER_IN,
+                    "INFOPOINT_EXCHANGE_IN rate=%d amount=%d".formatted(rate, amount));
+            log.info("换汇完成: userId={}, infoPoint=-{}, token=+{}", userId, amount, tokenAmount);
+            return;
+        }
+
+        int infoPointAmount = amount * rate;
+        changeUserTokenBalance(userId, userId, -amount, TokenTransactionType.TRANSFER_OUT,
+                "INFOPOINT_EXCHANGE_OUT rate=%d amount=%d".formatted(rate, infoPointAmount));
+        changeInfoPointBalance(InfoPointChangeRequest.builder()
+                .userId(userId)
+                .changeAmount(infoPointAmount)
+                .changeType(InfoPointChangeType.EXCHANGE_FROM_TOKEN)
+                .meta(JSONUtil.toJsonStr(Map.of("exchangeRate", rate, "tokenAmount", amount)))
+                .operatorId(userId)
+                .build());
+
+        log.info("换汇完成: userId={}, token=-{}, infoPoint=+{}", userId, amount, infoPointAmount);
+    }
+
+    @Override
+    public Integer getInfoPointBalance(Long userId) {
+        UserInfoPointEntity userPoint = infoPointMapper.selectById(userId);
+        return userPoint != null ? userPoint.getInfoPointBalance() : 0;
+    }
+
+    @Override
+    public PageResult<InfoPointTransactionRecordResponse> listInfoPointTransactions(
+            Long userId,
+            InfoPointChangeType changeType,
+            Integer page,
+            Integer size
+    ) {
+        Page<InfoPointTransactionRecordEntity> recordPage = new Page<>(page, size);
+
+        LambdaQueryWrapper<InfoPointTransactionRecordEntity> wrapper = new LambdaQueryWrapper<>();
+        wrapper.eq(InfoPointTransactionRecordEntity::getUserId, userId);
+        wrapper.orderByDesc(InfoPointTransactionRecordEntity::getCreateTime);
+
+        if (changeType != null) {
+            wrapper.eq(InfoPointTransactionRecordEntity::getChangeType, changeType);
+        }
+
+        Page<InfoPointTransactionRecordEntity> resultPage = infoPointTransactionRecordMapper.selectPage(recordPage, wrapper);
+        PageResult<InfoPointTransactionRecordResponse> pageResult = new PageResult<>(resultPage.getTotal(), page, size);
+
+        List<InfoPointTransactionRecordEntity> records = resultPage.getRecords();
+        if (records.isEmpty()) {
+            return pageResult;
+        }
+
+        List<InfoPointTransactionRecordResponse> responses = records.stream()
+                .map(record -> BeanUtil.copyProperties(record, InfoPointTransactionRecordResponse.class))
+                .collect(Collectors.toList());
+
+        pageResult.addAll(responses);
+        return pageResult;
     }
 
     @Override
@@ -372,7 +541,12 @@ public class WalletServiceImpl implements IWalletService {
     @Override
     public WalletDetailResponse getUserWalletInfo(Long userId) {
         UserWalletEntity userWallet = userWalletsMapper.selectById(userId);
-        return BeanUtil.copyProperties(userWallet, WalletDetailResponse.class);
+        WalletDetailResponse response = BeanUtil.copyProperties(userWallet, WalletDetailResponse.class);
+        if (response == null) {
+            response = new WalletDetailResponse();
+        }
+        response.setInfoPointBalance(getInfoPointBalance(userId));
+        return response;
     }
 
     @Override

@@ -16,4 +16,14 @@ public class UserProperties {
     private String apiDomain;
 
     private String defaultPassword;
+
+    private Wallet wallet = new Wallet();
+
+    @Data
+    public static class Wallet {
+        /**
+         * 1 Token = exchangeRate InfoPoint
+         */
+        private Integer exchangeRate = 10;
+    }
 }

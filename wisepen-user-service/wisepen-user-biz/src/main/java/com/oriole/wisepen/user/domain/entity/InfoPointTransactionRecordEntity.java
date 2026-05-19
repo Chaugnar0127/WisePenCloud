@@ -1,7 +1,11 @@
-package com.oriole.wisepen.market.domain.entity;
+package com.oriole.wisepen.user.domain.entity;
 
-import com.baomidou.mybatisplus.annotation.*;
-import com.oriole.wisepen.market.api.enums.InfoPointChangeType;
+import com.baomidou.mybatisplus.annotation.FieldFill;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+import com.oriole.wisepen.user.api.enums.InfoPointChangeType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -20,20 +24,12 @@ public class InfoPointTransactionRecordEntity implements Serializable {
     @TableId(type = IdType.ASSIGN_ID)
     private Long recordId;
 
-
     private Long userId;
     private Integer changeAmount;
     private InfoPointChangeType changeType;
-
-    // 关联业务ID（如订单ID）
     private Long relatedId;
-
     private Integer balanceAfter;
-
-    // JSON 格式的元数据
     private String meta;
-
-    // 操作人ID（管理员操作时记录）
     private Long operatorId;
 
     @TableField(value = "create_time", fill = FieldFill.INSERT)

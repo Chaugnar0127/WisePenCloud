@@ -1,0 +1,39 @@
+package com.oriole.wisepen.user.api.enums;
+
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+
+@Getter
+@AllArgsConstructor
+public enum UserErrorMessage {
+    AUTH_USERNAME_OR_PASSWORD_INVALID("用户名或密码错误"),
+    AUTH_USER_LOCKED("账号已禁用"),
+    USERNAME_ALREADY_EXISTS("用户名已存在"),
+    CAMPUS_NO_ALREADY_EXISTS("学号已存在"),
+    USER_PASSWORD_RESET_EXPIRED("重置密码链接已过期"),
+    USER_PASSWORD_RESET_EMAIL_SEND_FAILED("重置密码邮件发送失败"),
+    CANNOT_OPERATE_BEFORE_AUTH_VERIFICATION("未完成身份验证的账号，不能进行该操作"),
+    VERIFICATION_EMAIL_INVALID("教育邮箱格式无效"),
+    VERIFICATION_EMAIL_ALREADY_EXISTS("身份验证邮箱已被其他账号绑定"),
+    VERIFICATION_CAMPUS_NO_ALREADY_EXISTS("身份验证学号已被其他账号绑定"),
+    VERIFICATION_EMAIL_TOKEN_EXPIRED("身份验证链接已过期"),
+    VERIFICATION_EMAIL_SEND_FAILED("身份验证邮件发送失败"),
+    VERIFICATION_FUDAN_UIS_REQUEST_FAILED("复旦 UIS 认证请求发送失败"),
+    VERIFICATION_FUDAN_UIS_FAILED("复旦 UIS 认证失败"),
+    GROUP_NOT_EXIST("小组不存在"),
+    GROUP_MEMBER_NOT_FOUND("小组成员不存在"),
+    GROUP_MEMBER_ALREADY_EXISTS("小组成员已存在"),
+    CANNOT_QUIT_GROUP_AS_OWNER("组长不能退出小组"),
+    CANNOT_CONFIGURE_GROUP_WALLET_QUOTA("小组不能配置配额"),
+    WALLET_TOKEN_LIMIT_BELOW_USED("配额不能低于已用量"),
+    WALLET_VOUCHER_NOT_FOUND("TOKEN 点卡不存在"),
+    WALLET_VOUCHER_INVALID("TOKEN 点卡不可用"),
+    WALLET_VOUCHER_EXPIRED("TOKEN 点卡已过期"),
+    WALLET_INFO_POINT_INSUFFICIENT("信息点余额不足"),
+    WALLET_INFO_POINT_CHANGE_FAILED("信息点余额变更失败"),
+    WALLET_INFO_POINT_SELF_TRANSACTION_NOT_ALLOWED("不允许自买自卖"),
+    WALLET_INFO_POINT_INVALID_PRICE("价格必须大于零"),
+    WALLET_INFO_POINT_EXCHANGE_AMOUNT_INVALID("换汇量不合法");
+
+    private final String msg;
+}

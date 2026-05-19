@@ -23,6 +23,7 @@ import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionResDTO;
 import com.oriole.wisepen.resource.enums.ResourceAccessRole;
 import com.oriole.wisepen.resource.feign.RemoteResourceService;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
+import com.oriole.wisepen.user.api.feign.RemoteWalletService;
 import com.oriole.wisepen.user.api.feign.RemoteUserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -67,7 +68,7 @@ class MarketServiceTest {
     private TransactionTemplate transactionTemplate;
 
     @Mock
-    private com.oriole.wisepen.market.service.IInfoPointService infoPointService;
+    private RemoteWalletService remoteWalletService;
 
     @InjectMocks
     private MarketServiceImpl marketService;
@@ -280,7 +281,7 @@ class MarketServiceTest {
             return callback.doInTransaction(null);
         });
 
-        doNothing().when(infoPointService).handleTransaction(anyLong(), anyLong(), anyInt(), eq(TEST_ORDER_ID));
+        when(remoteWalletService.settleInfoPointTrade(anyLong(), anyLong(), anyInt(), eq(TEST_ORDER_ID))).thenReturn(R.ok());
 
         assertDoesNotThrow(() -> marketService.purchase(TEST_PRODUCT_ID));
 
@@ -312,7 +313,7 @@ class MarketServiceTest {
             return callback.doInTransaction(null);
         });
 
-        doNothing().when(infoPointService).handleTransaction(anyLong(), anyLong(), anyInt(), eq(TEST_ORDER_ID));
+        when(remoteWalletService.settleInfoPointTrade(anyLong(), anyLong(), anyInt(), eq(TEST_ORDER_ID))).thenReturn(R.ok());
 
         when(remoteResourceService.updateResourceActionPermission(any())).thenReturn(R.ok());
 

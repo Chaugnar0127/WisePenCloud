@@ -29,6 +29,7 @@
         <module name="wisepen-resource-api" />
         <module name="wisepen-system-biz" />
         <module name="wisepen-fudan-extension-api" />
+        <module name="wisepen-common" />
         <module name="wisepen-market-api" />
         <module name="wisepen-user-biz" />
         <module name="wisepen-document-api" />

@@ -1,8 +1,13 @@
 package com.oriole.wisepen.user.service;
 
+import com.oriole.wisepen.common.core.domain.PageResult;
 import com.oriole.wisepen.common.core.domain.PageR;
+import com.oriole.wisepen.user.api.domain.dto.req.CurrencyExchangeRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.WalletTransferTokenRequest;
+import com.oriole.wisepen.user.api.domain.dto.req.InfoPointChangeRequest;
+import com.oriole.wisepen.user.api.domain.dto.res.InfoPointTransactionRecordResponse;
 import com.oriole.wisepen.user.api.domain.dto.res.WalletDetailResponse;
+import com.oriole.wisepen.user.api.enums.InfoPointChangeType;
 import com.oriole.wisepen.user.api.enums.TokenPayerType;
 import com.oriole.wisepen.user.api.domain.dto.req.GroupMemberTokenLimitUpdateRequest;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberTokenDetailResponse;
@@ -19,7 +24,22 @@ public interface IWalletService {
     // 改变小组 Token 余额
     void changeGroupTokenBalance(Long groupId, Long operator, Integer changedToken, TokenTransactionType type, String Meta);
     // 改变个人 Token 余额
-    void changeUserTokenBalance(Long groupId, Long operator, Integer changedToken, TokenTransactionType type, String Meta);
+    void changeUserTokenBalance(Long userId, Long operator, Integer changedToken, TokenTransactionType type, String Meta);
+    // 改变个人信息点余额
+    void changeInfoPointBalance(InfoPointChangeRequest req);
+    // 信息点交易结算
+    void settleInfoPointTrade(Long buyerId, Long sellerId, Integer price, Long relatedId);
+    // Token 和信息点换汇
+    void exchangeCurrency(CurrencyExchangeRequest req);
+    // 获取信息点余额
+    Integer getInfoPointBalance(Long userId);
+    // 获取信息点流水
+    PageResult<InfoPointTransactionRecordResponse> listInfoPointTransactions(
+            Long userId,
+            InfoPointChangeType changeType,
+            Integer page,
+            Integer size
+    );
     // 更新组成员 Token 配额
     void updateGroupMemberTokenLimit(GroupMemberTokenLimitUpdateRequest req);
 

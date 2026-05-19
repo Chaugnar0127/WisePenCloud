@@ -6,4 +6,5 @@ import lombok.Data;
 public class WalletDetailResponse {
 	Integer tokenUsed;
 	Integer tokenBalance;
+    Integer infoPointBalance;
 }
