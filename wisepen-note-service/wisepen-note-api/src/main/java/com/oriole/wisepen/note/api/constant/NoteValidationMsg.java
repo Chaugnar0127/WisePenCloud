@@ -7,4 +7,7 @@ public interface NoteValidationMsg {
     String VERSION_NOT_NULL = "版本号不能为空";
     String SNAPSHOT_DATA_NOT_NULL = "快照数据不能为空";
     String SNAPSHOT_TYPE_NOT_NULL = "快照类型不能为空";
+    String ORIGINAL_RESOURCE_ID_NOT_BLANK = "原资源ID不能为空";
+    String NEW_RESOURCE_ID_NOT_BLANK = "新资源ID不能为空";
+    String NEW_OWNER_ID_NOT_NULL = "新拥有者ID不能为空";
 }

@@ -13,7 +13,9 @@ import com.oriole.wisepen.user.api.domain.dto.res.InfoPointTradeRelatedIdRespons
 import com.oriole.wisepen.user.api.domain.dto.res.InfoPointTransactionRecordResponse;
 import com.oriole.wisepen.user.api.enums.InfoPointChangeType;
 import com.oriole.wisepen.user.api.enums.InfoPointTradeStatus;
+import com.oriole.wisepen.user.exception.UserError;
 import com.oriole.wisepen.user.service.IWalletService;
+import com.oriole.wisepen.common.core.exception.ServiceException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -71,8 +73,8 @@ public class WalletInfoPointController {
     ) {
         InfoPointTradeSearchRequest req = new InfoPointTradeSearchRequest();
         req.setUserId(userId);
-        req.setChangeType(InfoPointChangeType.getByCode(changeType));
-        req.setTradeStatus(InfoPointTradeStatus.getByCode(tradeStatus));
+        req.setChangeType(parseChangeType(changeType));
+        req.setTradeStatus(parseTradeStatus(tradeStatus));
         req.setChangeAmount(changeAmount);
         req.setPage(page);
         req.setSize(size);
@@ -90,5 +92,21 @@ public class WalletInfoPointController {
     public R<Void> revokeTrade(@RequestBody @Valid InfoPointTradeRevokeRequest req) {
         walletService.revokeInfoPointTrade(req.getRelatedId(), SecurityContextHolder.getUserId(), req.getReason());
         return R.ok();
+    }
+
+    private InfoPointChangeType parseChangeType(Integer changeType) {
+        InfoPointChangeType parsed = InfoPointChangeType.getByCode(changeType);
+        if (changeType != null && parsed == null) {
+            throw new ServiceException(UserError.WALLET_INFO_POINT_CHANGE_TYPE_INVALID);
+        }
+        return parsed;
+    }
+
+    private InfoPointTradeStatus parseTradeStatus(Integer tradeStatus) {
+        InfoPointTradeStatus parsed = InfoPointTradeStatus.getByCode(tradeStatus);
+        if (tradeStatus != null && parsed == null) {
+            throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_STATUS_INVALID);
+        }
+        return parsed;
     }
 }

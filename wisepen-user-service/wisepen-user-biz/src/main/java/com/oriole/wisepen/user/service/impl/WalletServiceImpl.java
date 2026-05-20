@@ -225,6 +225,14 @@ public class WalletServiceImpl implements IWalletService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void confirmInfoPointTradeSuccess(Long relatedId) {
+        List<InfoPointTransactionRecordEntity> records = getMarketTradeRecords(relatedId);
+        if (records.stream().anyMatch(record -> record.getTradeStatus() == InfoPointTradeStatus.ADMIN_REVOKED)) {
+            throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_ALREADY_REVOKED);
+        }
+        if (records.stream().allMatch(record -> record.getTradeStatus() == InfoPointTradeStatus.TRADE_SUCCESS)) {
+            return;
+        }
+
         int affectedRows = infoPointTransactionRecordMapper.update(null,
                 Wrappers.<InfoPointTransactionRecordEntity>lambdaUpdate()
                         .eq(InfoPointTransactionRecordEntity::getRelatedId, relatedId)
@@ -233,7 +241,7 @@ public class WalletServiceImpl implements IWalletService {
                                 InfoPointChangeType.MARKET_PURCHASE, InfoPointChangeType.MARKET_INCOME)
                         .set(InfoPointTransactionRecordEntity::getTradeStatus, InfoPointTradeStatus.TRADE_SUCCESS));
         if (affectedRows == 0) {
-            throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_NOT_FOUND);
+            throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_REVOKE_NOT_ALLOWED);
         }
         log.info("信息点交易交割成功: relatedId={}", relatedId);
     }
@@ -241,15 +249,7 @@ public class WalletServiceImpl implements IWalletService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void revokeInfoPointTrade(Long relatedId, Long operatorId, String reason) {
-        List<InfoPointTransactionRecordEntity> records = infoPointTransactionRecordMapper.selectList(
-                Wrappers.<InfoPointTransactionRecordEntity>lambdaQuery()
-                        .eq(InfoPointTransactionRecordEntity::getRelatedId, relatedId)
-                        .in(InfoPointTransactionRecordEntity::getChangeType,
-                                InfoPointChangeType.MARKET_PURCHASE, InfoPointChangeType.MARKET_INCOME)
-        );
-        if (records == null || records.isEmpty()) {
-            throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_NOT_FOUND);
-        }
+        List<InfoPointTransactionRecordEntity> records = getMarketTradeRecords(relatedId);
         if (records.stream().anyMatch(record -> record.getTradeStatus() == InfoPointTradeStatus.ADMIN_REVOKED)) {
             throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_ALREADY_REVOKED);
         }
@@ -289,6 +289,24 @@ public class WalletServiceImpl implements IWalletService {
                                 InfoPointChangeType.MARKET_PURCHASE, InfoPointChangeType.MARKET_INCOME)
                         .set(InfoPointTransactionRecordEntity::getTradeStatus, InfoPointTradeStatus.ADMIN_REVOKED));
         log.info("信息点交易已由管理员撤销: relatedId={} operatorId={}", relatedId, operatorId);
+    }
+
+    private List<InfoPointTransactionRecordEntity> getMarketTradeRecords(Long relatedId) {
+        List<InfoPointTransactionRecordEntity> records = infoPointTransactionRecordMapper.selectList(
+                Wrappers.<InfoPointTransactionRecordEntity>lambdaQuery()
+                        .eq(InfoPointTransactionRecordEntity::getRelatedId, relatedId)
+                        .in(InfoPointTransactionRecordEntity::getChangeType,
+                                InfoPointChangeType.MARKET_PURCHASE, InfoPointChangeType.MARKET_INCOME)
+        );
+        if (records == null || records.isEmpty()) {
+            throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_NOT_FOUND);
+        }
+        boolean hasPurchase = records.stream().anyMatch(record -> record.getChangeType() == InfoPointChangeType.MARKET_PURCHASE);
+        boolean hasIncome = records.stream().anyMatch(record -> record.getChangeType() == InfoPointChangeType.MARKET_INCOME);
+        if (!hasPurchase || !hasIncome) {
+            throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_REVOKE_NOT_ALLOWED);
+        }
+        return records;
     }
 
     private String buildRevokeMeta(String reason) {
@@ -399,14 +417,8 @@ public class WalletServiceImpl implements IWalletService {
                 .selectRelatedIdMatches(req, offset, size)
                 .stream()
                 .map(record -> {
-                    InfoPointTradeRelatedIdResponse response = new InfoPointTradeRelatedIdResponse();
-                    response.setRelatedId(record.getRelatedId());
+                    InfoPointTradeRelatedIdResponse response = BeanUtil.copyProperties(record, InfoPointTradeRelatedIdResponse.class);
                     response.setMatchedRecordId(record.getRecordId());
-                    response.setUserId(record.getUserId());
-                    response.setChangeAmount(record.getChangeAmount());
-                    response.setChangeType(record.getChangeType());
-                    response.setTradeStatus(record.getTradeStatus());
-                    response.setCreateTime(record.getCreateTime());
                     return response;
                 })
                 .collect(Collectors.toList());

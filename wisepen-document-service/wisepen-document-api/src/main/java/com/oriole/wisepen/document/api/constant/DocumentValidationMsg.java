@@ -12,4 +12,8 @@ public class DocumentValidationMsg {
     public static final String DOCUMENT_ID_NULL    = "文档ID不能为空";
     public static final String RESOURCE_ID_EMPTY   = "资源ID不能为空";
     public static final String RESOURCE_TYPE_EMPTY = "资源类型不能为空";
+    public static final String ORIGINAL_RESOURCE_ID_EMPTY = "原资源ID不能为空";
+    public static final String NEW_RESOURCE_ID_EMPTY = "新资源ID不能为空";
+    public static final String NEW_OWNER_ID_NULL = "新拥有者ID不能为空";
+    public static final String NEW_SOURCE_OBJECT_KEY_EMPTY = "新的源文件ObjectKey不能为空";
 }

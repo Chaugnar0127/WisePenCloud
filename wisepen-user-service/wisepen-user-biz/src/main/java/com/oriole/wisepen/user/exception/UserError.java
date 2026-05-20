@@ -57,6 +57,8 @@ public enum UserError implements IResult {
     WALLET_INFO_POINT_TRADE_NOT_FOUND(3916, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.NOT_FOUND), UserErrorMessage.WALLET_INFO_POINT_TRADE_NOT_FOUND.getMsg()),
     WALLET_INFO_POINT_TRADE_ALREADY_REVOKED(3917, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.STATE_INVALID), UserErrorMessage.WALLET_INFO_POINT_TRADE_ALREADY_REVOKED.getMsg()),
     WALLET_INFO_POINT_TRADE_REVOKE_NOT_ALLOWED(3918, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.NOT_ALLOWED), UserErrorMessage.WALLET_INFO_POINT_TRADE_REVOKE_NOT_ALLOWED.getMsg()),
+    WALLET_INFO_POINT_CHANGE_TYPE_INVALID(3919, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.INVALID), UserErrorMessage.WALLET_INFO_POINT_CHANGE_TYPE_INVALID.getMsg()),
+    WALLET_INFO_POINT_TRADE_STATUS_INVALID(3920, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.INVALID), UserErrorMessage.WALLET_INFO_POINT_TRADE_STATUS_INVALID.getMsg()),
     // TOKEN点卡相关异常
     WALLET_VOUCHER_NOT_FOUND(3811, new ResultKey(BusinessDomain.USER, UserSubject.VOUCHER, ErrorReason.NOT_FOUND), UserErrorMessage.WALLET_VOUCHER_NOT_FOUND.getMsg()),
     WALLET_VOUCHER_INVALID(3821, new ResultKey(BusinessDomain.USER, UserSubject.VOUCHER, ErrorReason.INVALID), UserErrorMessage.WALLET_VOUCHER_INVALID.getMsg()),

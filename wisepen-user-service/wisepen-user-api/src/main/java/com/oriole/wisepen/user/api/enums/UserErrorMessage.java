@@ -36,7 +36,9 @@ public enum UserErrorMessage {
     WALLET_INFO_POINT_EXCHANGE_AMOUNT_INVALID("换汇量不合法"),
     WALLET_INFO_POINT_TRADE_NOT_FOUND("信息点交易不存在"),
     WALLET_INFO_POINT_TRADE_ALREADY_REVOKED("信息点交易已被撤销"),
-    WALLET_INFO_POINT_TRADE_REVOKE_NOT_ALLOWED("信息点交易不能撤销");
+    WALLET_INFO_POINT_TRADE_REVOKE_NOT_ALLOWED("信息点交易不能撤销"),
+    WALLET_INFO_POINT_CHANGE_TYPE_INVALID("信息点变更类型无效"),
+    WALLET_INFO_POINT_TRADE_STATUS_INVALID("信息点交易状态无效");
 
     private final String msg;
 }
