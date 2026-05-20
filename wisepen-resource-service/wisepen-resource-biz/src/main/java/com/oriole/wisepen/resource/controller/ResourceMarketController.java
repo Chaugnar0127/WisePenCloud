@@ -91,7 +91,7 @@ public class ResourceMarketController {
         return R.ok();
     }
 
-    @Operation(summary = "审核上架信息", description = "小组管理员或所有者审核资源上架")
+    @Operation(summary = "审核上架信息", description = "系统管理员、小组管理员或所有者审核资源上架")
     @Log(title = "审核上架信息", businessType = BusinessType.UPDATE)
     @PostMapping("/review")
     public R<Void> reviewSellInfo(@Validated @RequestBody ResourceReviewSellRequest req) {

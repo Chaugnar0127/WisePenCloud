@@ -6,6 +6,7 @@ import com.oriole.wisepen.common.core.context.SecurityContextHolder;
 import com.oriole.wisepen.common.core.domain.PageR;
 import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
+import com.oriole.wisepen.common.core.domain.enums.IdentityType;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.note.api.domain.dto.res.NoteSnapshotResponse;
 import com.oriole.wisepen.note.api.feign.RemoteNoteService;
@@ -181,7 +182,9 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
         ResourceItemEntity resource = getResource(req.getResourceId());
         ResourceSellInfo sellInfo = findSellInfo(resource, req.getSellId());
 
-        SecurityContextHolder.assertGroupRole(Long.valueOf(sellInfo.getGroupId()), GroupRoleType.ADMIN, GroupRoleType.OWNER);
+        if (SecurityContextHolder.getIdentityType() != IdentityType.ADMIN) {
+            SecurityContextHolder.assertGroupRole(Long.valueOf(sellInfo.getGroupId()), GroupRoleType.ADMIN, GroupRoleType.OWNER);
+        }
 
         SellReviewInfo reviewInfo = sellInfo.getAdmin();
         if (reviewInfo == null) {
