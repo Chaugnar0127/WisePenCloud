@@ -1,5 +1,6 @@
 package com.oriole.wisepen.resource.domain.base;
 
+import com.oriole.wisepen.resource.enums.TagIndexDisplay;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -19,4 +20,7 @@ public class TagInfoBase extends TagSpaceBase{
 
     // 节点类型标识：true 表示 FOLDER(路径)，false 表示普通 TAG
     private Boolean isPath;
+
+    // 集市组首页展示策略
+    private TagIndexDisplay isShownOnIndex;
 }

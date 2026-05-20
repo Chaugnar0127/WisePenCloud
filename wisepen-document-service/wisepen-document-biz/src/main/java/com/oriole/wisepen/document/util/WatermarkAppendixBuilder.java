@@ -38,12 +38,12 @@ public final class WatermarkAppendixBuilder {
      *
      * @param meta      从 MongoDB 加载的 PDF 结构元数据
      * @param userId    当前预览用户 ID
-     * @param authorId  文档原作者 ID
+     * @param uploaderId 文档原上传者 ID
      * @param time      水印时间戳
      * @param aesKeyB64 AES-128 密钥（Base64）
      * @return 增量更新附录字节，拼接在 originalSize 之后即构成完整的虚拟 PDF
      */
-    public static byte[] build(DocumentPdfMetaEntity meta, String userId, String authorId, LocalDateTime time, String aesKeyB64) throws IOException {
+    public static byte[] build(DocumentPdfMetaEntity meta, String userId, String uploaderId, LocalDateTime time, String aesKeyB64) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         // 游标指针
         //所有的新内容只能追加在原文件的最末尾。原文件的大小就是要写入的起始字节位置（Offset）
@@ -88,7 +88,7 @@ public final class WatermarkAppendixBuilder {
         xrefEntries.add(new long[]{formObjNum, currentOffset});
 
         // 生成明水印
-        String lightWM = String.format("%-" + USER_ID_FIELD_WIDTH + "s  author:%-" + USER_ID_FIELD_WIDTH + "s  %s  %s", userId, authorId, time.format(TIME_FMT), "ACADEMIC USE ONLY");
+        String lightWM = String.format("%-" + USER_ID_FIELD_WIDTH + "s  uploader:%-" + USER_ID_FIELD_WIDTH + "s  %s  %s", userId, uploaderId, time.format(TIME_FMT), "ACADEMIC USE ONLY");
         // 从文档元数据中读取 PDF 第一页的绝对物理宽度和高度（已假设该 PDF 所有页面的尺寸完全一致）
         float pageW = meta.getPages().getFirst().getWidthPt();
         float pageH = meta.getPages().getFirst().getHeightPt();

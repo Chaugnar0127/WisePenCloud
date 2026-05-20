@@ -94,12 +94,12 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
 
         String ossUrl = remoteStorageService.getDownloadUrl(doc.getPreviewObjectKey(), null).getData();
 
-        // 从文档元数据中提取原作者 ID，用于水印标注
+        // 从文档元数据中提取原上传者 ID，用于水印标注
         // 优先使用 originalAuthorId（fork 链中始终指向最初上传者），回退到 uploaderId（未 fork 的文档）
-        String authorId = userId;
+        String uploaderId = userId;
         if (doc.getUploadMeta() != null) {
             Long origAuthor = doc.getUploadMeta().getOriginalAuthorId();
-            authorId = String.valueOf(origAuthor != null ? origAuthor : doc.getUploadMeta().getUploaderId());
+            uploaderId = String.valueOf(origAuthor != null ? origAuthor : doc.getUploadMeta().getUploaderId());
         }
 
         // 在时间戳确定之前生成附录，保证同一请求内明/暗水印时间一致
@@ -129,10 +129,10 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
                 response.setStatus(HttpStatus.OK.value());
                 ServletOutputStream out = response.getOutputStream();
                 pipeOssRange(ossUrl, 0, originalSize - 1, out);
-                out.write(buildAppendix(meta, userId, authorId, previewTime));
+                out.write(buildAppendix(meta, userId, uploaderId, previewTime));
             } else {
                 handleRangeRequest(rangeHeader, totalSize, originalSize,
-                        ossUrl, meta, userId, authorId, previewTime, response);
+                        ossUrl, meta, userId, uploaderId, previewTime, response);
             }
         } catch (IOException e) {
             log.error("文档预览响应写入失败 ResourceId={}", resourceId, e);
@@ -147,7 +147,7 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
             long totalSize, long originalSize,
             String ossUrl,
             DocumentPdfMetaEntity meta,
-            String userId, String authorId, LocalDateTime previewTime,
+            String userId, String uploaderId, LocalDateTime previewTime,
             HttpServletResponse response) throws Exception {
         Matcher m = RANGE_PATTERN.matcher(rangeHeader.trim());
         if (!m.matches()) {
@@ -178,7 +178,7 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
 
         } else if (start >= originalSize) {
             // 情形 2：完全落在附录段 → 内存生成后切片
-            byte[] appendix = buildAppendix(meta, userId, authorId, previewTime);
+            byte[] appendix = buildAppendix(meta, userId, uploaderId, previewTime);
             int offset = (int) (start - originalSize);
             int length = (int) (end - start + 1);
             out.write(appendix, offset, length);
@@ -186,7 +186,7 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
         } else {
             // 情形 3：跨越两段边界 → OSS 尾部 + 附录头部
             pipeOssRange(ossUrl, start, originalSize - 1, out);
-            byte[] appendix = buildAppendix(meta, userId, authorId, previewTime);
+            byte[] appendix = buildAppendix(meta, userId, uploaderId, previewTime);
             int lengthInAppendix = (int) (end - originalSize + 1);
             out.write(appendix, 0, lengthInAppendix);
         }
@@ -221,10 +221,10 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
 
     // 附录生成
     private byte[] buildAppendix(DocumentPdfMetaEntity meta,
-            String userId, String authorId,
+            String userId, String uploaderId,
             LocalDateTime time) {
         try {
-            return WatermarkAppendixBuilder.build(meta, userId, authorId, time,
+            return WatermarkAppendixBuilder.build(meta, userId, uploaderId, time,
                     documentProperties.getWatermarkSecretKey());
         } catch (Exception e) {
             throw new ServiceException(DocumentError.DOCUMENT_PREVIEW_FAILED);
