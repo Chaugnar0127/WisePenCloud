@@ -40,8 +40,8 @@ public enum ResourceAction {
                 mask |= VIEW.code | DISCOVER.code;
                 break;
             case FORK:
-                // fork 最新版本 必须包含 阅读和可见，但不隐含编辑
-                mask |= VIEW.code | DISCOVER.code;
+                // fork 最新版本 必须包含 下载水印、下载原版、阅读和可见，但不隐含编辑
+                mask |= DOWNLOAD_ORIGINAL.code | DOWNLOAD_WATERMARK.code | VIEW.code | DISCOVER.code;
                 break;
             case VIEW:
                 // 阅读 必须包含 可见
