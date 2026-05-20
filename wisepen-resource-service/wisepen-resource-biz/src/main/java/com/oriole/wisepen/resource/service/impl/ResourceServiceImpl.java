@@ -266,7 +266,24 @@ public class ResourceServiceImpl implements IResourceService {
 
     @Override
     public void grantUserResourceActions(String resourceId, String userId, List<ResourceAction> actions) {
-        throw new ServiceException(ResourceError.RESOURCE_MARKET_OPERATION_UNSUPPORTED);
+        ResourceItemEntity entity = resourceItemRepository.findById(resourceId)
+                .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
+
+        int grantedMask = ResourceAction.actionsToPermissionCode(actions);
+        Map<String, Integer> specifiedMaskMap = entity.getSpecifiedUsersGrantedActionsMask();
+        if (specifiedMaskMap == null) {
+            specifiedMaskMap = new HashMap<>();
+            entity.setSpecifiedUsersGrantedActionsMask(specifiedMaskMap);
+        }
+
+        int oldMask = specifiedMaskMap.getOrDefault(userId, 0);
+        specifiedMaskMap.put(userId, oldMask | grantedMask);
+
+        resourceItemRepository.save(entity);
+        log.info("resource userActions granted resourceId={} userId={} oldMask={} grantMask={} newMask={}",
+                entity.getResourceId(), userId, oldMask, grantedMask, specifiedMaskMap.get(userId));
+
+        eventPublisher.publishAclRecalculateEvent(entity.getResourceId(), "RESOURCE_USER_ACTIONS_GRANTED");
     }
 
     @Override
