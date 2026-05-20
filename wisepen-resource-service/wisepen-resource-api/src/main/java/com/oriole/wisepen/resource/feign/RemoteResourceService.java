@@ -29,6 +29,10 @@ public interface RemoteResourceService {
     @PostMapping("/internal/resource/changeResAttr")
     R<Void> updateAttributes(@RequestBody ResourceUpdateReqDTO dto);
 
+    @Operation(summary = "追加资源原始编辑者", description = "将编辑者并集追加到资源 originalEditorIds")
+    @PostMapping("/internal/resource/addOriginalEditors")
+    R<Void> addOriginalEditors(@RequestBody ResourceOriginalEditorsUpdateReqDTO dto);
+
     @Operation(summary = "获取资源详细信息", description = "获取单个资源的详细信息，包括当前挂载的标签、资源覆盖权限及指定用户权限")
     @PostMapping("/internal/resource/getResourceInfo")
     R<ResourceItemResponse> getResourceInfo(@RequestBody ResourceInfoGetReqDTO dto);

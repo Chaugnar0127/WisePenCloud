@@ -21,7 +21,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 
 @Slf4j
 @Service
@@ -74,7 +76,7 @@ public class ForkResServiceImpl implements IForkResService {
                 .ownerId(req.getNewOwnerId())
                 .size(originalItem.getSize())
                 .preview(originalItem.getPreview())
-                .originalEditorIds(Collections.emptyList())
+                .originalEditorIds(copyOriginalEditorIds(originalItem))
                 .build();
         String newResourceId = resourceService.createResourceItem(createReqDTO);
 
@@ -128,7 +130,7 @@ public class ForkResServiceImpl implements IForkResService {
                 .ownerId(req.getNewOwnerId())
                 .size(originalItem.getSize())
                 .preview(originalItem.getPreview())
-                .originalEditorIds(Collections.emptyList())
+                .originalEditorIds(copyOriginalEditorIds(originalItem))
                 .build();
         String newResourceId = resourceService.createResourceItem(createReqDTO);
 
@@ -149,5 +151,11 @@ public class ForkResServiceImpl implements IForkResService {
 
         log.info("Document fork成功: oldId={} newId={}", req.getResourceId(), newResourceId);
         return newResourceId;
+    }
+
+    private List<String> copyOriginalEditorIds(ResourceItemEntity originalItem) {
+        return originalItem.getOriginalEditorIds() == null
+                ? Collections.emptyList()
+                : new ArrayList<>(originalItem.getOriginalEditorIds());
     }
 }

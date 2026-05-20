@@ -38,7 +38,13 @@ public class DocumentGcTask {
         for (DocumentInfoEntity entity : uploadingDocumentInfoEntities) {
             Long size = entity.getUploadMeta() != null ? entity.getUploadMeta().getSize() : null;
             long timeoutMs = calculateTimeoutMs(size);
-            LocalDateTime deadline = entity.getCreateTime().plusNanos(timeoutMs * 1_000_000L);
+            LocalDateTime baseTime = entity.getCreateTime() != null ? entity.getCreateTime() : entity.getUpdateTime();
+            if (baseTime == null) {
+                log.warn("UPLOADING 文档缺少创建/更新时间，直接触发状态补偿 DocumentId={}", entity.getDocumentId());
+                handleStaleDocument(entity);
+                continue;
+            }
+            LocalDateTime deadline = baseTime.plusNanos(timeoutMs * 1_000_000L);
             if (now.isAfter(deadline)) {
                 handleStaleDocument(entity);
             }

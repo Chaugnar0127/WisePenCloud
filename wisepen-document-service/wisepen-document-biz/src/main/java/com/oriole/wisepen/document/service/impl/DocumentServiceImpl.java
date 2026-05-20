@@ -297,6 +297,7 @@ public class DocumentServiceImpl implements IDocumentService {
                             .resourceType(entity.getUploadMeta().getFileType())
                             .ownerId(entity.getUploadMeta().getUploaderId().toString())
                             .size(entity.getUploadMeta().getSize())
+                            .originalEditorIds(List.of(entity.getUploadMeta().getUploaderId().toString()))
                             .build()
             ).getData();
         } catch (Exception e) {

@@ -39,6 +39,12 @@ public class InternalResourceItemController implements RemoteResourceService {
         return R.ok();
     }
 
+    @PostMapping("/addOriginalEditors")
+    public R<Void> addOriginalEditors(@Validated @RequestBody ResourceOriginalEditorsUpdateReqDTO dto) {
+        resourceService.addOriginalEditors(dto);
+        return R.ok();
+    }
+
     @PostMapping("/getResourceInfo")
     public R<ResourceItemResponse> getResourceInfo(ResourceInfoGetReqDTO dto) {
         ResourceItemResponse response = resourceService.getResourceInfo(dto);

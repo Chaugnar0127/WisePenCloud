@@ -8,6 +8,5 @@ public interface IDocumentPreviewService {
     void handlePreviewRequest(HttpServletRequest request,
                               HttpServletResponse response,
                               String documentId,
-                              String userId,
-                              String authorName);
+                              String userId);
 }

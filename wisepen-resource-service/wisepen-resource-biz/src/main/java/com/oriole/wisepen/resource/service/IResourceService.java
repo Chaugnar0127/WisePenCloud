@@ -51,6 +51,8 @@ public interface IResourceService {
 
     void updateResourceAttributes(ResourceUpdateReqDTO dto);
 
+    void addOriginalEditors(ResourceOriginalEditorsUpdateReqDTO dto);
+
     ResourceItemResponse getResourceInfo(ResourceInfoGetReqDTO dto);
 
     ResourceCheckPermissionResDTO checkPermission(ResourceCheckPermissionReqDTO dto);

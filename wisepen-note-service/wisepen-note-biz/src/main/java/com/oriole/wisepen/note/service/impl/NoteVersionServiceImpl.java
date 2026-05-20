@@ -13,6 +13,8 @@ import com.oriole.wisepen.note.exception.NoteError;
 import com.oriole.wisepen.note.repository.NoteDocumentRepository;
 import com.oriole.wisepen.note.repository.NoteVersionRepository;
 import com.oriole.wisepen.note.service.INoteVersionService;
+import com.oriole.wisepen.resource.domain.dto.ResourceOriginalEditorsUpdateReqDTO;
+import com.oriole.wisepen.resource.feign.RemoteResourceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.Binary;
@@ -32,6 +34,7 @@ public class NoteVersionServiceImpl implements INoteVersionService {
 
     private final NoteVersionRepository noteVersionRepository;
     private final NoteDocumentRepository noteDocumentRepository;
+    private final RemoteResourceService remoteResourceService;
 
     @Override
     public void createVersion(NoteSnapshotMessage msg) {
@@ -45,16 +48,23 @@ public class NoteVersionServiceImpl implements INoteVersionService {
         BeanUtils.copyProperties(msg, noteVersionEntity, "type","data");
         noteVersionRepository.save(noteVersionEntity);
 
-        updateNoteDocumentMetadata(msg, updatedBy);
+        List<Long> newAuthors = updateNoteDocumentMetadata(msg, updatedBy);
+        updateResourceOriginalEditors(msg.getResourceId(), newAuthors);
     }
 
-    private void updateNoteDocumentMetadata(NoteSnapshotMessage msg, List<Long> currentRoundAuthors) {
-        noteDocumentRepository.findByResourceId(msg.getResourceId()).ifPresent(noteInfo -> {
+    private List<Long> updateNoteDocumentMetadata(NoteSnapshotMessage msg, List<Long> currentRoundAuthors) {
+        return noteDocumentRepository.findByResourceId(msg.getResourceId()).map(noteInfo -> {
+            List<Long> newAuthors = Collections.<Long>emptyList();
             // 更新最后修改时间
             noteInfo.setLastUpdatedAt(LocalDateTime.now());
             if (currentRoundAuthors != null && !currentRoundAuthors.isEmpty()) {
                 // 将现有的作者和当前的作者合并，利用 CollUtil.distinct 自动去重
                 List<Long> existing = noteInfo.getAuthors() == null ? CollUtil.newArrayList() : noteInfo.getAuthors();
+                Set<Long> existingSet = new HashSet<>(existing);
+                newAuthors = currentRoundAuthors.stream()
+                        .filter(author -> !existingSet.contains(author))
+                        .distinct()
+                        .toList();
                 existing.addAll(currentRoundAuthors);
                 noteInfo.setAuthors(CollUtil.distinct(existing));
             }
@@ -63,7 +73,18 @@ public class NoteVersionServiceImpl implements INoteVersionService {
                 noteInfo.setPlainText(msg.getPlainText());
             }
             noteDocumentRepository.save(noteInfo);
-        });
+            return newAuthors;
+        }).orElse(Collections.emptyList());
+    }
+
+    private void updateResourceOriginalEditors(String resourceId, List<Long> newAuthors) {
+        if (newAuthors == null || newAuthors.isEmpty()) {
+            return;
+        }
+        remoteResourceService.addOriginalEditors(ResourceOriginalEditorsUpdateReqDTO.builder()
+                .resourceId(resourceId)
+                .originalEditorIds(newAuthors.stream().map(String::valueOf).toList())
+                .build());
     }
 
     @Override

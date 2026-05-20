@@ -557,6 +557,26 @@ public class ResourceServiceImpl implements IResourceService {
     }
 
     @Override
+    public void addOriginalEditors(ResourceOriginalEditorsUpdateReqDTO dto) {
+        if (dto.getOriginalEditorIds() == null || dto.getOriginalEditorIds().isEmpty()) {
+            return;
+        }
+        resourceItemRepository.findById(dto.getResourceId()).ifPresentOrElse(entity -> {
+            List<String> originalEditorIds = entity.getOriginalEditorIds() == null
+                    ? new ArrayList<>()
+                    : new ArrayList<>(entity.getOriginalEditorIds());
+            originalEditorIds.addAll(dto.getOriginalEditorIds());
+            entity.setOriginalEditorIds(originalEditorIds.stream()
+                    .filter(StringUtils::hasText)
+                    .distinct()
+                    .toList());
+            resourceItemRepository.save(entity);
+            log.info("resourceOriginalEditors updated resourceId={} editorCount={}",
+                    entity.getResourceId(), entity.getOriginalEditorIds().size());
+        }, () -> log.warn("resourceOriginalEditors update skipped resourceId={}", dto.getResourceId()));
+    }
+
+    @Override
     public void afterTagNodeChanged(List<String> changedTagIds, Boolean isPersonalTag) {
         if (isPersonalTag) {
             return; // 个人Tag变更不需要重新计算Acl
