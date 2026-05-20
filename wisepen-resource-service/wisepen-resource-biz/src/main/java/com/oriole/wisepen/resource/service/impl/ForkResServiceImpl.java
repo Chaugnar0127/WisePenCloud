@@ -21,6 +21,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.util.Collections;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -72,6 +74,7 @@ public class ForkResServiceImpl implements IForkResService {
                 .ownerId(req.getNewOwnerId())
                 .size(originalItem.getSize())
                 .preview(originalItem.getPreview())
+                .originalEditorIds(Collections.emptyList())
                 .build();
         String newResourceId = resourceService.createResourceItem(createReqDTO);
 
@@ -125,6 +128,7 @@ public class ForkResServiceImpl implements IForkResService {
                 .ownerId(req.getNewOwnerId())
                 .size(originalItem.getSize())
                 .preview(originalItem.getPreview())
+                .originalEditorIds(Collections.emptyList())
                 .build();
         String newResourceId = resourceService.createResourceItem(createReqDTO);
 

@@ -475,6 +475,9 @@ public class ResourceServiceImpl implements IResourceService {
     public String createResourceItem(ResourceCreateReqDTO dto) {
         ResourceItemEntity entity = new ResourceItemEntity();
         BeanUtil.copyProperties(dto, entity);
+        entity.setOriginalEditorIds(dto.getOriginalEditorIds() == null
+                ? new ArrayList<>(Collections.singletonList(dto.getOwnerId()))
+                : new ArrayList<>(dto.getOriginalEditorIds()));
         resourceItemRepository.save(entity);
         try {
             String pathTagID = !StringUtils.hasText(dto.getPathTagId()) ?
@@ -511,6 +514,7 @@ public class ResourceServiceImpl implements IResourceService {
             return;
         }
         for (ResourceItemEntity entity : entities) {
+            offShelfAllSellInfos(entity);
             entity.setDeletedAt(LocalDateTime.now());
             mongoTemplate.save(entity, RESOURCE_TRASH_COLLECTION); // 插入到回收集合（用于审计）中
         }
@@ -585,6 +589,7 @@ public class ResourceServiceImpl implements IResourceService {
         // 如果是路径(FOLDER Tag)被彻底销毁，触发资源的软删除
         if (Boolean.TRUE.equals(isPathTag)) {
             for (ResourceItemEntity entity : affectedBinds) {
+                offShelfAllSellInfos(entity);
                 // 插入到回收集合（用于审计）中
                 entity.setDeletedAt(LocalDateTime.now());
                 mongoTemplate.save(entity, RESOURCE_TRASH_COLLECTION);
@@ -626,6 +631,13 @@ public class ResourceServiceImpl implements IResourceService {
                     deletedTagIds.size(), summarizeIds(deletedTagIds),
                     recalcResourceIds.size(), summarizeIds(recalcResourceIds));
         }
+    }
+
+    private void offShelfAllSellInfos(ResourceItemEntity entity) {
+        if (entity.getSellInfos() == null || entity.getSellInfos().isEmpty()) {
+            return;
+        }
+        entity.getSellInfos().forEach(sellInfo -> sellInfo.setOffShelf(true));
     }
 
     public void stripGroupPermission(List<String> trashedTagIds){
