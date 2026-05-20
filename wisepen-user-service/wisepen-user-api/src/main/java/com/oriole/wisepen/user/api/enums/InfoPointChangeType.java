@@ -5,6 +5,8 @@ import com.fasterxml.jackson.annotation.JsonValue;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+import java.util.Arrays;
+
 @Getter
 @AllArgsConstructor
 public enum InfoPointChangeType {
@@ -21,4 +23,14 @@ public enum InfoPointChangeType {
     @JsonValue
     private final int code;
     private final String desc;
+
+    public static InfoPointChangeType getByCode(Integer code) {
+        if (code == null) {
+            return null;
+        }
+        return Arrays.stream(values())
+                .filter(type -> type.code == code)
+                .findFirst()
+                .orElse(null);
+    }
 }

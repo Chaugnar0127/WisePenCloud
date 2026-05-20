@@ -63,16 +63,16 @@ public class WalletInfoPointController {
     @CheckRole(IdentityType.ADMIN)
     public R<PageR<InfoPointTradeRelatedIdResponse>> searchTradeRelatedIds(
             @RequestParam("userId") @NotNull Long userId,
-            @RequestParam(value = "changeType", required = false) InfoPointChangeType changeType,
-            @RequestParam(value = "tradeStatus", required = false) InfoPointTradeStatus tradeStatus,
+            @RequestParam(value = "changeType", required = false) Integer changeType,
+            @RequestParam(value = "tradeStatus", required = false) Integer tradeStatus,
             @RequestParam(value = "changeAmount", required = false) Integer changeAmount,
             @RequestParam(value = "page", defaultValue = "1") @Min(1) Integer page,
             @RequestParam(value = "size", defaultValue = "20") @Min(1) Integer size
     ) {
         InfoPointTradeSearchRequest req = new InfoPointTradeSearchRequest();
         req.setUserId(userId);
-        req.setChangeType(changeType);
-        req.setTradeStatus(tradeStatus);
+        req.setChangeType(InfoPointChangeType.getByCode(changeType));
+        req.setTradeStatus(InfoPointTradeStatus.getByCode(tradeStatus));
         req.setChangeAmount(changeAmount);
         req.setPage(page);
         req.setSize(size);

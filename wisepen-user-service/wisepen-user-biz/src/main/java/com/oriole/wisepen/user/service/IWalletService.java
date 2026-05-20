@@ -32,6 +32,8 @@ public interface IWalletService {
     void changeInfoPointBalance(InfoPointChangeRequest req);
     // 信息点交易结算
     void settleInfoPointTrade(Long buyerId, Long sellerId, Integer price, Long relatedId);
+    // 信息点交易交割完成
+    void confirmInfoPointTradeSuccess(Long relatedId);
     // 管理员撤销信息点交易
     void revokeInfoPointTrade(Long relatedId, Long operatorId, String reason);
     // Token 和信息点换汇

@@ -31,6 +31,10 @@ public interface RemoteWalletService {
             @RequestParam("relatedId") Long relatedId
     );
 
+    @Operation(summary = "内部确认信息点交易成功")
+    @PostMapping("/internal/wallet/infopoint/confirmTradeSuccess")
+    R<Void> confirmInfoPointTradeSuccess(@RequestParam("relatedId") Long relatedId);
+
     @Operation(summary = "内部换汇")
     @PostMapping("/internal/wallet/infopoint/exchange")
     R<Void> exchangeCurrency(@RequestBody CurrencyExchangeRequest req);

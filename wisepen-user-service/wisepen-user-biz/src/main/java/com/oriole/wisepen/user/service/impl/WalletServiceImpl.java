@@ -205,7 +205,7 @@ public class WalletServiceImpl implements IWalletService {
                 .userId(buyerId)
                 .changeAmount(-price)
                 .changeType(InfoPointChangeType.MARKET_PURCHASE)
-                .tradeStatus(InfoPointTradeStatus.TRADE_SUCCESS)
+                .tradeStatus(InfoPointTradeStatus.PAID)
                 .relatedId(relatedId)
                 .operatorId(buyerId)
                 .build());
@@ -214,12 +214,28 @@ public class WalletServiceImpl implements IWalletService {
                 .userId(sellerId)
                 .changeAmount(price)
                 .changeType(InfoPointChangeType.MARKET_INCOME)
-                .tradeStatus(InfoPointTradeStatus.TRADE_SUCCESS)
+                .tradeStatus(InfoPointTradeStatus.PAID)
                 .relatedId(relatedId)
                 .operatorId(buyerId)
                 .build());
 
-        log.info("信息点交易完成: buyer={}, seller={}, price={}, relatedId={}", buyerId, sellerId, price, relatedId);
+        log.info("信息点交易已扣款: buyer={}, seller={}, price={}, relatedId={}", buyerId, sellerId, price, relatedId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void confirmInfoPointTradeSuccess(Long relatedId) {
+        int affectedRows = infoPointTransactionRecordMapper.update(null,
+                Wrappers.<InfoPointTransactionRecordEntity>lambdaUpdate()
+                        .eq(InfoPointTransactionRecordEntity::getRelatedId, relatedId)
+                        .eq(InfoPointTransactionRecordEntity::getTradeStatus, InfoPointTradeStatus.PAID)
+                        .in(InfoPointTransactionRecordEntity::getChangeType,
+                                InfoPointChangeType.MARKET_PURCHASE, InfoPointChangeType.MARKET_INCOME)
+                        .set(InfoPointTransactionRecordEntity::getTradeStatus, InfoPointTradeStatus.TRADE_SUCCESS));
+        if (affectedRows == 0) {
+            throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_NOT_FOUND);
+        }
+        log.info("信息点交易交割成功: relatedId={}", relatedId);
     }
 
     @Override

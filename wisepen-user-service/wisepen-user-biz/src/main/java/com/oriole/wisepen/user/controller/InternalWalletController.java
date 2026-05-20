@@ -32,6 +32,12 @@ public class InternalWalletController implements RemoteWalletService {
     }
 
     @Override
+    public R<Void> confirmInfoPointTradeSuccess(Long relatedId) {
+        walletService.confirmInfoPointTradeSuccess(relatedId);
+        return R.ok();
+    }
+
+    @Override
     public R<Void> exchangeCurrency(@RequestBody @Valid CurrencyExchangeRequest req) {
         walletService.exchangeCurrency(req);
         return R.ok();

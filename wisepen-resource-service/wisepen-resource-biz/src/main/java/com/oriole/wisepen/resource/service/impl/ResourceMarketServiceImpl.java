@@ -211,8 +211,9 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
             throw new ServiceException(ResourceError.RESOURCE_PERMISSION_DENIED);
         }
 
+        Long relatedId = IdUtil.getSnowflakeNextId();
         R<Void> settleResponse = remoteWalletService.settleInfoPointTrade(
-                buyerId, Long.valueOf(resource.getOwnerId()), sellInfo.getPrice(), IdUtil.getSnowflakeNextId());
+                buyerId, Long.valueOf(resource.getOwnerId()), sellInfo.getPrice(), relatedId);
         if (settleResponse == null || settleResponse.getCode() != 200) {
             throw new ServiceException(ResourceError.RESOURCE_MARKET_TRADE_SETTLE_FAILED);
         }
@@ -225,6 +226,11 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
         String deliveredResourceId = deliverPurchase(resource, sellInfo, buyerId.toString());
         response.setDeliveredResourceId(deliveredResourceId);
         response.setLatestForkAllowed(sellInfo.getSaleMethod() == SaleMethod.SUBSCRIPTION);
+        assertDeliverySucceeded(resource, sellInfo, buyerId, deliveredResourceId);
+        R<Void> confirmResponse = remoteWalletService.confirmInfoPointTradeSuccess(relatedId);
+        if (confirmResponse == null || confirmResponse.getCode() != 200) {
+            throw new ServiceException(ResourceError.RESOURCE_MARKET_TRADE_SETTLE_FAILED);
+        }
         log.info("resource purchased resourceId={} sellId={} buyerId={} saleMethod={} deliveredResourceId={}",
                 resource.getResourceId(), sellInfo.getSellId(), buyerId, sellInfo.getSaleMethod(), deliveredResourceId);
         return response;
@@ -353,6 +359,41 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
             return newResourceId;
         }
         throw new ServiceException(ResourceError.RESOURCE_TYPE_UNSUPPORTED_FOR_SELL);
+    }
+
+    private void assertDeliverySucceeded(ResourceItemEntity resource, ResourceSellInfo sellInfo, Long buyerId, String deliveredResourceId) {
+        if (sellInfo.getSaleMethod() == SaleMethod.USE_RIGHT) {
+            assertBuyerHasActions(resource.getResourceId(), buyerId, List.of(ResourceAction.DOWNLOAD_WATERMARK));
+            return;
+        }
+        if (sellInfo.getSaleMethod() == SaleMethod.OWNERSHIP) {
+            assertDeliveredResourceOwnedByBuyer(deliveredResourceId, buyerId);
+            return;
+        }
+        if (sellInfo.getSaleMethod() == SaleMethod.SUBSCRIPTION) {
+            assertDeliveredResourceOwnedByBuyer(deliveredResourceId, buyerId);
+            assertBuyerHasActions(resource.getResourceId(), buyerId, List.of(ResourceAction.FORK));
+            return;
+        }
+        throw new ServiceException(ResourceError.RESOURCE_TYPE_UNSUPPORTED_FOR_SELL);
+    }
+
+    private void assertBuyerHasActions(String resourceId, Long buyerId, List<ResourceAction> requiredActions) {
+        ResourceCheckPermissionResDTO permission = resourceService.checkPermission(ResourceCheckPermissionReqDTO.builder()
+                .resourceId(resourceId)
+                .userId(buyerId)
+                .groupRoles(SecurityContextHolder.getGroupRoleMap())
+                .build());
+        if (permission.getAllowedActions() == null || !permission.getAllowedActions().containsAll(requiredActions)) {
+            throw new ServiceException(ResourceError.RESOURCE_PERMISSION_DENIED);
+        }
+    }
+
+    private void assertDeliveredResourceOwnedByBuyer(String deliveredResourceId, Long buyerId) {
+        ResourceItemEntity deliveredResource = getResource(deliveredResourceId);
+        if (!buyerId.toString().equals(deliveredResource.getOwnerId())) {
+            throw new ServiceException(ResourceError.RESOURCE_PERMISSION_DENIED);
+        }
     }
 
     private boolean canResell(ResourceItemEntity resource) {
