@@ -10,6 +10,7 @@ import lombok.Getter;
 public enum InfoPointChangeType {
     MARKET_PURCHASE(1, "集市购买"),
     MARKET_INCOME(2, "集市收入"),
+    MARKET_TRADE_REVOKE(7, "集市交易撤销"),
     EXCHANGE_TO_TOKEN(3, "兑换成Token"),
     EXCHANGE_FROM_TOKEN(4, "Token兑换收入"),
     ADMIN_GRANT(5, "管理员发放"),

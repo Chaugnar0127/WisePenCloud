@@ -14,8 +14,10 @@ import com.oriole.wisepen.common.core.domain.PageR;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
 import com.oriole.wisepen.user.api.config.UserProperties;
 import com.oriole.wisepen.user.api.domain.dto.req.CurrencyExchangeRequest;
+import com.oriole.wisepen.user.api.domain.dto.req.InfoPointTradeSearchRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.WalletTransferTokenRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.InfoPointChangeRequest;
+import com.oriole.wisepen.user.api.domain.dto.res.InfoPointTradeRelatedIdResponse;
 import com.oriole.wisepen.user.api.domain.dto.res.InfoPointTransactionRecordResponse;
 import com.oriole.wisepen.user.api.enums.*;
 import com.oriole.wisepen.common.core.domain.enums.GroupType;
@@ -203,6 +205,7 @@ public class WalletServiceImpl implements IWalletService {
                 .userId(buyerId)
                 .changeAmount(-price)
                 .changeType(InfoPointChangeType.MARKET_PURCHASE)
+                .tradeStatus(InfoPointTradeStatus.TRADE_SUCCESS)
                 .relatedId(relatedId)
                 .operatorId(buyerId)
                 .build());
@@ -211,11 +214,72 @@ public class WalletServiceImpl implements IWalletService {
                 .userId(sellerId)
                 .changeAmount(price)
                 .changeType(InfoPointChangeType.MARKET_INCOME)
+                .tradeStatus(InfoPointTradeStatus.TRADE_SUCCESS)
                 .relatedId(relatedId)
                 .operatorId(buyerId)
                 .build());
 
         log.info("信息点交易完成: buyer={}, seller={}, price={}, relatedId={}", buyerId, sellerId, price, relatedId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void revokeInfoPointTrade(Long relatedId, Long operatorId, String reason) {
+        List<InfoPointTransactionRecordEntity> records = infoPointTransactionRecordMapper.selectList(
+                Wrappers.<InfoPointTransactionRecordEntity>lambdaQuery()
+                        .eq(InfoPointTransactionRecordEntity::getRelatedId, relatedId)
+                        .in(InfoPointTransactionRecordEntity::getChangeType,
+                                InfoPointChangeType.MARKET_PURCHASE, InfoPointChangeType.MARKET_INCOME)
+        );
+        if (records == null || records.isEmpty()) {
+            throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_NOT_FOUND);
+        }
+        if (records.stream().anyMatch(record -> record.getTradeStatus() == InfoPointTradeStatus.ADMIN_REVOKED)) {
+            throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_ALREADY_REVOKED);
+        }
+
+        InfoPointTransactionRecordEntity purchase = records.stream()
+                .filter(record -> record.getChangeType() == InfoPointChangeType.MARKET_PURCHASE)
+                .findFirst()
+                .orElseThrow(() -> new ServiceException(UserError.WALLET_INFO_POINT_TRADE_REVOKE_NOT_ALLOWED));
+        InfoPointTransactionRecordEntity income = records.stream()
+                .filter(record -> record.getChangeType() == InfoPointChangeType.MARKET_INCOME)
+                .findFirst()
+                .orElseThrow(() -> new ServiceException(UserError.WALLET_INFO_POINT_TRADE_REVOKE_NOT_ALLOWED));
+
+        changeInfoPointBalance(InfoPointChangeRequest.builder()
+                .userId(purchase.getUserId())
+                .changeAmount(-purchase.getChangeAmount())
+                .changeType(InfoPointChangeType.MARKET_TRADE_REVOKE)
+                .tradeStatus(InfoPointTradeStatus.ADMIN_REVOKED)
+                .relatedId(relatedId)
+                .operatorId(operatorId)
+                .meta(buildRevokeMeta(reason))
+                .build());
+        changeInfoPointBalance(InfoPointChangeRequest.builder()
+                .userId(income.getUserId())
+                .changeAmount(-income.getChangeAmount())
+                .changeType(InfoPointChangeType.MARKET_TRADE_REVOKE)
+                .tradeStatus(InfoPointTradeStatus.ADMIN_REVOKED)
+                .relatedId(relatedId)
+                .operatorId(operatorId)
+                .meta(buildRevokeMeta(reason))
+                .build());
+
+        infoPointTransactionRecordMapper.update(null,
+                Wrappers.<InfoPointTransactionRecordEntity>lambdaUpdate()
+                        .eq(InfoPointTransactionRecordEntity::getRelatedId, relatedId)
+                        .in(InfoPointTransactionRecordEntity::getChangeType,
+                                InfoPointChangeType.MARKET_PURCHASE, InfoPointChangeType.MARKET_INCOME)
+                        .set(InfoPointTransactionRecordEntity::getTradeStatus, InfoPointTradeStatus.ADMIN_REVOKED));
+        log.info("信息点交易已由管理员撤销: relatedId={} operatorId={}", relatedId, operatorId);
+    }
+
+    private String buildRevokeMeta(String reason) {
+        if (reason == null || reason.isBlank()) {
+            return "ADMIN_REVOKE";
+        }
+        return JSONUtil.toJsonStr(Map.of("reason", reason));
     }
 
     @Override
@@ -302,6 +366,52 @@ public class WalletServiceImpl implements IWalletService {
 
         pageResult.addAll(responses);
         return pageResult;
+    }
+
+    @Override
+    public PageR<InfoPointTradeRelatedIdResponse> searchInfoPointTradeRelatedIds(InfoPointTradeSearchRequest req) {
+        int page = Optional.ofNullable(req.getPage()).filter(value -> value > 0).orElse(1);
+        int size = Optional.ofNullable(req.getSize()).filter(value -> value > 0).orElse(20);
+        long total = infoPointTransactionRecordMapper.countDistinctRelatedIds(req);
+        PageR<InfoPointTradeRelatedIdResponse> pageResult = new PageR<>(total, page, size);
+        if (total == 0) {
+            return pageResult;
+        }
+
+        long offset = (long) (page - 1) * size;
+        List<InfoPointTradeRelatedIdResponse> matches = infoPointTransactionRecordMapper
+                .selectRelatedIdMatches(req, offset, size)
+                .stream()
+                .map(record -> {
+                    InfoPointTradeRelatedIdResponse response = new InfoPointTradeRelatedIdResponse();
+                    response.setRelatedId(record.getRelatedId());
+                    response.setMatchedRecordId(record.getRecordId());
+                    response.setUserId(record.getUserId());
+                    response.setChangeAmount(record.getChangeAmount());
+                    response.setChangeType(record.getChangeType());
+                    response.setTradeStatus(record.getTradeStatus());
+                    response.setCreateTime(record.getCreateTime());
+                    return response;
+                })
+                .collect(Collectors.toList());
+        pageResult.addAll(matches);
+        return pageResult;
+    }
+
+    @Override
+    public List<InfoPointTransactionRecordResponse> getInfoPointTradeDetails(Long relatedId) {
+        return infoPointTransactionRecordMapper.selectList(
+                        Wrappers.<InfoPointTransactionRecordEntity>lambdaQuery()
+                                .eq(InfoPointTransactionRecordEntity::getRelatedId, relatedId)
+                                .in(InfoPointTransactionRecordEntity::getChangeType,
+                                        InfoPointChangeType.MARKET_PURCHASE,
+                                        InfoPointChangeType.MARKET_INCOME,
+                                        InfoPointChangeType.MARKET_TRADE_REVOKE)
+                                .orderByAsc(InfoPointTransactionRecordEntity::getCreateTime)
+                )
+                .stream()
+                .map(record -> BeanUtil.copyProperties(record, InfoPointTransactionRecordResponse.class))
+                .collect(Collectors.toList());
     }
 
     @Override

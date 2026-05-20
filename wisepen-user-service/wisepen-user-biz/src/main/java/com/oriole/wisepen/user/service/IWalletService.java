@@ -2,8 +2,10 @@ package com.oriole.wisepen.user.service;
 
 import com.oriole.wisepen.common.core.domain.PageR;
 import com.oriole.wisepen.user.api.domain.dto.req.CurrencyExchangeRequest;
+import com.oriole.wisepen.user.api.domain.dto.req.InfoPointTradeSearchRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.WalletTransferTokenRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.InfoPointChangeRequest;
+import com.oriole.wisepen.user.api.domain.dto.res.InfoPointTradeRelatedIdResponse;
 import com.oriole.wisepen.user.api.domain.dto.res.InfoPointTransactionRecordResponse;
 import com.oriole.wisepen.user.api.domain.dto.res.WalletDetailResponse;
 import com.oriole.wisepen.user.api.enums.InfoPointChangeType;
@@ -14,6 +16,8 @@ import com.oriole.wisepen.user.api.domain.dto.res.WalletTransactionRecordRespons
 import com.oriole.wisepen.user.api.domain.mq.TokenConsumptionMessage;
 import com.oriole.wisepen.user.api.enums.TokenTransactionType;
 import com.oriole.wisepen.user.api.enums.TokenTransferType;
+
+import java.util.List;
 
 public interface IWalletService {
 
@@ -28,6 +32,8 @@ public interface IWalletService {
     void changeInfoPointBalance(InfoPointChangeRequest req);
     // 信息点交易结算
     void settleInfoPointTrade(Long buyerId, Long sellerId, Integer price, Long relatedId);
+    // 管理员撤销信息点交易
+    void revokeInfoPointTrade(Long relatedId, Long operatorId, String reason);
     // Token 和信息点换汇
     void exchangeCurrency(CurrencyExchangeRequest req);
     // 获取信息点余额
@@ -39,6 +45,10 @@ public interface IWalletService {
             Integer page,
             Integer size
     );
+    // 管理员按流水字段反查信息点交易订单号
+    PageR<InfoPointTradeRelatedIdResponse> searchInfoPointTradeRelatedIds(InfoPointTradeSearchRequest req);
+    // 管理员按订单号查看信息点交易详情
+    List<InfoPointTransactionRecordResponse> getInfoPointTradeDetails(Long relatedId);
     // 更新组成员 Token 配额
     void updateGroupMemberTokenLimit(GroupMemberTokenLimitUpdateRequest req);
 

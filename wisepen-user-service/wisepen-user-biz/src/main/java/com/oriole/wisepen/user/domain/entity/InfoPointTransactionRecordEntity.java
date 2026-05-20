@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.oriole.wisepen.user.api.enums.InfoPointChangeType;
+import com.oriole.wisepen.user.api.enums.InfoPointTradeStatus;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -27,6 +28,7 @@ public class InfoPointTransactionRecordEntity implements Serializable {
     private Long userId;
     private Integer changeAmount;
     private InfoPointChangeType changeType;
+    private InfoPointTradeStatus tradeStatus;
     private Long relatedId;
     private Integer balanceAfter;
     private String meta;

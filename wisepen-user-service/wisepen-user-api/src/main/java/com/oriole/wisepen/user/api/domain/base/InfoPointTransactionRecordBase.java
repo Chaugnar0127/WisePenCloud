@@ -1,6 +1,7 @@
 package com.oriole.wisepen.user.api.domain.base;
 
 import com.oriole.wisepen.user.api.enums.InfoPointChangeType;
+import com.oriole.wisepen.user.api.enums.InfoPointTradeStatus;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -18,6 +19,7 @@ public class InfoPointTransactionRecordBase implements Serializable {
     private Long userId;
     private Integer changeAmount;
     private InfoPointChangeType changeType;
+    private InfoPointTradeStatus tradeStatus;
     private Long relatedId;
     private Integer balanceAfter;
     private String meta;
