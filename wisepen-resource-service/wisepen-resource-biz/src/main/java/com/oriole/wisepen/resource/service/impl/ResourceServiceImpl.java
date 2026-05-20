@@ -265,6 +265,11 @@ public class ResourceServiceImpl implements IResourceService {
     }
 
     @Override
+    public void grantUserResourceActions(String resourceId, String userId, List<ResourceAction> actions) {
+        throw new UnsupportedOperationException("grantUserResourceActions is not implemented yet");
+    }
+
+    @Override
     public ResourceItemResponse getResourceInfo(ResourceInfoGetReqDTO dto) {
         ResourceItemEntity entity = resourceItemRepository.findById(dto.getResourceId())
                 .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));

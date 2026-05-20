@@ -46,6 +46,11 @@ public class ForkResServiceImpl implements IForkResService {
         throw new ServiceException(ResourceError.RESOURCE_PERMISSION_DENIED, "该类型资源不支持fork");
     }
 
+    @Override
+    public String forkSnapshot(ResourceForkReqDTO req) {
+        throw new UnsupportedOperationException("forkSnapshot is not implemented yet");
+    }
+
     private String forkNote(ResourceForkReqDTO req, ResourceItemEntity originalItem) {
 
         ResourceCreateReqDTO createReqDTO = ResourceCreateReqDTO.builder()

@@ -9,6 +9,7 @@ import com.oriole.wisepen.resource.domain.dto.req.ResourceRenameRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateActionPermissionRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateTagsRequest;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
+import com.oriole.wisepen.resource.enums.ResourceAction;
 import com.oriole.wisepen.resource.enums.ResourceSortBy;
 
 import java.util.List;
@@ -24,6 +25,8 @@ public interface IResourceService {
     void updateResourceTags(ResourceUpdateTagsRequest req);
 
     void updateResourceActionPermission(ResourceUpdateActionPermissionRequest req);
+
+    void grantUserResourceActions(String resourceId, String userId, List<ResourceAction> actions);
 
     PageR<ResourceItemResponse> listResources(String currentUserId,
                                               String groupId, GroupRoleType userGroupRole,

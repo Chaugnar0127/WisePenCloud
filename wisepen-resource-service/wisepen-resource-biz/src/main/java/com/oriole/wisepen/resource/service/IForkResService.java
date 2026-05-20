@@ -4,4 +4,6 @@ import com.oriole.wisepen.resource.domain.dto.ResourceForkReqDTO;
 
 public interface IForkResService {
     String forkRes(ResourceForkReqDTO req);
+
+    String forkSnapshot(ResourceForkReqDTO req);
 }
