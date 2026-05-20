@@ -11,6 +11,9 @@ import com.oriole.wisepen.note.api.domain.dto.res.NoteSnapshotResponse;
 import com.oriole.wisepen.note.api.feign.RemoteNoteService;
 import com.oriole.wisepen.resource.domain.ResourceSellInfo;
 import com.oriole.wisepen.resource.domain.SellReviewInfo;
+import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionReqDTO;
+import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionResDTO;
+import com.oriole.wisepen.resource.domain.dto.ResourceForkReqDTO;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceMarketQueryRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourcePublishSellRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourcePurchaseRequest;
@@ -23,15 +26,19 @@ import com.oriole.wisepen.resource.domain.dto.res.ResourceMarketItemResponse;
 import com.oriole.wisepen.resource.domain.dto.res.ResourcePurchaseResponse;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceSellInfoResponse;
 import com.oriole.wisepen.resource.domain.entity.ResourceItemEntity;
+import com.oriole.wisepen.resource.enums.OwnershipTier;
+import com.oriole.wisepen.resource.enums.ResourceAction;
 import com.oriole.wisepen.resource.enums.ResourceType;
 import com.oriole.wisepen.resource.enums.SaleMethod;
 import com.oriole.wisepen.resource.exception.ResourceError;
 import com.oriole.wisepen.resource.repository.CustomResourceItemRepository;
 import com.oriole.wisepen.resource.repository.ResourceItemRepository;
 import com.oriole.wisepen.resource.repository.TagRepository;
+import com.oriole.wisepen.resource.service.IForkResService;
 import com.oriole.wisepen.resource.service.IResourceMarketService;
 import com.oriole.wisepen.resource.service.IResourceService;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
+import com.oriole.wisepen.user.api.feign.RemoteWalletService;
 import com.oriole.wisepen.user.api.feign.RemoteUserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,9 +63,11 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
     private final ResourceItemRepository resourceItemRepository;
     private final CustomResourceItemRepository customResourceItemRepository;
     private final TagRepository tagRepository;
+    private final IForkResService forkResService;
     private final IResourceService resourceService;
     private final RemoteNoteService remoteNoteService;
     private final RemoteUserService remoteUserService;
+    private final RemoteWalletService remoteWalletService;
 
     @Override
     public PageR<ResourceMarketItemResponse> listMarketResources(ResourceMarketQueryRequest req, int page, int size) {
@@ -191,12 +200,64 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
 
     @Override
     public ResourcePurchaseResponse purchase(ResourcePurchaseRequest req) {
-        throw new ServiceException(ResourceError.RESOURCE_MARKET_OPERATION_UNSUPPORTED);
+        Long buyerId = SecurityContextHolder.getUserId();
+        ResourceItemEntity resource = getResource(req.getResourceId());
+        ResourceSellInfo sellInfo = findSellInfo(resource, req.getSellId());
+
+        if (!isPurchasable(sellInfo)) {
+            throw new ServiceException(ResourceError.SELL_INFO_NOT_FOUND);
+        }
+        if (buyerId.toString().equals(resource.getOwnerId())) {
+            throw new ServiceException(ResourceError.RESOURCE_PERMISSION_DENIED);
+        }
+
+        R<Void> settleResponse = remoteWalletService.settleInfoPointTrade(
+                buyerId, Long.valueOf(resource.getOwnerId()), sellInfo.getPrice(), IdUtil.getSnowflakeNextId());
+        if (settleResponse == null || settleResponse.getCode() != 200) {
+            throw new ServiceException(ResourceError.RESOURCE_MARKET_OPERATION_UNSUPPORTED);
+        }
+
+        ResourcePurchaseResponse response = BeanUtil.copyProperties(sellInfo, ResourcePurchaseResponse.class);
+        response.setResourceId(resource.getResourceId());
+        response.setSellId(sellInfo.getSellId());
+        response.setSaleMethod(sellInfo.getSaleMethod());
+
+        String deliveredResourceId = deliverPurchase(resource, sellInfo, buyerId.toString());
+        response.setDeliveredResourceId(deliveredResourceId);
+        response.setLatestForkAllowed(sellInfo.getSaleMethod() == SaleMethod.SUBSCRIPTION);
+        log.info("resource purchased resourceId={} sellId={} buyerId={} saleMethod={} deliveredResourceId={}",
+                resource.getResourceId(), sellInfo.getSellId(), buyerId, sellInfo.getSaleMethod(), deliveredResourceId);
+        return response;
     }
 
     @Override
     public String forkLatestBySubscription(ResourceSubscriptionForkRequest req) {
-        throw new ServiceException(ResourceError.RESOURCE_MARKET_OPERATION_UNSUPPORTED);
+        Long currentUserId = SecurityContextHolder.getUserId();
+        ResourceItemEntity resource = getResource(req.getResourceId());
+        ResourceSellInfo sellInfo = findSellInfo(resource, req.getSellId());
+
+        if (sellInfo.getSaleMethod() != SaleMethod.SUBSCRIPTION) {
+            throw new ServiceException(ResourceError.RESOURCE_MARKET_OPERATION_UNSUPPORTED);
+        }
+        ResourceCheckPermissionResDTO permission = resourceService.checkPermission(ResourceCheckPermissionReqDTO.builder()
+                .resourceId(resource.getResourceId())
+                .userId(currentUserId)
+                .groupRoles(SecurityContextHolder.getGroupRoleMap())
+                .build());
+        if (permission.getAllowedActions() == null || !permission.getAllowedActions().contains(ResourceAction.FORK)) {
+            throw new ServiceException(ResourceError.RESOURCE_PERMISSION_DENIED);
+        }
+
+        String newResourceId = forkResService.forkSnapshot(ResourceForkReqDTO.builder()
+                .resourceId(resource.getResourceId())
+                .resourceType(resource.getResourceType())
+                .newOwnerId(currentUserId.toString())
+                .tier(OwnershipTier.ORIGINAL)
+                .version(resolveListedVersion(resource))
+                .build());
+        log.info("subscription latest forked resourceId={} sellId={} userId={} newResourceId={}",
+                resource.getResourceId(), sellInfo.getSellId(), currentUserId, newResourceId);
+        return newResourceId;
     }
 
     private ResourceItemEntity getResource(String resourceId) {
@@ -261,6 +322,37 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
         return !Boolean.TRUE.equals(sellInfo.getOffShelf())
                 && sellInfo.getAdmin() != null
                 && Boolean.TRUE.equals(sellInfo.getAdmin().getApproved());
+    }
+
+    private String deliverPurchase(ResourceItemEntity resource, ResourceSellInfo sellInfo, String buyerId) {
+        if (sellInfo.getSaleMethod() == SaleMethod.USE_RIGHT) {
+            resourceService.grantUserResourceActions(resource.getResourceId(), buyerId,
+                    List.of(ResourceAction.DISCOVER, ResourceAction.VIEW, ResourceAction.DOWNLOAD_WATERMARK));
+            return resource.getResourceId();
+        }
+        if (sellInfo.getSaleMethod() == SaleMethod.OWNERSHIP) {
+            return forkResService.forkSnapshot(ResourceForkReqDTO.builder()
+                    .resourceId(resource.getResourceId())
+                    .resourceType(resource.getResourceType())
+                    .newOwnerId(buyerId)
+                    .tier(OwnershipTier.ORIGINAL)
+                    .version(sellInfo.getVersion())
+                    .build());
+        }
+        if (sellInfo.getSaleMethod() == SaleMethod.SUBSCRIPTION) {
+            String newResourceId = forkResService.forkSnapshot(ResourceForkReqDTO.builder()
+                    .resourceId(resource.getResourceId())
+                    .resourceType(resource.getResourceType())
+                    .newOwnerId(buyerId)
+                    .tier(OwnershipTier.ORIGINAL)
+                    .version(sellInfo.getVersion())
+                    .build());
+            resourceService.grantUserResourceActions(resource.getResourceId(), buyerId,
+                    List.of(ResourceAction.DISCOVER, ResourceAction.VIEW,
+                            ResourceAction.DOWNLOAD_WATERMARK, ResourceAction.FORK));
+            return newResourceId;
+        }
+        throw new ServiceException(ResourceError.RESOURCE_MARKET_OPERATION_UNSUPPORTED);
     }
 
     private boolean canResell(ResourceItemEntity resource) {
