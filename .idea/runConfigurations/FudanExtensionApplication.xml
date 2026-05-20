@@ -17,5 +17,5 @@
     <method v="2">
       <option name="Make" enabled="true" />
     </method>
-  <envs><env name="NACOS_SERVER_ADDR" value="wisepen-dev-server:8848" /><env name="NACOS_PASSWORD" value="oriole003" /><env name="OTEL_EXPORTER_OTLP_ENDPOINT" value="http://wisepen-dev-server:4318" /></envs></configuration>
+  </configuration>
 </component>
