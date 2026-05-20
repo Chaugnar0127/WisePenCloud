@@ -266,7 +266,7 @@ public class ResourceServiceImpl implements IResourceService {
 
     @Override
     public void grantUserResourceActions(String resourceId, String userId, List<ResourceAction> actions) {
-        throw new UnsupportedOperationException("grantUserResourceActions is not implemented yet");
+        throw new ServiceException(ResourceError.RESOURCE_MARKET_OPERATION_UNSUPPORTED);
     }
 
     @Override

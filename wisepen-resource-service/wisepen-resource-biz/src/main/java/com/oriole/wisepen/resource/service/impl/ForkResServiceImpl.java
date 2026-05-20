@@ -48,7 +48,7 @@ public class ForkResServiceImpl implements IForkResService {
 
     @Override
     public String forkSnapshot(ResourceForkReqDTO req) {
-        throw new UnsupportedOperationException("forkSnapshot is not implemented yet");
+        throw new ServiceException(ResourceError.RESOURCE_MARKET_OPERATION_UNSUPPORTED);
     }
 
     private String forkNote(ResourceForkReqDTO req, ResourceItemEntity originalItem) {
