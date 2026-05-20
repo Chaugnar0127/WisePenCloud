@@ -48,7 +48,20 @@ public class ForkResServiceImpl implements IForkResService {
 
     @Override
     public String forkSnapshot(ResourceForkReqDTO req) {
-        throw new ServiceException(ResourceError.RESOURCE_MARKET_OPERATION_UNSUPPORTED);
+        ResourceItemEntity originalItem = resourceItemRepository.findById(req.getResourceId())
+                .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
+
+        ResourceType resourceType = originalItem.getResourceType();
+        if (resourceType == ResourceType.NOTE) {
+            return forkNote(req, originalItem);
+        }
+        if (resourceType != null && resourceType.isOffice()) {
+            if (req.getVersion() != null && req.getVersion() != 0L) {
+                throw new ServiceException(ResourceError.RESOURCE_MARKET_OPERATION_UNSUPPORTED);
+            }
+            return forkDocument(req, originalItem);
+        }
+        throw new ServiceException(ResourceError.RESOURCE_PERMISSION_DENIED, "该类型资源不支持fork");
     }
 
     private String forkNote(ResourceForkReqDTO req, ResourceItemEntity originalItem) {
@@ -67,6 +80,7 @@ public class ForkResServiceImpl implements IForkResService {
                 .originalResourceId(req.getResourceId())
                 .newResourceId(newResourceId)
                 .newOwnerId(Long.valueOf(req.getNewOwnerId()))
+                .targetVersion(req.getVersion())
                 .build();
         R<Void> forkR = remoteNoteService.forkNote(noteForkReq);
         if (forkR.getCode() != 200) {

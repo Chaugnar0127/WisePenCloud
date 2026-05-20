@@ -21,4 +21,6 @@ public class NoteForkReqDTO {
 
     @NotNull(message = "新拥有者 ID 不能为空")
     private Long newOwnerId;
+
+    private Long targetVersion;
 }

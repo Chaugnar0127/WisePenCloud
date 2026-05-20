@@ -26,4 +26,6 @@ public class ResourceForkReqDTO {
     @NotNull(message = ResourceValidationMsg.OWNERSHIP_TIER_NOT_NULL)
     private OwnershipTier tier;
 
+    private Long version;
+
 }

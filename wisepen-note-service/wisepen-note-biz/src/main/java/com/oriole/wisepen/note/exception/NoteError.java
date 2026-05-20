@@ -18,6 +18,7 @@ public enum NoteError implements IResult {
 
     // 笔记相关异常
     NOTE_NOT_FOUND(8111, new ResultKey(BusinessDomain.NOTE, NoteSubject.NOTE, ErrorReason.NOT_FOUND),"资源不存在"),
+    NOTE_VERSION_NOT_FOUND(8112, new ResultKey(BusinessDomain.NOTE, NoteSubject.NOTE, ErrorReason.NOT_FOUND),"笔记版本不存在"),
     NOTE_PERMISSION_DENIED(8121, new ResultKey(BusinessDomain.NOTE, NoteSubject.NOTE, ErrorReason.PERMISSION_DENIED),"无权访问或操作该资源");
 
 

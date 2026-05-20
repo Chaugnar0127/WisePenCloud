@@ -89,23 +89,13 @@ public class NoteServiceImpl implements INoteService {
         // 获取并拷贝原笔记的 Info 元数据
         NoteInfoEntity originalInfo = noteDocumentRepository.findByResourceId(originalId)
                 .orElseThrow(() -> new ServiceException(NoteError.NOTE_NOT_FOUND));
+        List<NoteVersionEntity> versionsToCopy = resolveVersionsToCopy(originalId, req.getTargetVersion());
 
         NoteInfoEntity newInfo = BeanUtil.copyProperties(originalInfo, NoteInfoEntity.class);
         newInfo.setResourceId(newId);
         newInfo.setAuthors(Collections.singletonList(newOwnerId));
         newInfo.setLastUpdatedAt(LocalDateTime.now());
         noteDocumentRepository.save(newInfo);
-
-
-        Optional<NoteVersionEntity> latestFullVersionOpt = noteVersionRepository
-                .findFirstByResourceIdAndTypeOrderByVersionDesc(originalId, VersionType.FULL);
-        Long latestFullVersion = latestFullVersionOpt.map(NoteVersionEntity::getVersion).orElse(0L);
-        List<NoteVersionEntity> versionsToCopy = new ArrayList<>();
-        latestFullVersionOpt.ifPresent(versionsToCopy::add);
-        List<NoteVersionEntity> deltaVersions = noteVersionRepository
-                .findByResourceIdAndVersionGreaterThanAndTypeOrderByVersionAsc(
-                        originalId, latestFullVersion, VersionType.DELTA);
-        versionsToCopy.addAll(deltaVersions);
 
         // 插入版本记录
         List<NoteVersionEntity> newVersions = versionsToCopy.stream().map(v -> {
@@ -120,5 +110,35 @@ public class NoteServiceImpl implements INoteService {
         if (!newVersions.isEmpty()) {
             noteVersionRepository.saveAll(newVersions);
         }
+    }
+
+    private List<NoteVersionEntity> resolveVersionsToCopy(String originalId, Long targetVersion) {
+        Optional<NoteVersionEntity> fullVersionOpt = targetVersion == null
+                ? noteVersionRepository.findFirstByResourceIdAndTypeOrderByVersionDesc(originalId, VersionType.FULL)
+                : noteVersionRepository.findFirstByResourceIdAndVersionLessThanEqualAndTypeOrderByVersionDesc(
+                        originalId, targetVersion, VersionType.FULL);
+
+        Long fullVersion = fullVersionOpt.map(NoteVersionEntity::getVersion).orElse(0L);
+        if (targetVersion != null && fullVersion > targetVersion) {
+            throw new ServiceException(NoteError.NOTE_VERSION_NOT_FOUND);
+        }
+
+        List<NoteVersionEntity> versionsToCopy = new ArrayList<>();
+        fullVersionOpt.ifPresent(versionsToCopy::add);
+
+        List<NoteVersionEntity> deltaVersions = targetVersion == null
+                ? noteVersionRepository.findByResourceIdAndVersionGreaterThanAndTypeOrderByVersionAsc(
+                        originalId, fullVersion, VersionType.DELTA)
+                : noteVersionRepository.findByResourceIdAndVersionGreaterThanAndVersionLessThanEqualAndTypeOrderByVersionAsc(
+                        originalId, fullVersion, targetVersion, VersionType.DELTA);
+        versionsToCopy.addAll(deltaVersions);
+
+        boolean hasTargetVersion = targetVersion == null
+                || targetVersion == 0L
+                || versionsToCopy.stream().anyMatch(version -> targetVersion.equals(version.getVersion()));
+        if (!hasTargetVersion) {
+            throw new ServiceException(NoteError.NOTE_VERSION_NOT_FOUND);
+        }
+        return versionsToCopy;
     }
 }

@@ -14,9 +14,12 @@ public enum ResourceAction {
     VIEW(1 << 1),               // 2: 在线阅读
     EDIT(1 << 2),               // 4: 协同编辑
     DOWNLOAD_WATERMARK(1 << 3), // 8: 导出/下载带水印
-    DOWNLOAD_ORIGINAL(1 << 4);  // 16: 下载源文件
+    DOWNLOAD_ORIGINAL(1 << 4),  // 16: 下载源文件
+    FORK(1 << 6);               // 64: fork/订阅最新版本
 
-    public static final int ALL_ACTIONS = (1 << values().length) - 1;
+    public static final int ALL_ACTIONS = Arrays.stream(values())
+            .mapToInt(ResourceAction::getCode)
+            .reduce(0, (a, b) -> a | b);
     public static final int DEFAULT_MEMBER_ACTIONS = DISCOVER.code | VIEW.code | DOWNLOAD_WATERMARK.code;
 
     private final int code;
@@ -34,6 +37,10 @@ public enum ResourceAction {
                 break;
             case DOWNLOAD_WATERMARK:
                 // 下载带水印 必须包含 阅读和可见
+                mask |= VIEW.code | DISCOVER.code;
+                break;
+            case FORK:
+                // fork 最新版本 必须包含 阅读和可见，但不隐含编辑
                 mask |= VIEW.code | DISCOVER.code;
                 break;
             case VIEW:
