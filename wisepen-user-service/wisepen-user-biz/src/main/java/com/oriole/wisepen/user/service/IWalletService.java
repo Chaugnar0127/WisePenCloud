@@ -1,6 +1,5 @@
 package com.oriole.wisepen.user.service;
 
-import com.oriole.wisepen.common.core.domain.PageResult;
 import com.oriole.wisepen.common.core.domain.PageR;
 import com.oriole.wisepen.user.api.domain.dto.req.CurrencyExchangeRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.WalletTransferTokenRequest;
@@ -34,7 +33,7 @@ public interface IWalletService {
     // 获取信息点余额
     Integer getInfoPointBalance(Long userId);
     // 获取信息点流水
-    PageResult<InfoPointTransactionRecordResponse> listInfoPointTransactions(
+    PageR<InfoPointTransactionRecordResponse> listInfoPointTransactions(
             Long userId,
             InfoPointChangeType changeType,
             Integer page,

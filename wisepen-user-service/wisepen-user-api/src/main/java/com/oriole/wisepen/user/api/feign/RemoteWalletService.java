@@ -1,6 +1,6 @@
 package com.oriole.wisepen.user.api.feign;
 
-import com.oriole.wisepen.common.core.domain.PageResult;
+import com.oriole.wisepen.common.core.domain.PageR;
 import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.user.api.domain.dto.req.CurrencyExchangeRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.InfoPointChangeRequest;
@@ -41,7 +41,7 @@ public interface RemoteWalletService {
 
     @Operation(summary = "内部查询信息点流水")
     @GetMapping("/internal/wallet/infopoint/records")
-    R<PageResult<InfoPointTransactionRecordResponse>> getInfoPointRecords(
+    R<PageR<InfoPointTransactionRecordResponse>> getInfoPointRecords(
             @RequestParam("userId") Long userId,
             @RequestParam(value = "changeType", required = false) InfoPointChangeType changeType,
             @RequestParam("page") Integer page,

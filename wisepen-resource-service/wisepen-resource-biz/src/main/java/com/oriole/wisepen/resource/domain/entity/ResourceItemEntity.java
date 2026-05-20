@@ -2,6 +2,7 @@ package com.oriole.wisepen.resource.domain.entity;
 
 import com.oriole.wisepen.resource.domain.ComputedGroupAcl;
 import com.oriole.wisepen.resource.domain.GroupTagBind;
+import com.oriole.wisepen.resource.domain.ResourceSellInfo;
 import com.oriole.wisepen.resource.domain.base.ResourceItemInfoBase;
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
@@ -22,6 +23,8 @@ public class ResourceItemEntity extends ResourceItemInfoBase {
     private String resourceId; // 资源全局唯一ID
 
     private List<GroupTagBind> groupBinds = new ArrayList<>();
+    private List<ResourceSellInfo> sellInfos = new ArrayList<>();
+    private List<String> originalEditorIds = new ArrayList<>();
 
     // 预计算后的运行时权限
     private Map<String, ComputedGroupAcl> computedGroupAcls;

@@ -10,7 +10,6 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.oriole.wisepen.common.core.domain.PageResult;
 import com.oriole.wisepen.common.core.domain.PageR;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
 import com.oriole.wisepen.user.api.config.UserProperties;
@@ -273,7 +272,7 @@ public class WalletServiceImpl implements IWalletService {
     }
 
     @Override
-    public PageResult<InfoPointTransactionRecordResponse> listInfoPointTransactions(
+    public PageR<InfoPointTransactionRecordResponse> listInfoPointTransactions(
             Long userId,
             InfoPointChangeType changeType,
             Integer page,
@@ -290,7 +289,7 @@ public class WalletServiceImpl implements IWalletService {
         }
 
         Page<InfoPointTransactionRecordEntity> resultPage = infoPointTransactionRecordMapper.selectPage(recordPage, wrapper);
-        PageResult<InfoPointTransactionRecordResponse> pageResult = new PageResult<>(resultPage.getTotal(), page, size);
+        PageR<InfoPointTransactionRecordResponse> pageResult = new PageR<>(resultPage.getTotal(), page, size);
 
         List<InfoPointTransactionRecordEntity> records = resultPage.getRecords();
         if (records.isEmpty()) {

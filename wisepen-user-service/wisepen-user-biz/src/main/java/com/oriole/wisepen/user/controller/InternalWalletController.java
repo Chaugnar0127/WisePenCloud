@@ -1,6 +1,6 @@
 package com.oriole.wisepen.user.controller;
 
-import com.oriole.wisepen.common.core.domain.PageResult;
+import com.oriole.wisepen.common.core.domain.PageR;
 import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.user.api.domain.dto.req.CurrencyExchangeRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.InfoPointChangeRequest;
@@ -43,7 +43,7 @@ public class InternalWalletController implements RemoteWalletService {
     }
 
     @Override
-    public R<PageResult<InfoPointTransactionRecordResponse>> getInfoPointRecords(
+    public R<PageR<InfoPointTransactionRecordResponse>> getInfoPointRecords(
             Long userId,
             InfoPointChangeType changeType,
             Integer page,

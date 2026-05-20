@@ -1,7 +1,7 @@
 package com.oriole.wisepen.user.controller;
 
 import com.oriole.wisepen.common.core.context.SecurityContextHolder;
-import com.oriole.wisepen.common.core.domain.PageResult;
+import com.oriole.wisepen.common.core.domain.PageR;
 import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
 import com.oriole.wisepen.user.api.domain.dto.req.CurrencyExchangeRequest;
@@ -41,7 +41,7 @@ public class WalletInfoPointController {
     }
 
     @GetMapping("/records")
-    public R<PageResult<InfoPointTransactionRecordResponse>> getRecordList(
+    public R<PageR<InfoPointTransactionRecordResponse>> getRecordList(
             @RequestParam(value = "changeType", required = false) InfoPointChangeType changeType,
             @RequestParam(value = "page", defaultValue = "1") @Min(1) Integer page,
             @RequestParam(value = "size", defaultValue = "20") @Min(1) Integer size
