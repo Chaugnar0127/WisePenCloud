@@ -205,7 +205,7 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
         ResourceSellInfo sellInfo = findSellInfo(resource, req.getSellId());
 
         if (!isPurchasable(sellInfo)) {
-            throw new ServiceException(ResourceError.SELL_INFO_NOT_FOUND);
+            throw new ServiceException(ResourceError.SELL_INFO_NOT_PURCHASABLE);
         }
         if (buyerId.toString().equals(resource.getOwnerId())) {
             throw new ServiceException(ResourceError.RESOURCE_PERMISSION_DENIED);
@@ -214,7 +214,7 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
         R<Void> settleResponse = remoteWalletService.settleInfoPointTrade(
                 buyerId, Long.valueOf(resource.getOwnerId()), sellInfo.getPrice(), IdUtil.getSnowflakeNextId());
         if (settleResponse == null || settleResponse.getCode() != 200) {
-            throw new ServiceException(ResourceError.RESOURCE_MARKET_OPERATION_UNSUPPORTED);
+            throw new ServiceException(ResourceError.RESOURCE_MARKET_TRADE_SETTLE_FAILED);
         }
 
         ResourcePurchaseResponse response = BeanUtil.copyProperties(sellInfo, ResourcePurchaseResponse.class);
@@ -237,7 +237,7 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
         ResourceSellInfo sellInfo = findSellInfo(resource, req.getSellId());
 
         if (sellInfo.getSaleMethod() != SaleMethod.SUBSCRIPTION) {
-            throw new ServiceException(ResourceError.RESOURCE_MARKET_OPERATION_UNSUPPORTED);
+            throw new ServiceException(ResourceError.SUBSCRIPTION_FORK_NOT_ALLOWED);
         }
         ResourceCheckPermissionResDTO permission = resourceService.checkPermission(ResourceCheckPermissionReqDTO.builder()
                 .resourceId(resource.getResourceId())
@@ -352,7 +352,7 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
                             ResourceAction.DOWNLOAD_WATERMARK, ResourceAction.FORK));
             return newResourceId;
         }
-        throw new ServiceException(ResourceError.RESOURCE_MARKET_OPERATION_UNSUPPORTED);
+        throw new ServiceException(ResourceError.RESOURCE_TYPE_UNSUPPORTED_FOR_SELL);
     }
 
     private boolean canResell(ResourceItemEntity resource) {

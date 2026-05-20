@@ -46,9 +46,13 @@ public enum ResourceError implements IResult {
 
     // 资源市场相关异常
     SELL_INFO_NOT_FOUND(5611, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_MARKET, ErrorReason.NOT_FOUND),"售卖信息不存在"),
+    SELL_INFO_NOT_PURCHASABLE(5612, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_MARKET, ErrorReason.STATE_INVALID),"售卖信息当前不可购买"),
     SELL_INFO_ALREADY_LISTED(5621, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_MARKET, ErrorReason.CONFLICT),"该资源已存在同类在售信息"),
     RESOURCE_RESELL_NOT_ALLOWED(5631, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_MARKET, ErrorReason.NOT_ALLOWED),"当前资源不允许二次出售"),
-    RESOURCE_MARKET_OPERATION_UNSUPPORTED(5641, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_MARKET, ErrorReason.UNSUPPORTED),"资源市场操作暂不支持");
+    SUBSCRIPTION_FORK_NOT_ALLOWED(5632, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_MARKET, ErrorReason.NOT_ALLOWED),"当前资源不允许订阅 fork"),
+    RESOURCE_VERSION_UNSUPPORTED(5641, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_MARKET, ErrorReason.UNSUPPORTED),"该资源版本不支持此操作"),
+    RESOURCE_MARKET_OPERATION_UNSUPPORTED(5642, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_MARKET, ErrorReason.UNSUPPORTED),"资源市场操作暂不支持"),
+    RESOURCE_MARKET_TRADE_SETTLE_FAILED(5651, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_MARKET, ErrorReason.EXTERNAL_FAILED),"资源市场交易结算失败");
 
     private final Integer code;
     private final ResultKey key;

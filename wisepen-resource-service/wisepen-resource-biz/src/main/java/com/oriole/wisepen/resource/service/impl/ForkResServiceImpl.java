@@ -59,7 +59,7 @@ public class ForkResServiceImpl implements IForkResService {
         }
         if (resourceType != null && resourceType.isOffice()) {
             if (req.getVersion() != null && req.getVersion() != 0L) {
-                throw new ServiceException(ResourceError.RESOURCE_MARKET_OPERATION_UNSUPPORTED);
+                throw new ServiceException(ResourceError.RESOURCE_VERSION_UNSUPPORTED);
             }
             return forkDocument(req, originalItem);
         }
