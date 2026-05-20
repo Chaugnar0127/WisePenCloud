@@ -5,9 +5,11 @@ import com.oriole.wisepen.common.core.domain.enums.list.QueryLogicEnum;
 import com.oriole.wisepen.resource.constant.ResourceConstants;
 import com.oriole.wisepen.resource.domain.entity.ResourceItemEntity;
 import com.oriole.wisepen.resource.enums.ResourceAction;
+import com.oriole.wisepen.resource.enums.SaleMethod;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
@@ -91,5 +93,44 @@ public class CustomResourceItemRepository {
         List<ResourceItemEntity> list = mongoTemplate.find(query, ResourceItemEntity.class);
 
         return new PageImpl<>(list, pageable, total);
+    }
+
+    public Page<ResourceItemEntity> findMarketResources(
+            String groupId, List<String> tagIds, String resourceType, SaleMethod saleMethod, Pageable pageable) {
+        List<ResourceItemEntity> list = findMarketResources(groupId, tagIds, resourceType, saleMethod, pageable.getSort());
+        long total = mongoTemplate.count(buildMarketQuery(groupId, tagIds, resourceType, saleMethod), ResourceItemEntity.class);
+        return new PageImpl<>(list, pageable, total);
+    }
+
+    public List<ResourceItemEntity> findMarketResources(
+            String groupId, List<String> tagIds, String resourceType, SaleMethod saleMethod, Sort sort) {
+        Query query = buildMarketQuery(groupId, tagIds, resourceType, saleMethod);
+        query.with(sort);
+        return mongoTemplate.find(query, ResourceItemEntity.class);
+    }
+
+    private Query buildMarketQuery(String groupId, List<String> tagIds, String resourceType, SaleMethod saleMethod) {
+        List<Criteria> allCriteria = new ArrayList<>();
+
+        Criteria sellCriteria = Criteria.where("groupId").is(groupId)
+                .and("offShelf").is(false)
+                .and("admin.approved").is(true);
+        if (saleMethod != null) {
+            sellCriteria.and("saleMethod").is(saleMethod);
+        }
+        allCriteria.add(Criteria.where("sellInfos").elemMatch(sellCriteria));
+
+        if (tagIds != null && !tagIds.isEmpty()) {
+            allCriteria.add(Criteria.where("groupBinds").elemMatch(
+                    Criteria.where("groupId").is(groupId).and("tagIds").in(tagIds)
+            ));
+        }
+
+        if (StringUtils.hasText(resourceType)) {
+            allCriteria.add(Criteria.where("resourceType").is(resourceType));
+        }
+
+        Criteria criteria = new Criteria().andOperator(allCriteria.toArray(new Criteria[0]));
+        return new Query(criteria);
     }
 }

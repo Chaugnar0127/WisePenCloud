@@ -1,5 +1,6 @@
 package com.oriole.wisepen.resource.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.IdUtil;
 import com.oriole.wisepen.common.core.context.SecurityContextHolder;
 import com.oriole.wisepen.common.core.domain.PageR;
@@ -20,22 +21,32 @@ import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateTagsRequest;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceMarketDetailResponse;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceMarketItemResponse;
 import com.oriole.wisepen.resource.domain.dto.res.ResourcePurchaseResponse;
+import com.oriole.wisepen.resource.domain.dto.res.ResourceSellInfoResponse;
 import com.oriole.wisepen.resource.domain.entity.ResourceItemEntity;
 import com.oriole.wisepen.resource.enums.ResourceType;
 import com.oriole.wisepen.resource.enums.SaleMethod;
 import com.oriole.wisepen.resource.exception.ResourceError;
+import com.oriole.wisepen.resource.repository.CustomResourceItemRepository;
 import com.oriole.wisepen.resource.repository.ResourceItemRepository;
+import com.oriole.wisepen.resource.repository.TagRepository;
 import com.oriole.wisepen.resource.service.IResourceMarketService;
 import com.oriole.wisepen.resource.service.IResourceService;
+import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
+import com.oriole.wisepen.user.api.feign.RemoteUserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -43,17 +54,45 @@ import java.util.Objects;
 public class ResourceMarketServiceImpl implements IResourceMarketService {
 
     private final ResourceItemRepository resourceItemRepository;
+    private final CustomResourceItemRepository customResourceItemRepository;
+    private final TagRepository tagRepository;
     private final IResourceService resourceService;
     private final RemoteNoteService remoteNoteService;
+    private final RemoteUserService remoteUserService;
 
     @Override
     public PageR<ResourceMarketItemResponse> listMarketResources(ResourceMarketQueryRequest req, int page, int size) {
-        throw new ServiceException(ResourceError.RESOURCE_MARKET_OPERATION_UNSUPPORTED);
+        Sort sort = Sort.by(Sort.Direction.DESC, req.getSortBy().getDbField());
+        List<ResourceItemEntity> resources = customResourceItemRepository.findMarketResources(
+                req.getGroupId(), req.getTagIds(), req.getResourceType(), req.getSaleMethod(), sort);
+
+        List<ResourceMarketItemResponse> items = new ArrayList<>();
+        for (ResourceItemEntity resource : resources) {
+            matchingSellInfos(resource, req.getGroupId(), req.getSaleMethod()).stream()
+                    .map(sellInfo -> toMarketItem(resource, sellInfo))
+                    .forEach(items::add);
+        }
+
+        int fromIndex = Math.min(Math.max(page - 1, 0) * size, items.size());
+        int toIndex = Math.min(fromIndex + size, items.size());
+        PageR<ResourceMarketItemResponse> pageR = new PageR<>(items.size(), page, size);
+        pageR.addAll(items.subList(fromIndex, toIndex));
+        return pageR;
     }
 
     @Override
     public ResourceMarketDetailResponse getMarketDetail(String resourceId) {
-        throw new ServiceException(ResourceError.RESOURCE_MARKET_OPERATION_UNSUPPORTED);
+        ResourceItemEntity resource = getResource(resourceId);
+
+        ResourceMarketDetailResponse response = BeanUtil.copyProperties(resource, ResourceMarketDetailResponse.class);
+        response.setOwnerInfo(resolveOwnerInfo(resource.getOwnerId()));
+        response.setCurrentTags(resolveCurrentTags(resource));
+        response.setCanResell(canResell(resource));
+        response.setSellInfos(safeSellInfos(resource).stream()
+                .filter(this::isPurchasable)
+                .map(this::toSellInfoResponse)
+                .toList());
+        return response;
     }
 
     @Override
@@ -208,6 +247,66 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
 
     private List<ResourceSellInfo> safeSellInfos(ResourceItemEntity resource) {
         return resource.getSellInfos() == null ? Collections.emptyList() : resource.getSellInfos();
+    }
+
+    private List<ResourceSellInfo> matchingSellInfos(ResourceItemEntity resource, String groupId, SaleMethod saleMethod) {
+        return safeSellInfos(resource).stream()
+                .filter(this::isPurchasable)
+                .filter(sellInfo -> Objects.equals(groupId, sellInfo.getGroupId()))
+                .filter(sellInfo -> saleMethod == null || sellInfo.getSaleMethod() == saleMethod)
+                .toList();
+    }
+
+    private boolean isPurchasable(ResourceSellInfo sellInfo) {
+        return !Boolean.TRUE.equals(sellInfo.getOffShelf())
+                && sellInfo.getAdmin() != null
+                && Boolean.TRUE.equals(sellInfo.getAdmin().getApproved());
+    }
+
+    private boolean canResell(ResourceItemEntity resource) {
+        List<String> originalEditorIds = resource.getOriginalEditorIds();
+        return originalEditorIds != null && originalEditorIds.contains(resource.getOwnerId());
+    }
+
+    private ResourceMarketItemResponse toMarketItem(ResourceItemEntity resource, ResourceSellInfo sellInfo) {
+        ResourceMarketItemResponse response = BeanUtil.copyProperties(resource, ResourceMarketItemResponse.class);
+        BeanUtil.copyProperties(sellInfo, response);
+        return response;
+    }
+
+    private ResourceSellInfoResponse toSellInfoResponse(ResourceSellInfo sellInfo) {
+        ResourceSellInfoResponse response = BeanUtil.copyProperties(sellInfo, ResourceSellInfoResponse.class);
+        if (sellInfo.getAdmin() != null) {
+            response.setApproved(sellInfo.getAdmin().getApproved());
+            response.setReviewComment(sellInfo.getAdmin().getComment());
+        }
+        return response;
+    }
+
+    private UserDisplayBase resolveOwnerInfo(String ownerId) {
+        try {
+            Long owner = Long.valueOf(ownerId);
+            Map<Long, UserDisplayBase> userMap = remoteUserService.getUserDisplayInfo(List.of(owner)).getData();
+            return userMap == null ? null : userMap.get(owner);
+        } catch (Exception e) {
+            log.warn("market ownerInfo degraded ownerId={}", ownerId, e);
+            return null;
+        }
+    }
+
+    private Map<String, String> resolveCurrentTags(ResourceItemEntity resource) {
+        Set<String> tagIds = safeSellInfos(resource).stream()
+                .filter(this::isPurchasable)
+                .map(ResourceSellInfo::getTagId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (tagIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        Map<String, String> tagMap = new HashMap<>();
+        tagRepository.findAllById(tagIds).forEach(tag -> tagMap.put(tag.getTagId(), tag.getTagName()));
+        return tagMap;
     }
 
     private Long resolveListedVersion(ResourceItemEntity resource) {
