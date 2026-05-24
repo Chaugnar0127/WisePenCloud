@@ -17,6 +17,7 @@ import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateTagsRequest;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
 import com.oriole.wisepen.resource.domain.entity.GroupResConfigEntity;
 import com.oriole.wisepen.resource.domain.entity.ResourceItemEntity;
+import com.oriole.wisepen.resource.domain.entity.ResourceUserInteractRecordEntity;
 import com.oriole.wisepen.resource.domain.entity.TagEntity;
 import com.oriole.wisepen.resource.enums.ResourceAccessRole;
 import com.oriole.wisepen.resource.enums.ResourceAction;
@@ -26,9 +27,13 @@ import com.oriole.wisepen.resource.event.TagChangedEvent;
 import com.oriole.wisepen.resource.event.TagDeletedEvent;
 import com.oriole.wisepen.resource.event.TagTrashedEvent;
 import com.oriole.wisepen.resource.exception.ResourceError;
+import com.oriole.wisepen.resource.domain.entity.ResourceInteractInfoEntity;
+import com.oriole.wisepen.resource.repository.CustomResourceInteractInfoRepository;
 import com.oriole.wisepen.resource.repository.CustomResourceItemRepository;
 import com.oriole.wisepen.resource.repository.GroupResConfigRepository;
+import com.oriole.wisepen.resource.repository.ResourceInteractInfoRepository;
 import com.oriole.wisepen.resource.repository.ResourceItemRepository;
+import com.oriole.wisepen.resource.repository.ResourceUserInteractRecordRepository;
 import com.oriole.wisepen.resource.repository.TagRepository;
 import com.oriole.wisepen.resource.enums.FileOrganizationLogic;
 import com.oriole.wisepen.resource.mq.IEventPublisher;
@@ -43,12 +48,15 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
+
+import com.oriole.wisepen.resource.cache.RedisCacheManager;
 import org.springframework.transaction.event.TransactionalEventListener;
 import org.springframework.util.StringUtils;
 
@@ -68,6 +76,9 @@ public class ResourceServiceImpl implements IResourceService {
     private final ResourceItemRepository resourceItemRepository;
     private final CustomResourceItemRepository customResourceItemRepository;
     private final GroupResConfigRepository groupResConfigRepository;
+    private final ResourceInteractInfoRepository resourceInteractInfoRepository;
+    private final CustomResourceInteractInfoRepository customResourceInteractInfoRepository;
+    private final ResourceUserInteractRecordRepository resourceUserInteractRecordRepository;
 
     private final IEventPublisher eventPublisher;
     private final MongoTemplate mongoTemplate;
@@ -76,6 +87,11 @@ public class ResourceServiceImpl implements IResourceService {
     private final ITagService tagService;
 
     private final RemoteUserService remoteUserService;
+    private final RedisCacheManager redisCacheManager;
+
+    /** 阅读量去重窗口时长（分钟），可通过配置文件调整 */
+    @Value("${wisepen.resource.read-dedup-ttl-minutes:10}")
+    private long readDedupTtlMinutes;
 
     @TransactionalEventListener
     public void handleTagTrashedEvent(TagTrashedEvent event) {
@@ -368,6 +384,31 @@ public class ResourceServiceImpl implements IResourceService {
                 resp.setSpecifiedUsersGrantedActions(userActionsMap);
             }
         }
+
+        // 聚合互动信息：readCount / likeCount / scoreAvg 来自互动信息表
+        ResourceInteractInfoEntity interactInfo = resourceInteractInfoRepository.findById(entity.getResourceId())
+            .orElseGet(ResourceInteractInfoEntity::new);
+        resp.setReadCount(interactInfo.getReadCount());
+        resp.setLikeCount(interactInfo.getLikeCount());
+        resp.setScoreAvg(interactInfo.getScoreAvg());
+
+        // 回填当前用户点赞/评分状态
+        resp.setLiked(false);
+        resourceUserInteractRecordRepository
+            .findByUserIdAndResourceId(dto.getUserId().toString(), entity.getResourceId())
+            .ifPresent(userRecord -> {
+                resp.setLiked(Boolean.TRUE.equals(userRecord.getLiked()));
+                resp.setUserScore(userRecord.getScore());
+            });
+
+        // 有效阅读计数：Redis 窗口内去重，首次阅读原子自增 readCount
+        Boolean isFirstReadInWindow = redisCacheManager.tryMarkFirstRead(
+                entity.getResourceId(), dto.getUserId().toString(), readDedupTtlMinutes);
+        if (Boolean.TRUE.equals(isFirstReadInWindow)) {
+            customResourceInteractInfoRepository.incrementReadCount(entity.getResourceId(), 1);
+            log.info("readCount incremented resourceId={} userId={}", entity.getResourceId(), dto.getUserId());
+        }
+
         return resp;
     }
 
@@ -443,6 +484,20 @@ public class ResourceServiceImpl implements IResourceService {
             return resp;
         }).collect(Collectors.toList());
 
+        // 批量聚合互动信息（readCount / likeCount / scoreAvg），避免 N+1 查询
+        List<String> resourceIds = entityPage.getContent().stream()
+                .map(ResourceItemEntity::getResourceId)
+                .collect(Collectors.toList());
+        Map<String, ResourceInteractInfoEntity> interactInfoMap = resourceInteractInfoRepository.findByResourceIdIn(resourceIds)
+                .stream()
+                .collect(Collectors.toMap(ResourceInteractInfoEntity::getResourceId, e -> e));
+        responses.forEach(resp -> {
+            ResourceInteractInfoEntity info = interactInfoMap.getOrDefault(resp.getResourceId(), new ResourceInteractInfoEntity());
+            resp.setReadCount(info.getReadCount());
+            resp.setLikeCount(info.getLikeCount());
+            resp.setScoreAvg(info.getScoreAvg());
+        });
+
         PageR<ResourceItemResponse> pageR = new PageR<>(entityPage.getTotalElements(), page, size);
         pageR.addAll(responses);
         return pageR;
@@ -474,6 +529,9 @@ public class ResourceServiceImpl implements IResourceService {
             log.warn("resourceItem compensated resourceId={}", entity.getResourceId(), e);
             throw e;
         }
+        // 同步初始化互动信息记录，确保新资源首读前就有明确的 readCount = 0
+        resourceInteractInfoRepository.save(new ResourceInteractInfoEntity(entity.getResourceId()));
+
         log.info("resource created resourceId={} ownerId={} resourceType={} pathTagId={}",
                 entity.getResourceId(), dto.getOwnerId(), dto.getResourceType(), dto.getPathTagId());
         return entity.getResourceId();
@@ -514,6 +572,12 @@ public class ResourceServiceImpl implements IResourceService {
 
         long deletedCount = mongoTemplate.remove(query, RESOURCE_TRASH_COLLECTION).getDeletedCount();
         if (deletedCount > 0) {
+            List<String> deletedResourceIds = expiredResources.stream()
+                .map(ResourceItemEntity::getResourceId)
+                .collect(Collectors.toList());
+            resourceInteractInfoRepository.deleteAllByResourceIdIn(deletedResourceIds);
+            resourceUserInteractRecordRepository.deleteAllByResourceIdIn(deletedResourceIds);
+
             log.info("resources deleted mode=hard count={} resourceIds={}",
                     deletedCount, summarizeIds(resourceIds));
             // 发送 Kafka 广播，通知文件存储等下游微服务抹除物理文件

@@ -23,6 +23,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -30,6 +31,7 @@ import java.util.List;
 import static com.oriole.wisepen.document.exception.DocumentError.DOCUMENT_PERMISSION_DENIED;
 
 
+@Slf4j
 @RestController
 @RequestMapping("/document")
 @RequiredArgsConstructor
@@ -87,6 +89,7 @@ public class DocumentController {
                 resourceId, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap()
         )).getData();
         if (permission.getResourceAccessRole() == ResourceAccessRole.OWNER || permission.getAllowedActions().contains(ResourceAction.VIEW)) {
+            // 预览不计入有效阅读量，此处不调用 recordResourceRead
             documentPreviewService.handlePreviewRequest(request, response, resourceId, userId);
         } else {
             throw new ServiceException(DOCUMENT_PERMISSION_DENIED);
@@ -102,6 +105,7 @@ public class DocumentController {
         )).getData();
         DocumentInfoBase documentInfo = documentService.getDocumentInfo(resourceId);
         DocumentInfoResponse documentInfoResponse = DocumentInfoResponse.builder().resourceInfo(resourceInfo).documentInfo(documentInfo).build();
+
         return R.ok(documentInfoResponse);
     }
 }
