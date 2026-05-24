@@ -66,7 +66,7 @@ public class WalletServiceImpl implements IWalletService {
         Integer tokenBill = message.getUsageTokens() * message.getBillingRatio();
         String billMeta = "%s (%s | %d Tokens x%s )".formatted(
                 message.getModelName(),
-                message.getModelType().getDesc(),
+                message.getModelType().getValue(),
                 message.getUsageTokens(),
                 message.getBillingRatio()
         );

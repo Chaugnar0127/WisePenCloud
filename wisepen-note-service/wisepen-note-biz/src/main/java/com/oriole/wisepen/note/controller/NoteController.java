@@ -22,6 +22,7 @@ import com.oriole.wisepen.user.api.feign.RemoteUserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -29,6 +30,7 @@ import java.util.Map;
 
 import static com.oriole.wisepen.note.exception.NoteError.NOTE_PERMISSION_DENIED;
 
+@Slf4j
 @Tag(name = "笔记服务", description = "笔记的创建、删除、版本管理与操作日志")
 @RestController
 @RequestMapping("/note")
