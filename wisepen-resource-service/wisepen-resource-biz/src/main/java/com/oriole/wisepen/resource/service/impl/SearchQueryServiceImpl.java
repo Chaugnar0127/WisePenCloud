@@ -175,14 +175,13 @@ public class SearchQueryServiceImpl implements ISearchQueryService {
         // 高亮字段
         HighlightField nameField = new HighlightField("resourceName", fieldParams);
         HighlightField contentField = new HighlightField("content", fieldParams);
-        HighlightField tagsField = new HighlightField("tags", fieldParams);
         // 高亮包裹
         HighlightParameters params = HighlightParameters.builder()
                 .withPreTags(SearchConstants.HIGHLIGHT_PRE_TAG)
                 .withPostTags(SearchConstants.HIGHLIGHT_POST_TAG)
                 .build();
 
-        Highlight highlight = new Highlight(params, List.of(nameField, contentField, tagsField));
+        Highlight highlight = new Highlight(params, List.of(nameField, contentField));
         return new HighlightQuery(highlight, ESIndexEntity.class);
     }
 
@@ -203,24 +202,10 @@ public class SearchQueryServiceImpl implements ISearchQueryService {
                 resourceContentHLFrags.stream().filter(StringUtils::hasText)
                 .collect(Collectors.joining(SearchConstants.HIGHLIGHT_FRAGMENT_SEPARATOR)) : null;
 
-        // 高亮覆写 tag
-        List<String> resourceTagsHLFrags = highlights.get("tags");
-        List<String> tags = (resourceTagsHLFrags != null && !resourceTagsHLFrags.isEmpty()) ?
-                content.getTags().stream().map(
-                        tag -> resourceTagsHLFrags.stream().filter(
-                                // 对每个高亮片段 frag 去掉高亮包裹，检查是否与 tag 相等
-                                frag -> tag.equals(frag
-                                                   .replace(SearchConstants.HIGHLIGHT_PRE_TAG, "")
-                                                   .replace(SearchConstants.HIGHLIGHT_POST_TAG, "")
-                                )
-                        ).findFirst().orElse(tag) // 如果找到，则返回高亮片段 frag，否则返回 tag 自身
-                ).toList() : content.getTags();
-
         SearchHitItemResponse res = BeanUtil.copyProperties(content, SearchHitItemResponse.class);
         res.setResourceType(ResourceType.fromExtension(content.getResourceType()));
         res.setResourceName(resourceName);
         res.setHighlightContent(highlightContent);
-        res.setTags(tags);
         return res;
     }
 }
