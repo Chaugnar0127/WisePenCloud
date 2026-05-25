@@ -266,7 +266,7 @@ public class ResourceServiceImpl implements IResourceService {
             if (!canMount) {
                 log.warn("resource mount denied userId={} groupId={} tagId={} mode={}",
                         userId, groupId, tag.getTagId(), resolved.resourceMountMode);
-                throw new ServiceException(ResPermissionErrorCode.TAG_MOUNT_DENIED);
+                throw new ServiceException(ResourceError.TAG_MOUNT_DENIED);
             }
         }
     }
