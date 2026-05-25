@@ -9,8 +9,10 @@ logs/
 # 灰度发布 / 本地开发开关
 dev.properties
 
+# 开发文档与本地测试
 docs
 AGENTS.md
+.local-tests/
 
 # 环境变量 / 凭证
 .env
