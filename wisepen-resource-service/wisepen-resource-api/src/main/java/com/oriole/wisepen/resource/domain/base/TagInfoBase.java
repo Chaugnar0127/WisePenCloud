@@ -19,4 +19,7 @@ public class TagInfoBase extends TagSpaceBase{
 
     // 节点类型标识：true 表示 FOLDER(路径)，false 表示普通 TAG
     private Boolean isPath;
+
+    // 匹配该标签时授予的权限掩码
+    private Integer grantedActionsMask;
 }

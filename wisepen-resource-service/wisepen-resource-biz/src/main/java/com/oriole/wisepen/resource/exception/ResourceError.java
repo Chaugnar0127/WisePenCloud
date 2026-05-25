@@ -19,6 +19,7 @@ public enum ResourceError implements IResult {
     PARENT_TAG_NODE_NOT_FOUND(5112, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.TAG_NODE, ErrorReason.NOT_FOUND), "父标签节点不存在"),
     TAG_NODE_NAME_CONFLICT(5121, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.TAG_NODE, ErrorReason.CONFLICT),"同级目录下已存在同名标签节点"),
     CANNOT_SET_TAG_NODE_VISIBILITY(5131, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.TAG_NODE, ErrorReason.NOT_ALLOWED), "不能设置个人标签节点的可见范围"),
+    TAG_MOUNT_DENIED(5141, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.PERMISSION_DENIED),"无权挂载资源到该标签下"),
 
     // Tag路径节点相关异常
     CANNOT_USE_RESERVED_TAG_PATH_NODE_NAME(5211, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.TAG_PATH_NODE, ErrorReason.NOT_ALLOWED),"不能使用系统保留名称(/ 或 .Trash)作为路径节点名称"),
