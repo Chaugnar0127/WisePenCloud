@@ -1,9 +1,12 @@
 package com.oriole.wisepen.skill.controller;
 
 import com.oriole.wisepen.common.core.domain.R;
+import com.oriole.wisepen.file.storage.api.domain.dto.UploadInitRespDTO;
+import com.oriole.wisepen.skill.domain.dto.SkillAssetUploadInitReqDTO;
 import com.oriole.wisepen.skill.domain.dto.SkillCreateReqDTO;
 import com.oriole.wisepen.skill.domain.dto.SkillInfoGetReqDTO;
 import com.oriole.wisepen.skill.domain.dto.SkillInfoRespDTO;
+import com.oriole.wisepen.skill.domain.dto.SkillManifestUploadInitReqDTO;
 import com.oriole.wisepen.skill.domain.dto.SkillUpdateReqDTO;
 import com.oriole.wisepen.skill.feign.RemoteSkillService;
 import com.oriole.wisepen.skill.service.ISkillService;
@@ -38,5 +41,17 @@ public class InternalSkillController implements RemoteSkillService {
     @PostMapping("/getSkillInfo")
     public R<SkillInfoRespDTO> getSkillInfo(@Validated @RequestBody SkillInfoGetReqDTO dto) {
         return R.ok(skillService.getSkillInfo(dto.getSkillId()));
+    }
+
+    @Override
+    @PostMapping("/initManifestUpload")
+    public R<UploadInitRespDTO> initManifestUpload(@Validated @RequestBody SkillManifestUploadInitReqDTO dto) {
+        return R.ok(skillService.initManifestUpload(dto));
+    }
+
+    @Override
+    @PostMapping("/initAssetUpload")
+    public R<UploadInitRespDTO> initAssetUpload(@Validated @RequestBody SkillAssetUploadInitReqDTO dto) {
+        return R.ok(skillService.initAssetUpload(dto));
     }
 }

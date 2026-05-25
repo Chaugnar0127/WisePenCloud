@@ -65,7 +65,9 @@ public class StorageServiceImpl implements IStorageService {
                         .last("LIMIT 1")
         );
 
-        String newObjectKey = buildObjectKey(req.getScene().getPrefix(), req.getBizTag(), req.getExtension());
+        String newObjectKey = StrUtil.isNotBlank(req.getObjectKey())
+                ? req.getObjectKey()
+                : buildObjectKey(req.getScene().getPrefix(), req.getBizTag(), req.getExtension());
         String domain = provider.getDomain();
 
         if (existRecord != null) {

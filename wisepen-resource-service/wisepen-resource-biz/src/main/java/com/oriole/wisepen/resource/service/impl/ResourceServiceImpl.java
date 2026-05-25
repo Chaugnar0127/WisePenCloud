@@ -2,6 +2,7 @@ package com.oriole.wisepen.resource.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.bean.copier.CopyOptions;
+import cn.hutool.core.util.IdUtil;
 import com.oriole.wisepen.common.core.domain.PageR;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.domain.enums.list.QueryLogicEnum;
@@ -507,11 +508,17 @@ public class ResourceServiceImpl implements IResourceService {
     public String createResourceItem(ResourceCreateReqDTO dto) {
         ResourceItemEntity entity = new ResourceItemEntity();
         BeanUtil.copyProperties(dto, entity);
+        if (!StringUtils.hasText(entity.getResourceId())) {
+            entity.setResourceId(IdUtil.fastSimpleUUID());
+        }
         resourceItemRepository.save(entity);
         try {
+            String personalGroupId = ResourceConstants.PERSONAL_GROUP_PREFIX + dto.getOwnerId();
+            // Ensure a personal root/trash tag pair exists before binding new resources.
+            tagService.getTagTree(personalGroupId);
             String pathTagID = !StringUtils.hasText(dto.getPathTagId()) ?
                     tagRepository.findByGroupIdAndParentIdAndTagName(
-                                ResourceConstants.PERSONAL_GROUP_PREFIX + dto.getOwnerId(), "0", ResourceConstants.ROOT_TAG_NAME)
+                                personalGroupId, "0", ResourceConstants.ROOT_TAG_NAME)
                         .orElseThrow(() -> new ServiceException(ResourceError.TAG_NODE_NOT_FOUND)).getTagId()
                     :
                     dto.getPathTagId();
@@ -519,7 +526,7 @@ public class ResourceServiceImpl implements IResourceService {
 
             ResourceUpdateTagsRequest bindReq = new ResourceUpdateTagsRequest();
             bindReq.setResourceId(entity.getResourceId());
-            bindReq.setGroupId(ResourceConstants.PERSONAL_GROUP_PREFIX + dto.getOwnerId());
+            bindReq.setGroupId(personalGroupId);
             bindReq.setTagIds(targetTagIds);
             this.updateResourceTags(bindReq);
         } catch (Exception e) {

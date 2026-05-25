@@ -9,8 +9,6 @@ import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -19,17 +17,11 @@ public class SkillEntity extends SkillInfoBase {
     @Id
     private String skillId;
 
+    private String resourceId;
+
     private String storageBizTag;
 
-    private String manifestObjectKey;
-
-    private String scriptsObjectKey;
-
-    private String referencesObjectKey;
-
-    private String assetObjectKey;
-
-    private List<SkillAssetEntity> assets = new ArrayList<>();
+    private SkillVersionEntity currentVersionInfo;
 
     @CreatedDate
     private LocalDateTime createTime;

@@ -4,13 +4,16 @@ import com.oriole.wisepen.common.core.context.SecurityContextHolder;
 import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.common.core.domain.enums.BusinessType;
 import com.oriole.wisepen.common.core.exception.ServiceException;
+import com.oriole.wisepen.file.storage.api.domain.dto.UploadInitRespDTO;
+import com.oriole.wisepen.skill.domain.dto.SkillAssetUploadInitReqDTO;
 import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
 import com.oriole.wisepen.skill.domain.dto.SkillCreateReqDTO;
 import com.oriole.wisepen.skill.domain.dto.SkillInfoGetReqDTO;
 import com.oriole.wisepen.skill.domain.dto.SkillInfoRespDTO;
+import com.oriole.wisepen.skill.domain.dto.SkillManifestUploadInitReqDTO;
 import com.oriole.wisepen.skill.domain.dto.SkillUpdateReqDTO;
-import com.oriole.wisepen.skill.exception.SkillErrorCode;
+import com.oriole.wisepen.skill.exception.SkillError;
 import com.oriole.wisepen.skill.service.ISkillService;
 import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionReqDTO;
 import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionResDTO;
@@ -62,12 +65,28 @@ public class SkillController {
         return R.ok(skillService.getSkillInfo(dto.getSkillId()));
     }
 
+    @Operation(summary = "初始化 SKILL.md 上传", description = "为指定 Skill 版本初始化 SKILL.md 的固定 object key 上传")
+    @Log(title = "初始化 Skill Manifest 上传", businessType = BusinessType.INSERT)
+    @PostMapping("/initManifestUpload")
+    public R<UploadInitRespDTO> initManifestUpload(@Validated @RequestBody SkillManifestUploadInitReqDTO dto) {
+        assertSkillOwner(dto.getSkillId());
+        return R.ok(skillService.initManifestUpload(dto));
+    }
+
+    @Operation(summary = "初始化 Skill 资产上传", description = "为指定 Skill 版本初始化附件上传并写入固定 object key")
+    @Log(title = "初始化 Skill 资产上传", businessType = BusinessType.INSERT)
+    @PostMapping("/initAssetUpload")
+    public R<UploadInitRespDTO> initAssetUpload(@Validated @RequestBody SkillAssetUploadInitReqDTO dto) {
+        assertSkillOwner(dto.getSkillId());
+        return R.ok(skillService.initAssetUpload(dto));
+    }
+
     private void assertSkillOwner(String skillId) {
         ResourceCheckPermissionResDTO permission = remoteResourceService.checkResPermission(new ResourceCheckPermissionReqDTO(
                 skillId, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap()
         )).getData();
         if (permission == null || permission.getResourceAccessRole() != ResourceAccessRole.OWNER) {
-            throw new ServiceException(SkillErrorCode.SKILL_OWNER_MISMATCH);
+            throw new ServiceException(SkillError.SKILL_OWNER_MISMATCH);
         }
     }
 }
