@@ -143,15 +143,7 @@ public class NoteServiceImpl implements INoteService {
 
     private void publishForkCompleted(ResourceForkMessage message, String newResourceId, boolean success,
             String errorMessage) {
-        noteEventPublisher.publishForkCompleted(ResourceForkCompletedMessage.builder()
-                .newResourceId(newResourceId)
-                .sourceResourceId(message.getSourceResourceId())
-                .marketOrderId(message.getMarketOrderId())
-                .marketSellId(message.getMarketSellId())
-                .marketBuyerId(Long.valueOf(message.getOwnerId()))
-                .success(success)
-                .errorMessage(errorMessage)
-                .resourceType(ResourceType.NOTE)
-                .build());
+        noteEventPublisher.publishForkCompleted(
+                ResourceForkCompletedMessage.fromFork(message, newResourceId, success, errorMessage, ResourceType.NOTE));
     }
 }

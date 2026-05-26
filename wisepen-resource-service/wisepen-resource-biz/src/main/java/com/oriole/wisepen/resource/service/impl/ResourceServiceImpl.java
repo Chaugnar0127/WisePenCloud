@@ -12,6 +12,7 @@ import com.oriole.wisepen.resource.constant.ResourceConstants;
 import com.oriole.wisepen.resource.domain.ComputedGroupAcl;
 import com.oriole.wisepen.resource.domain.GroupTagBind;
 import com.oriole.wisepen.resource.domain.ResourceSellInfo;
+import com.oriole.wisepen.resource.domain.ResourceSellInfos;
 import com.oriole.wisepen.resource.domain.dto.*;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceForkRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceForkRetryRequest;
@@ -745,28 +746,31 @@ public class ResourceServiceImpl implements IResourceService {
         if (message.getMarketOrderId() == null) {
             return;
         }
+        ResourceItemEntity source = resourceItemRepository.findById(message.getSourceResourceId())
+                .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
+        ResourceSellInfo sellInfo = ResourceSellInfos.requireSellInfo(source, message.getMarketSellId());
+
         if (!message.isSuccess()) {
             marketTradeService.tryReversePaidTrade(message.getMarketOrderId(),
                     InfoPointTradeReverseReason.DELIVERY_FAILED, "FORK_FAILED");
+            removeMarketPurchasedBuyer(sellInfo, message.getMarketBuyerId(), source);
             return;
         }
 
-        ResourceItemEntity source = resourceItemRepository.findById(message.getSourceResourceId())
-                .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
-        ResourceSellInfo sellInfo = source.getSellInfos().stream()
-                .filter(si -> Objects.equals(si.getSellId(), message.getMarketSellId()))
-                .findFirst()
-                .orElseThrow(() -> new ServiceException(ResourceError.SELL_INFO_NOT_FOUND));
-
-        String buyerIdStr = message.getMarketBuyerId().toString();
-        if (sellInfo.getPurchasedBuyerIds().contains(buyerIdStr)) {
-            return;
-        }
-        sellInfo.getPurchasedBuyerIds().add(buyerIdStr);
-        resourceItemRepository.save(source);
         log.info("market purchase fork completed resourceId={} sellId={} buyerId={} orderId={} newResourceId={}",
                 source.getResourceId(), message.getMarketSellId(), message.getMarketBuyerId(),
                 message.getMarketOrderId(), message.getNewResourceId());
+    }
+
+    private void removeMarketPurchasedBuyer(ResourceSellInfo sellInfo, Long buyerId, ResourceItemEntity resource) {
+        if (buyerId == null) {
+            return;
+        }
+        if (sellInfo.getPurchasedBuyerIds().remove(buyerId.toString())) {
+            resourceItemRepository.save(resource);
+            log.info("market purchasedBuyerIds rolled back resourceId={} sellId={} buyerId={}",
+                    resource.getResourceId(), sellInfo.getSellId(), buyerId);
+        }
     }
 
     @Override

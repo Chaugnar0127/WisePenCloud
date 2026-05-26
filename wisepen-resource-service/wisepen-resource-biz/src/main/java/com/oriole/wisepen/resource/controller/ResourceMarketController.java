@@ -60,7 +60,7 @@ public class ResourceMarketController {
         return R.ok();
     }
 
-    @Operation(summary = "购买资源", description = "同步扣款并授予源资源权限，提交 fork（TOPIC_RESOURCE_FORK）；purchasedBuyerIds 在 FORK_COMPLETED 后写入")
+    @Operation(summary = "购买资源", description = "同步扣款并写入 purchasedBuyerIds，授予源资源权限后提交 fork；交割失败则冲正并回滚 purchasedBuyerIds")
     @Log(title = "购买资源", businessType = BusinessType.INSERT)
     @PostMapping("/purchaseProduct")
     public R<ResourcePurchaseResponse> purchaseProduct(@Validated @RequestBody ResourcePurchaseRequest req) {

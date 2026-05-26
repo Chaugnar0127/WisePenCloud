@@ -10,6 +10,7 @@ import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.note.api.domain.dto.res.NoteSnapshotResponse;
 import com.oriole.wisepen.note.api.feign.RemoteNoteService;
 import com.oriole.wisepen.resource.domain.ResourceSellInfo;
+import com.oriole.wisepen.resource.domain.ResourceSellInfos;
 import com.oriole.wisepen.resource.domain.SellReviewInfo;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceForkRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourcePublishSellRequest;
@@ -149,10 +150,7 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
         ResourceItemEntity resource = resourceItemRepository.findById(req.getResourceId())
                 .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
 
-        ResourceSellInfo sellInfo = resource.getSellInfos().stream()
-                .filter(item -> Objects.equals(item.getSellId(), req.getSellId()))
-                .findFirst()
-                .orElseThrow(() -> new ServiceException(ResourceError.SELL_INFO_NOT_FOUND));
+        ResourceSellInfo sellInfo = ResourceSellInfos.requireSellInfo(resource, req.getSellId());
 
         if (identityType != IdentityType.ADMIN) {
             Long sellGroupId = Long.valueOf(sellInfo.getGroupId());
@@ -192,7 +190,7 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
     public ResourcePurchaseResponse purchaseProduct(ResourcePurchaseRequest req, Long buyerId) {
         ResourceItemEntity resource = resourceItemRepository.findById(req.getResourceId())
                 .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
-        ResourceSellInfo sellInfo = findSellInfo(resource, req.getSellId());
+        ResourceSellInfo sellInfo = ResourceSellInfos.requireSellInfo(resource, req.getSellId());
         if (!Objects.equals(req.getGroupId(), sellInfo.getGroupId())) {
             throw new ServiceException(ResourceError.SELL_INFO_NOT_FOUND);
         }
@@ -203,17 +201,16 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
         if (buyerId.toString().equals(resource.getOwnerId())) {
             throw new ServiceException(ResourceError.SELF_PURCHASE_NOT_ALLOWED);
         }
-        if (sellInfo.getPurchasedBuyerIds().contains(buyerId.toString())) {
+        String buyerIdStr = buyerId.toString();
+        if (sellInfo.getPurchasedBuyerIds().contains(buyerIdStr)) {
             throw new ServiceException(ResourceError.MARKET_PURCHASE_ALREADY_EXISTS);
         }
 
         Long orderId = IdUtil.getSnowflakeNextId();
         marketTradeService.chargeMarketOrder(buyerId, Long.valueOf(resource.getOwnerId()), sellInfo.getPrice(), orderId);
 
-        String buyerIdStr = buyerId.toString();
-        resourceService.grantUserResourceActions(resource.getResourceId(), buyerIdStr,
-                List.of(ResourceAction.DISCOVER, ResourceAction.VIEW,
-                        ResourceAction.DOWNLOAD_WATERMARK, ResourceAction.FORK));
+        sellInfo.getPurchasedBuyerIds().add(buyerIdStr);
+        resourceItemRepository.save(resource);
 
         ResourceForkRequest forkReq = ResourceForkRequest.builder()
                 .sourceResourceId(resource.getResourceId())
@@ -224,10 +221,15 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
                 .version(sellInfo.getVersion())
                 .build();
         try {
-            resourceService.forkResource(forkReq, buyerId.toString(), orderId, sellInfo.getSellId());
+            resourceService.grantUserResourceActions(resource.getResourceId(), buyerIdStr,
+                    List.of(ResourceAction.DISCOVER, ResourceAction.VIEW,
+                            ResourceAction.DOWNLOAD_WATERMARK, ResourceAction.FORK));
+            resourceService.forkResource(forkReq, buyerIdStr, orderId, sellInfo.getSellId());
         } catch (RuntimeException ex) {
-            log.error("market purchase fork submit failed resourceId={} sellId={} orderId={}",
+            log.error("market purchase delivery failed resourceId={} sellId={} orderId={}",
                     resource.getResourceId(), sellInfo.getSellId(), orderId, ex);
+            sellInfo.getPurchasedBuyerIds().remove(buyerIdStr);
+            resourceItemRepository.save(resource);
             marketTradeService.tryReversePaidTrade(orderId,
                     InfoPointTradeReverseReason.DELIVERY_FAILED, ex.getMessage());
             throw ex;
@@ -240,13 +242,6 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
         log.info("resource purchased paid resourceId={} sellId={} buyerId={} orderId={} saleMethod={}",
                 resource.getResourceId(), sellInfo.getSellId(), buyerId, orderId, sellInfo.getSaleMethod());
         return response;
-    }
-
-    private ResourceSellInfo findSellInfo(ResourceItemEntity resource, String sellId) {
-        return resource.getSellInfos().stream()
-                .filter(sellInfo -> Objects.equals(sellInfo.getSellId(), sellId))
-                .findFirst()
-                .orElseThrow(() -> new ServiceException(ResourceError.SELL_INFO_NOT_FOUND));
     }
 
     private boolean isPurchasable(ResourceSellInfo sellInfo) {

@@ -403,16 +403,8 @@ public class DocumentServiceImpl implements IDocumentService {
 
     private void publishForkCompleted(ResourceForkMessage message, String newResourceId, boolean success,
             String errorMessage, ResourceType resourceType) {
-        eventPublisher.publishForkCompleted(ResourceForkCompletedMessage.builder()
-                .newResourceId(newResourceId)
-                .sourceResourceId(message.getSourceResourceId())
-                .marketOrderId(message.getMarketOrderId())
-                .marketSellId(message.getMarketSellId())
-                .marketBuyerId(Long.valueOf(message.getOwnerId()))
-                .success(success)
-                .errorMessage(errorMessage)
-                .resourceType(resourceType)
-                .build());
+        eventPublisher.publishForkCompleted(
+                ResourceForkCompletedMessage.fromFork(message, newResourceId, success, errorMessage, resourceType));
     }
 
     private String cloneObjectKey(String sourceObjectKey, String bizTag, String extension, List<String> createdObjectKeys) {
