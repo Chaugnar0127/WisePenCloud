@@ -17,5 +17,5 @@ public class ResourceForkRequest extends ResourceItemInfoBase {
     private String sourceResourceId;
 
     /** 笔记快照版本，空表示 fork 最新 */
-    private String version;
+    private Long version;
 }

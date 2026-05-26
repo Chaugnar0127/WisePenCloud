@@ -20,7 +20,7 @@ public class ResourceForkMessage implements Serializable {
     private String newResourceId;
     private ResourceType resourceType;
     /** 笔记快照版本，空表示最新 */
-    private String version;
+    private Long version;
     private String forkedBy;
     private String ownerId;
 }

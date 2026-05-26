@@ -23,5 +23,9 @@ public interface NoteVersionRepository extends MongoRepository<NoteVersionEntity
     List<NoteVersionEntity> findByResourceIdAndVersionGreaterThanAndTypeOrderByVersionAsc(
             String resourceId, Long version, VersionType type);
 
+    List<NoteVersionEntity> findByResourceIdOrderByVersionAsc(String resourceId);
+
+    List<NoteVersionEntity> findByResourceIdAndVersionLessThanEqualOrderByVersionAsc(String resourceId, Long version);
+
     void deleteByResourceIdIn(List<String> resourceIds);
 }
