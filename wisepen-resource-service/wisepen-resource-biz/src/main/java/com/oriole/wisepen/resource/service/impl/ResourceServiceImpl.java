@@ -546,6 +546,7 @@ public class ResourceServiceImpl implements IResourceService {
     @Override
     public String forkResource(ResourceForkRequest req, String ownerId) {
         req.setOwnerId(ownerId);
+        assertValidForkResourceType(req.getResourceType());
 
         resourceItemRepository.findById(req.getSourceResourceId())
                 .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
@@ -600,6 +601,8 @@ public class ResourceServiceImpl implements IResourceService {
         if (req.getResourceType() != null && req.getResourceType() != entity.getResourceType()) {
             throw new ServiceException(ResourceError.RESOURCE_NOT_FOUND);
         }
+        ResourceType type = assertValidForkResourceType(req.getResourceType() != null ? req.getResourceType() : entity.getResourceType());
+        req.setResourceType(type);
 
         BeanUtil.copyProperties(req, entity, CopyOptions.create()
                 .ignoreProperties("sourceResourceId", "version", "newResourceId")
@@ -642,6 +645,13 @@ public class ResourceServiceImpl implements IResourceService {
                 .forkedBy(ownerId)
                 .ownerId(ownerId)
                 .build();
+    }
+
+    private ResourceType assertValidForkResourceType(ResourceType resourceType) {
+        if (resourceType == null || resourceType == ResourceType.UNKNOWN) {
+            throw new ServiceException(ResourceError.RESOURCE_TYPE_INVALID);
+        }
+        return resourceType;
     }
 
     @Override

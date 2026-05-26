@@ -6,6 +6,7 @@ import com.oriole.wisepen.document.api.domain.dto.req.DocumentUploadInitRequest;
 import com.oriole.wisepen.document.api.domain.dto.res.DocumentUploadInitResponse;
 import com.oriole.wisepen.document.domain.entity.DocumentContentEntity;
 import com.oriole.wisepen.document.domain.entity.DocumentPdfMetaEntity;
+import com.oriole.wisepen.resource.domain.mq.ResourceForkMessage;
 
 import java.util.List;
 import java.util.Optional;
@@ -47,4 +48,7 @@ public interface IDocumentService {
 
     // 文档就绪
     void finalizeToReady(String documentId);
+
+    // Fork 文档（由 resource fork 广播触发）
+    void forkDocument(ResourceForkMessage message);
 }

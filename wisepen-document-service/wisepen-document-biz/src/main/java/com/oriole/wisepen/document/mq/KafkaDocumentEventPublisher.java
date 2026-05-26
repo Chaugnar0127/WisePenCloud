@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oriole.wisepen.document.api.domain.mq.DocumentParseTaskMessage;
 import com.oriole.wisepen.document.api.domain.mq.DocumentReadyMessage;
 import com.oriole.wisepen.file.storage.api.domain.mq.FileUploadedMessage;
+import com.oriole.wisepen.resource.domain.mq.ResourceForkCompletedMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -15,6 +16,7 @@ import java.util.List;
 import static com.oriole.wisepen.document.api.constant.MqTopicConstants.TOPIC_DOCUMENT_PARSE;
 import static com.oriole.wisepen.document.api.constant.MqTopicConstants.TOPIC_DOCUMENT_READY;
 import static com.oriole.wisepen.file.storage.api.constant.MqTopicConstants.TOPIC_FILE_DELETE;
+import static com.oriole.wisepen.resource.constant.MqTopicConstants.TOPIC_RESOURCE_FORK_COMPLETED;
 
 /**
  * 文档服务 Kafka 事件发布器
@@ -57,6 +59,17 @@ public class KafkaDocumentEventPublisher {
             log.debug("成功发布文档删除事件 Document: {}", allObjectKeys);
         } catch (Exception e) {
             log.error("发布文档解析删除失败 Document: {}", allObjectKeys, e);
+        }
+    }
+
+    // 发布 Fork 完成回执（给 resource 服务更新生命周期状态）
+    public void publishForkCompleted(ResourceForkCompletedMessage msg) {
+        try {
+            String jsonMessage = objectMapper.writeValueAsString(msg);
+            kafkaTemplate.send(TOPIC_RESOURCE_FORK_COMPLETED, msg.getNewResourceId(), jsonMessage);
+            log.debug("成功发布 forkCompleted newResourceId={} success={}", msg.getNewResourceId(), msg.isSuccess());
+        } catch (Exception e) {
+            log.error("发布 forkCompleted 失败 newResourceId={}", msg.getNewResourceId(), e);
         }
     }
 }

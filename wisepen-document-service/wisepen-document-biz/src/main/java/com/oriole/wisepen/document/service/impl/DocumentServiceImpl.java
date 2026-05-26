@@ -28,6 +28,8 @@ import com.oriole.wisepen.file.storage.api.domain.dto.UploadInitRespDTO;
 import com.oriole.wisepen.file.storage.api.enums.StorageSceneEnum;
 import com.oriole.wisepen.file.storage.api.feign.RemoteStorageService;
 import com.oriole.wisepen.resource.domain.dto.ResourceCreateReqDTO;
+import com.oriole.wisepen.resource.domain.mq.ResourceForkCompletedMessage;
+import com.oriole.wisepen.resource.domain.mq.ResourceForkMessage;
 import com.oriole.wisepen.resource.enums.ResourceType;
 import com.oriole.wisepen.resource.feign.RemoteResourceService;
 import lombok.RequiredArgsConstructor;
@@ -312,5 +314,128 @@ public class DocumentServiceImpl implements IDocumentService {
                 .build());
 
         log.debug("文档已就绪 DocumentId={}", documentId);
+    }
+
+    @Override
+    public void forkDocument(ResourceForkMessage message) {
+        String newResourceId = message.getNewResourceId();
+        ResourceType resourceType = message.getResourceType();
+        List<String> createdObjectKeys = new ArrayList<>();
+        boolean savedNewInfo = false;
+        try {
+            DocumentInfoEntity existing = documentInfoRepository.findByResourceId(newResourceId).orElse(null);
+            if (existing != null) {
+                if (existing.getDocumentStatus() != null && existing.getDocumentStatus().getStatus() == DocumentStatusEnum.READY) {
+                    eventPublisher.publishForkCompleted(ResourceForkCompletedMessage.builder()
+                            .newResourceId(newResourceId)
+                            .success(true)
+                            .resourceType(resourceType)
+                            .build());
+                    return;
+                }
+                eventPublisher.publishForkCompleted(ResourceForkCompletedMessage.builder()
+                        .newResourceId(newResourceId)
+                        .success(false)
+                        .errorMessage("document exists but not READY")
+                        .resourceType(resourceType)
+                        .build());
+                return;
+            }
+
+            DocumentInfoEntity source = documentInfoRepository.findByResourceId(message.getSourceResourceId()).orElse(null);
+            if (source == null || source.getDocumentStatus() == null || source.getDocumentStatus().getStatus() != DocumentStatusEnum.READY) {
+                eventPublisher.publishForkCompleted(ResourceForkCompletedMessage.builder()
+                        .newResourceId(newResourceId)
+                        .success(false)
+                        .errorMessage("source document not READY")
+                        .resourceType(resourceType)
+                        .build());
+                return;
+            }
+
+            String newDocumentId = IdUtil.fastSimpleUUID();
+
+            String newSourceKey = cloneObjectKey(source.getSourceObjectKey(), newDocumentId, resourceType.getExtension(), createdObjectKeys);
+            String newPreviewKey = null;
+            if (StrUtil.isNotBlank(source.getPreviewObjectKey())) {
+                newPreviewKey = cloneObjectKey(source.getPreviewObjectKey(), newDocumentId, "pdf", createdObjectKeys);
+            }
+
+            DocumentInfoEntity cloned = BeanUtil.copyProperties(source, DocumentInfoEntity.class);
+            cloned.setDocumentId(newDocumentId);
+            cloned.setResourceId(newResourceId);
+            cloned.setSourceObjectKey(newSourceKey);
+            cloned.setPreviewObjectKey(newPreviewKey);
+            DocumentUploadMeta meta = cloned.getUploadMeta();
+            if (meta != null && StrUtil.isNotBlank(message.getOwnerId())) {
+                meta.setUploaderId(Long.valueOf(message.getOwnerId()));
+            }
+            cloned.setDocumentStatus(new DocumentStatus(DocumentStatusEnum.READY));
+            documentInfoRepository.save(cloned);
+            savedNewInfo = true;
+
+            DocumentContentEntity sourceContent = documentContentRepository.findById(source.getDocumentId()).orElse(null);
+            DocumentPdfMetaEntity sourcePdfMeta = documentPdfMetaRepository.findById(source.getDocumentId()).orElse(null);
+            String rawText = null;
+            if (sourceContent != null) {
+                rawText = sourceContent.getRawText();
+                documentContentRepository.save(DocumentContentEntity.builder()
+                        .documentId(newDocumentId)
+                        .rawText(sourceContent.getRawText())
+                        .build());
+            }
+            if (sourcePdfMeta != null) {
+                DocumentPdfMetaEntity pdfMeta = BeanUtil.copyProperties(sourcePdfMeta, DocumentPdfMetaEntity.class);
+                pdfMeta.setDocumentId(newDocumentId);
+                documentPdfMetaRepository.save(pdfMeta);
+            }
+
+            eventPublisher.publishForkCompleted(ResourceForkCompletedMessage.builder()
+                    .newResourceId(newResourceId)
+                    .success(true)
+                    .resourceType(resourceType)
+                    .build());
+            eventPublisher.publishReadyEvent(DocumentReadyMessage.builder()
+                    .resourceId(newResourceId)
+                    .content(rawText)
+                    .build());
+        } catch (Exception e) {
+            log.warn("documentFork failed sourceResourceId={} newResourceId={} resourceType={}",
+                    message.getSourceResourceId(), newResourceId, resourceType, e);
+            try {
+                if (savedNewInfo) {
+                    deleteDocuments(List.of(newResourceId));
+                } else if (!createdObjectKeys.isEmpty()) {
+                    eventPublisher.publishFileDeleteEvent(createdObjectKeys);
+                }
+            } catch (Exception cleanupEx) {
+                log.warn("documentFork cleanup failed newResourceId={}", newResourceId, cleanupEx);
+            }
+            eventPublisher.publishForkCompleted(ResourceForkCompletedMessage.builder()
+                    .newResourceId(newResourceId)
+                    .success(false)
+                    .errorMessage(e.getMessage())
+                    .resourceType(resourceType)
+                    .build());
+        }
+    }
+
+    private String cloneObjectKey(String sourceObjectKey, String bizTag, String extension, List<String> createdObjectKeys) {
+        StorageRecordDTO record = remoteStorageService.getFileRecord(sourceObjectKey).getData();
+        if (record == null) {
+            throw new IllegalStateException("storage record not found for objectKey=" + sourceObjectKey);
+        }
+        UploadInitRespDTO upload = remoteStorageService.initUpload(UploadInitReqDTO.builder()
+                .md5(record.getMd5())
+                .extension(extension)
+                .scene(StorageSceneEnum.PRIVATE_DOC)
+                .bizTag(bizTag)
+                .expectedSize(record.getSize())
+                .build()).getData();
+        if (upload == null) {
+            throw new IllegalStateException("initUpload failed for objectKey=" + sourceObjectKey);
+        }
+        createdObjectKeys.add(upload.getObjectKey());
+        return upload.getObjectKey();
     }
 }
