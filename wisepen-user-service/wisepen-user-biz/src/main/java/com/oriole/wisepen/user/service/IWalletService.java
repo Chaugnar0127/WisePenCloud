@@ -1,6 +1,9 @@
 package com.oriole.wisepen.user.service;
 
 import com.oriole.wisepen.common.core.domain.PageR;
+import com.oriole.wisepen.user.api.domain.dto.req.InfoPointChangeRequest;
+import com.oriole.wisepen.user.api.domain.dto.req.InfoPointTradeReverseRequest;
+import com.oriole.wisepen.user.api.domain.dto.req.InfoPointTradeSettleRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.WalletTransferTokenRequest;
 import com.oriole.wisepen.user.api.domain.dto.res.WalletDetailResponse;
 import com.oriole.wisepen.user.api.enums.TokenPayerType;
@@ -20,6 +23,21 @@ public interface IWalletService {
     void changeGroupTokenBalance(Long groupId, Long operator, Integer changedToken, TokenTransactionType type, String Meta);
     // 改变个人 Token 余额
     void changeUserTokenBalance(Long groupId, Long operator, Integer changedToken, TokenTransactionType type, String Meta);
+
+    // 改变个人信息点余额（集市交易/管理员调账共用）
+    void changeInfoPointBalance(InfoPointChangeRequest req);
+
+    // 查询信息点余额
+    Integer getInfoPointBalance(Long userId);
+
+    // 集市交易：买家扣款、卖家入账（PAID，幂等）
+    void settleInfoPointTrade(InfoPointTradeSettleRequest req);
+
+    // 集市交易：交割完成（PAID → TRADE_SUCCESS）
+    void confirmInfoPointTradeSuccess(Long relatedId);
+
+    // 集市交易：冲正退款（PAID → ADMIN_REVOKED）
+    void reverseInfoPointTrade(InfoPointTradeReverseRequest req);
     // 更新组成员 Token 配额
     void updateGroupMemberTokenLimit(GroupMemberTokenLimitUpdateRequest req);
 

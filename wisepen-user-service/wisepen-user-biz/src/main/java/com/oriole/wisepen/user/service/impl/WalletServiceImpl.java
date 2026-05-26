@@ -2,14 +2,19 @@ package com.oriole.wisepen.user.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.IdUtil;
+import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.UpdateWrapper;
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.oriole.wisepen.common.core.domain.PageR;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
+import com.oriole.wisepen.user.api.domain.dto.req.InfoPointChangeRequest;
+import com.oriole.wisepen.user.api.domain.dto.req.InfoPointTradeReverseRequest;
+import com.oriole.wisepen.user.api.domain.dto.req.InfoPointTradeSettleRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.WalletTransferTokenRequest;
 import com.oriole.wisepen.user.api.enums.*;
 import com.oriole.wisepen.common.core.domain.enums.GroupType;
@@ -49,6 +54,8 @@ public class WalletServiceImpl implements IWalletService {
     private final UserWalletsMapper userWalletsMapper;
     private final TokenTransactionRecordMapper tokenTransactionRecordMapper;
     private final TokenVoucherMapper tokenVoucherMapper;
+    private final InfoPointMapper infoPointMapper;
+    private final InfoPointTransactionRecordMapper infoPointTransactionRecordMapper;
 
     private final RedisCacheManager redisCacheManager;
 
@@ -134,6 +141,210 @@ public class WalletServiceImpl implements IWalletService {
         } else {
             redisCacheManager.blockUserChat(userId);
         }
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void changeInfoPointBalance(InfoPointChangeRequest req) {
+        Long userId = req.getUserId();
+        Integer changeAmount = req.getChangeAmount();
+        if (changeAmount == null || changeAmount == 0) {
+            throw new ServiceException(UserError.WALLET_INFO_POINT_CHANGE_AMOUNT_INVALID);
+        }
+
+        if (!infoPointMapper.exists(Wrappers.<UserInfoPointEntity>lambdaQuery().eq(UserInfoPointEntity::getUserId, userId))) {
+            infoPointMapper.insert(UserInfoPointEntity.builder()
+                    .userId(userId)
+                    .infoPointBalance(0)
+                    .build());
+        }
+
+        LambdaUpdateWrapper<UserInfoPointEntity> updateWrapper = Wrappers.<UserInfoPointEntity>lambdaUpdate()
+                .eq(UserInfoPointEntity::getUserId, userId);
+        if (changeAmount < 0) {
+            updateWrapper.ge(UserInfoPointEntity::getInfoPointBalance, -changeAmount);
+        }
+        updateWrapper.setSql("info_point_balance = info_point_balance + {0}", changeAmount);
+
+        int affectedRows = infoPointMapper.update(null, updateWrapper);
+        if (affectedRows == 0) {
+            if (changeAmount < 0) {
+                throw new ServiceException(UserError.WALLET_INFO_POINT_INSUFFICIENT);
+            }
+            throw new ServiceException(UserError.WALLET_INFO_POINT_CHANGE_FAILED);
+        }
+
+        InfoPointTransactionRecordEntity record = BeanUtil.copyProperties(req, InfoPointTransactionRecordEntity.class);
+        UserInfoPointEntity updated = infoPointMapper.selectById(userId);
+        record.setBalanceAfter(updated == null ? 0 : updated.getInfoPointBalance());
+        infoPointTransactionRecordMapper.insert(record);
+    }
+
+    @Override
+    public Integer getInfoPointBalance(Long userId) {
+        UserInfoPointEntity userPoint = infoPointMapper.selectById(userId);
+        return userPoint != null ? userPoint.getInfoPointBalance() : 0;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void settleInfoPointTrade(InfoPointTradeSettleRequest req) {
+        Long buyerId = req.getBuyerId();
+        Long sellerId = req.getSellerId();
+        Integer price = req.getPrice();
+        Long relatedId = req.getRelatedId();
+
+        if (buyerId.equals(sellerId)) {
+            throw new ServiceException(UserError.WALLET_INFO_POINT_SELF_TRANSACTION_NOT_ALLOWED);
+        }
+        if (price == null || price <= 0) {
+            throw new ServiceException(UserError.WALLET_INFO_POINT_INVALID_PRICE);
+        }
+
+        List<InfoPointTransactionRecordEntity> existing = listMarketTradeRecords(relatedId);
+        if (!existing.isEmpty()) {
+            if (existing.stream().anyMatch(record -> record.getTradeStatus() == InfoPointTradeStatus.ADMIN_REVOKED)) {
+                throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_ALREADY_REVOKED);
+            }
+            boolean hasPurchase = existing.stream()
+                    .anyMatch(record -> record.getChangeType() == InfoPointChangeType.MARKET_PURCHASE);
+            boolean hasIncome = existing.stream()
+                    .anyMatch(record -> record.getChangeType() == InfoPointChangeType.MARKET_INCOME);
+            if (hasPurchase && hasIncome) {
+                log.info("信息点交易结算幂等跳过: relatedId={}", relatedId);
+                return;
+            }
+            throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_REVOKE_NOT_ALLOWED);
+        }
+
+        changeInfoPointBalance(InfoPointChangeRequest.builder()
+                .userId(buyerId)
+                .changeAmount(-price)
+                .changeType(InfoPointChangeType.MARKET_PURCHASE)
+                .tradeStatus(InfoPointTradeStatus.PAID)
+                .relatedId(relatedId)
+                .operatorId(buyerId)
+                .build());
+
+        changeInfoPointBalance(InfoPointChangeRequest.builder()
+                .userId(sellerId)
+                .changeAmount(price)
+                .changeType(InfoPointChangeType.MARKET_INCOME)
+                .tradeStatus(InfoPointTradeStatus.PAID)
+                .relatedId(relatedId)
+                .operatorId(buyerId)
+                .build());
+
+        log.info("信息点交易已扣款: buyer={}, seller={}, price={}, relatedId={}", buyerId, sellerId, price, relatedId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void confirmInfoPointTradeSuccess(Long relatedId) {
+        List<InfoPointTransactionRecordEntity> records = requireMarketTradeRecords(relatedId);
+        if (records.stream().anyMatch(record -> record.getTradeStatus() == InfoPointTradeStatus.ADMIN_REVOKED)) {
+            throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_ALREADY_REVOKED);
+        }
+        if (records.stream().allMatch(record -> record.getTradeStatus() == InfoPointTradeStatus.TRADE_SUCCESS)) {
+            return;
+        }
+
+        int affectedRows = infoPointTransactionRecordMapper.update(null,
+                Wrappers.<InfoPointTransactionRecordEntity>lambdaUpdate()
+                        .eq(InfoPointTransactionRecordEntity::getRelatedId, relatedId)
+                        .eq(InfoPointTransactionRecordEntity::getTradeStatus, InfoPointTradeStatus.PAID)
+                        .in(InfoPointTransactionRecordEntity::getChangeType,
+                                InfoPointChangeType.MARKET_PURCHASE, InfoPointChangeType.MARKET_INCOME)
+                        .set(InfoPointTransactionRecordEntity::getTradeStatus, InfoPointTradeStatus.TRADE_SUCCESS));
+        if (affectedRows != 2) {
+            if (records.stream().anyMatch(record -> record.getTradeStatus() == InfoPointTradeStatus.TRADE_SUCCESS)) {
+                throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_ALREADY_CONFIRMED);
+            }
+            throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_CONFIRM_NOT_ALLOWED);
+        }
+        log.info("信息点交易交割成功: relatedId={}", relatedId);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void reverseInfoPointTrade(InfoPointTradeReverseRequest req) {
+        Long relatedId = req.getRelatedId();
+        Long operatorId = req.getOperatorId();
+        List<InfoPointTransactionRecordEntity> records = requireMarketTradeRecords(relatedId);
+        if (records.stream().anyMatch(record -> record.getTradeStatus() == InfoPointTradeStatus.ADMIN_REVOKED)) {
+            log.info("信息点交易冲正幂等跳过: relatedId={}", relatedId);
+            return;
+        }
+
+        InfoPointTransactionRecordEntity purchase = records.stream()
+                .filter(record -> record.getChangeType() == InfoPointChangeType.MARKET_PURCHASE)
+                .findFirst()
+                .orElseThrow(() -> new ServiceException(UserError.WALLET_INFO_POINT_TRADE_REVOKE_NOT_ALLOWED));
+        InfoPointTransactionRecordEntity income = records.stream()
+                .filter(record -> record.getChangeType() == InfoPointChangeType.MARKET_INCOME)
+                .findFirst()
+                .orElseThrow(() -> new ServiceException(UserError.WALLET_INFO_POINT_TRADE_REVOKE_NOT_ALLOWED));
+
+        String meta = buildReverseMeta(req.getReason(), req.getDetail());
+        changeInfoPointBalance(InfoPointChangeRequest.builder()
+                .userId(purchase.getUserId())
+                .changeAmount(-purchase.getChangeAmount())
+                .changeType(InfoPointChangeType.MARKET_TRADE_REVOKE)
+                .tradeStatus(InfoPointTradeStatus.ADMIN_REVOKED)
+                .relatedId(relatedId)
+                .operatorId(operatorId)
+                .meta(meta)
+                .build());
+        changeInfoPointBalance(InfoPointChangeRequest.builder()
+                .userId(income.getUserId())
+                .changeAmount(-income.getChangeAmount())
+                .changeType(InfoPointChangeType.MARKET_TRADE_REVOKE)
+                .tradeStatus(InfoPointTradeStatus.ADMIN_REVOKED)
+                .relatedId(relatedId)
+                .operatorId(operatorId)
+                .meta(meta)
+                .build());
+
+        infoPointTransactionRecordMapper.update(null,
+                Wrappers.<InfoPointTransactionRecordEntity>lambdaUpdate()
+                        .eq(InfoPointTransactionRecordEntity::getRelatedId, relatedId)
+                        .in(InfoPointTransactionRecordEntity::getChangeType,
+                                InfoPointChangeType.MARKET_PURCHASE, InfoPointChangeType.MARKET_INCOME)
+                        .set(InfoPointTransactionRecordEntity::getTradeStatus, InfoPointTradeStatus.ADMIN_REVOKED));
+        log.info("信息点交易已冲正: relatedId={} operatorId={} reason={}", relatedId, operatorId, req.getReason());
+    }
+
+    private static String buildReverseMeta(InfoPointTradeReverseReason reason, String detail) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("reason", reason == null ? InfoPointTradeReverseReason.ADMIN.name() : reason.name());
+        if (detail != null && !detail.isBlank()) {
+            payload.put("detail", detail);
+        }
+        return JSONUtil.toJsonStr(payload);
+    }
+
+    private List<InfoPointTransactionRecordEntity> listMarketTradeRecords(Long relatedId) {
+        return infoPointTransactionRecordMapper.selectList(
+                Wrappers.<InfoPointTransactionRecordEntity>lambdaQuery()
+                        .eq(InfoPointTransactionRecordEntity::getRelatedId, relatedId)
+                        .in(InfoPointTransactionRecordEntity::getChangeType,
+                                InfoPointChangeType.MARKET_PURCHASE, InfoPointChangeType.MARKET_INCOME)
+        );
+    }
+
+    private List<InfoPointTransactionRecordEntity> requireMarketTradeRecords(Long relatedId) {
+        List<InfoPointTransactionRecordEntity> records = listMarketTradeRecords(relatedId);
+        if (records == null || records.isEmpty()) {
+            throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_NOT_FOUND);
+        }
+        boolean hasPurchase = records.stream()
+                .anyMatch(record -> record.getChangeType() == InfoPointChangeType.MARKET_PURCHASE);
+        boolean hasIncome = records.stream()
+                .anyMatch(record -> record.getChangeType() == InfoPointChangeType.MARKET_INCOME);
+        if (!hasPurchase || !hasIncome) {
+            throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_REVOKE_NOT_ALLOWED);
+        }
+        return records;
     }
 
     @Override

@@ -50,7 +50,20 @@ public enum UserError implements IResult {
     // TOKEN点卡相关异常
     WALLET_VOUCHER_NOT_FOUND(3811, new ResultKey(BusinessDomain.USER, UserSubject.VOUCHER, ErrorReason.NOT_FOUND),"TOKEN 点卡不存在"),
     WALLET_VOUCHER_INVALID(3821, new ResultKey(BusinessDomain.USER, UserSubject.VOUCHER, ErrorReason.INVALID),"TOKEN 点卡不可用"),
-    WALLET_VOUCHER_EXPIRED(3831, new ResultKey(BusinessDomain.USER, UserSubject.VOUCHER, ErrorReason.EXPIRED),"TOKEN 点卡已过期");
+    WALLET_VOUCHER_EXPIRED(3831, new ResultKey(BusinessDomain.USER, UserSubject.VOUCHER, ErrorReason.EXPIRED),"TOKEN 点卡已过期"),
+
+    WALLET_INFO_POINT_INSUFFICIENT(3911, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.BELOW_LOWER_BOUND), "信息点余额不足"),
+    WALLET_INFO_POINT_CHANGE_FAILED(3912, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.FAILED), "信息点变动失败"),
+    WALLET_INFO_POINT_CHANGE_AMOUNT_INVALID(3913, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.INVALID), "信息点变动数量无效"),
+    WALLET_INFO_POINT_CHANGE_TYPE_INVALID(3914, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.INVALID), "信息点变动类型无效"),
+
+    WALLET_INFO_POINT_SELF_TRANSACTION_NOT_ALLOWED(3915, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.NOT_ALLOWED), "不能与自己交易"),
+    WALLET_INFO_POINT_INVALID_PRICE(3916, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.INVALID), "交易价格无效"),
+    WALLET_INFO_POINT_TRADE_NOT_FOUND(3917, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.NOT_FOUND), "信息点交易不存在"),
+    WALLET_INFO_POINT_TRADE_ALREADY_REVOKED(3918, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.STATE_INVALID), "信息点交易已撤回"),
+    WALLET_INFO_POINT_TRADE_REVOKE_NOT_ALLOWED(3919, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.NOT_ALLOWED), "当前状态不允许冲正"),
+    WALLET_INFO_POINT_TRADE_ALREADY_CONFIRMED(3920, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.STATE_INVALID), "信息点交易已确认完成"),
+    WALLET_INFO_POINT_TRADE_CONFIRM_NOT_ALLOWED(3921, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.NOT_ALLOWED), "当前状态不允许确认交易");
 
     private final Integer code;
     private final ResultKey key;
