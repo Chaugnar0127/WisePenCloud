@@ -6,9 +6,13 @@ import com.oriole.wisepen.resource.domain.dto.req.TagMoveRequest;
 import com.oriole.wisepen.resource.domain.dto.req.TagUpdateRequest;
 import com.oriole.wisepen.resource.domain.dto.res.TagTreeResponse;
 
+import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 
 public interface ITagService {
+
+    Map<String, String> resolveTagNames(Collection<String> tagIds);
 
     // 创建 Tag 节点
     String createTag(TagCreateRequest tagCreateRequest);

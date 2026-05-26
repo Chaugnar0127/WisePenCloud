@@ -46,7 +46,14 @@ public enum ResourceError implements IResult {
     CANNOT_BIND_RESOURCE_TO_MULTIPLE_PATH_NODES(5511, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_TAG, ErrorReason.NOT_ALLOWED),"不能为资源绑定多个路径节点"),
     CANNOT_PLACE_RESOURCE_PATH_TAG_AFTER_TAGS(5512, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_TAG, ErrorReason.NOT_ALLOWED),"不能将资源路径标签放在普通标签之后"),
     CANNOT_BIND_MULTIPLE_RESOURCE_TAGS_IN_FOLDER_MODE(5521, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_TAG, ErrorReason.ALREADY_EXISTS),"该资源已绑定标签，文件夹模式下不能重复绑定"),
-    BIND_RESOURCE_TO_TAG_NODE_DENIED(5531, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_TAG, ErrorReason.PERMISSION_DENIED),"无权挂载资源到该标签下");
+    BIND_RESOURCE_TO_TAG_NODE_DENIED(5531, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_TAG, ErrorReason.PERMISSION_DENIED),"无权挂载资源到该标签下"),
+
+    // 资源市场相关异常
+    SELL_INFO_NOT_FOUND(5611, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_MARKET, ErrorReason.NOT_FOUND), "售卖信息不存在"),
+    SELL_INFO_ALREADY_LISTED(5621, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_MARKET, ErrorReason.CONFLICT), "该资源在此小组下已有相同售卖方式的未下架商品"),
+    RESOURCE_TYPE_UNSUPPORTED_FOR_SELL(5631, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_MARKET, ErrorReason.UNSUPPORTED), "该资源类型暂不支持上架"),
+    SELL_PUBLISHER_NOT_ORIGINAL_EDITOR(5632, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_MARKET, ErrorReason.NOT_ALLOWED), "仅原始编辑者可上架该资源"),
+    NOTE_VERSION_RESOLVE_FAILED(5633, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_MARKET, ErrorReason.EXTERNAL_FAILED), "无法解析笔记版本，暂不能上架");
 
     private final Integer code;
     private final ResultKey key;

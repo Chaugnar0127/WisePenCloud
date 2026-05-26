@@ -14,6 +14,7 @@ import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateTagsRequest;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
 import com.oriole.wisepen.resource.domain.entity.ResourceItemEntity;
 import com.oriole.wisepen.resource.enums.ResourceSortBy;
+import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
 
 import java.util.List;
 import java.util.Map;
@@ -72,6 +73,8 @@ public interface IResourceService {
     void addOriginalEditors(String resourceId, List<String> originalEditorIds);
 
     ResourceItemResponse getResourceInfo(ResourceInfoGetReqDTO dto);
+
+    UserDisplayBase resolveOwnerDisplay(String ownerId);
 
     ResourceCheckPermissionResDTO checkPermission(ResourceCheckPermissionReqDTO dto);
 

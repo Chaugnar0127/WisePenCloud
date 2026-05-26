@@ -43,6 +43,21 @@ public class TagServiceImpl implements ITagService {
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
+    public Map<String, String> resolveTagNames(Collection<String> tagIds) {
+        if (tagIds == null || tagIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Set<String> distinctIds = tagIds.stream().filter(Objects::nonNull).collect(Collectors.toSet());
+        if (distinctIds.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<String, String> result = new HashMap<>();
+        tagRepository.findAllById(distinctIds)
+                .forEach(tag -> result.put(tag.getTagId(), tag.getTagName()));
+        return result;
+    }
+
+    @Override
     public String createTag(TagCreateRequest tagCreateRequest) {
         String groupID = tagCreateRequest.getGroupId();
         String parentId = tagCreateRequest.getParentId();

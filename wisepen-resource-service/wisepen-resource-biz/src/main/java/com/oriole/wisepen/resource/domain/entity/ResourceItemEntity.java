@@ -2,6 +2,7 @@ package com.oriole.wisepen.resource.domain.entity;
 
 import com.oriole.wisepen.resource.domain.ComputedGroupAcl;
 import com.oriole.wisepen.resource.domain.GroupTagBind;
+import com.oriole.wisepen.resource.domain.ResourceSellInfo;
 import com.oriole.wisepen.resource.domain.base.ResourceItemInfoBase;
 import com.oriole.wisepen.resource.enums.ResourceLifecycleStatus;
 import lombok.*;
@@ -28,6 +29,16 @@ public class ResourceItemEntity extends ResourceItemInfoBase {
 
     /** 曾参与编辑该资源的用户 ID（去重并集，用于上架资格等） */
     private List<String> originalEditorIds = new ArrayList<>();
+
+    private List<ResourceSellInfo> sellInfos = new ArrayList<>();
+
+    /** MongoDB 反序列化存量文档时 sellInfos 可能为 null */
+    public List<ResourceSellInfo> getSellInfos() {
+        if (sellInfos == null) {
+            sellInfos = new ArrayList<>();
+        }
+        return sellInfos;
+    }
 
     // 预计算后的运行时权限
     private Map<String, ComputedGroupAcl> computedGroupAcls;

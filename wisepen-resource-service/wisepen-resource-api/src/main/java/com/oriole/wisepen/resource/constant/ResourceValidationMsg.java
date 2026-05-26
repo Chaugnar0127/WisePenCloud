@@ -27,4 +27,10 @@ public interface ResourceValidationMsg {
 
     // 互动相关校验
     String SCORE_RANGE_INVALID = "评分必须在1到5之间";
+
+    String SELL_ID_NOT_BLANK = "售卖ID不能为空";
+    String PRICE_NOT_NULL = "价格不能为空";
+    String PRICE_POSITIVE = "价格必须为正数";
+    String SALE_METHOD_NOT_NULL = "售卖方式不能为空";
+    String REVIEW_RESULT_NOT_NULL = "审核结果不能为空";
 }

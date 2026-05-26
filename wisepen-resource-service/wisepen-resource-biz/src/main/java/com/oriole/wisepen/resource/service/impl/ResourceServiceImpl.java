@@ -347,17 +347,7 @@ public class ResourceServiceImpl implements IResourceService {
 
         resp.setCurrentActions(ResourceAction.permissionCodeToActions(currentActionsMask));
 
-        UserDisplayBase userDisplayBase;
-        try {
-            Long owner = Long.valueOf(entity.getOwnerId());
-            userDisplayBase = remoteUserService.getUserDisplayInfo(List.of(owner)).getData().get(owner);
-        } catch (Exception e) {
-            // Feign 调用失败：降级为占位用户，避免阻塞资源详情接口
-            log.warn("ownerInfo degraded resourceId={} ownerId={}",
-                    entity.getResourceId(), entity.getOwnerId(), e);
-            userDisplayBase = new UserDisplayBase("UNKNOW", null, null, null);
-        }
-        resp.setOwnerInfo(userDisplayBase);
+        resp.setOwnerInfo(resolveOwnerDisplay(entity.getOwnerId()));
 
         // 处理标签回显：只返回用户有权访问的组的标签
         Set<String> accessibleGroupIds = dto.getGroupRoles() == null
@@ -406,6 +396,19 @@ public class ResourceServiceImpl implements IResourceService {
             .orElseGet(ResourceInteractionInfoEntity::new);
         resp.setResourceInteractionInfo(resourceInteractionInfo);
         return resp;
+    }
+
+    @Override
+    public UserDisplayBase resolveOwnerDisplay(String ownerId) {
+        try {
+            Long owner = Long.valueOf(ownerId);
+            Map<Long, UserDisplayBase> userMap = remoteUserService.getUserDisplayInfo(List.of(owner)).getData();
+            UserDisplayBase display = userMap == null ? null : userMap.get(owner);
+            return display != null ? display : new UserDisplayBase("UNKNOW", null, null, null);
+        } catch (Exception e) {
+            log.warn("ownerInfo degraded ownerId={}", ownerId, e);
+            return new UserDisplayBase("UNKNOW", null, null, null);
+        }
     }
 
     @Override

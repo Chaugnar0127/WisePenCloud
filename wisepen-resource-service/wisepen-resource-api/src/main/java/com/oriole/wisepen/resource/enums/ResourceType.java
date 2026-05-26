@@ -6,8 +6,10 @@ import com.fasterxml.jackson.annotation.JsonValue;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 平台资源类型枚举
@@ -36,7 +38,14 @@ public enum ResourceType {
 
     private final String extension;
 
+    private static final Set<ResourceType> OFFICE_TYPES = EnumSet.of(
+            PDF, DOC, DOCX, PPT, PPTX, XLS, XLSX);
+
     private static final Map<String, ResourceType> EXT_MAP = new HashMap<>();
+
+    public boolean isOffice() {
+        return OFFICE_TYPES.contains(this);
+    }
 
     static {
         for (ResourceType item : values()) {
