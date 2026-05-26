@@ -6,6 +6,7 @@ import com.oriole.wisepen.common.core.domain.enums.list.QueryLogicEnum;
 import com.oriole.wisepen.common.core.domain.enums.list.SortDirectionEnum;
 import com.oriole.wisepen.resource.domain.dto.*;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceForkRequest;
+import com.oriole.wisepen.resource.domain.mq.ResourceForkCompletedMessage;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceRenameRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateActionPermissionRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateTagsRequest;
@@ -56,6 +57,8 @@ public interface IResourceService {
      * Fork 源资源到指定用户个人库：创建新元数据 → Kafka 广播 → FORKING。
      */
     String forkResource(ResourceForkRequest req, String ownerId);
+
+    void onForkCompleted(ResourceForkCompletedMessage message);
 
     void hardRemoveResources(List<String> resourceIds);
 

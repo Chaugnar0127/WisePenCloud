@@ -13,6 +13,7 @@ import com.oriole.wisepen.resource.domain.GroupTagBind;
 import com.oriole.wisepen.resource.domain.dto.*;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceForkRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceRenameRequest;
+import com.oriole.wisepen.resource.domain.mq.ResourceForkCompletedMessage;
 import com.oriole.wisepen.resource.domain.mq.ResourceForkMessage;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateActionPermissionRequest;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
@@ -588,6 +589,36 @@ public class ResourceServiceImpl implements IResourceService {
             resourceInteractionInfoRepository.deleteById(newResourceId);
             log.warn("resourceFork compensated newResourceId={}", newResourceId, e);
             throw e;
+        }
+    }
+
+    @Override
+    public void onForkCompleted(ResourceForkCompletedMessage message) {
+        String newResourceId = message.getNewResourceId();
+        ResourceItemEntity entity = resourceItemRepository.findById(newResourceId).orElse(null);
+        if (entity == null) {
+            log.warn("resourceForkCompleted skipped resource not found newResourceId={}", newResourceId);
+            return;
+        }
+        if (entity.getLifecycleStatus() != ResourceLifecycleStatus.FORKING) {
+            log.debug("resourceForkCompleted skipped not forking newResourceId={} status={}",
+                    newResourceId, entity.getLifecycleStatus());
+            return;
+        }
+
+        if (message.isSuccess()) {
+            entity.setLifecycleStatus(ResourceLifecycleStatus.READY);
+            resourceItemRepository.save(entity);
+            calculateResourceGroupAcl(newResourceId).ifPresent(saved ->
+                    searchSyncService.syncResourceMetadata(saved,
+                            EnumSet.of(UpsertField.RESOURCE_TYPE, UpsertField.RESOURCE_NAME, UpsertField.ACL)));
+            log.info("resourceForkCompleted success newResourceId={} resourceType={}",
+                    newResourceId, message.getResourceType());
+        } else {
+            entity.setLifecycleStatus(ResourceLifecycleStatus.FORK_FAILED);
+            resourceItemRepository.save(entity);
+            log.warn("resourceForkCompleted failed newResourceId={} resourceType={} error={}",
+                    newResourceId, message.getResourceType(), message.getErrorMessage());
         }
     }
 
