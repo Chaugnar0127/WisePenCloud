@@ -8,6 +8,7 @@ import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -22,6 +23,8 @@ public class ResourceItemResponse extends ResourceItemInfoBase {
 
     private Map<String, String> currentTags;
     private List<ResourceAction> currentActions;
+
+    private List<String> originalEditorIds = new ArrayList<>();
 
     private List<ResourceAction> overrideGrantedActions;
     private Map<String, List<ResourceAction>> specifiedUsersGrantedActions;

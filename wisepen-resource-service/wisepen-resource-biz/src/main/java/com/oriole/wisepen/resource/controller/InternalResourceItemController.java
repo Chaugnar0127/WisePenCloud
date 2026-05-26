@@ -11,6 +11,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/internal/resource")
 @RequiredArgsConstructor
@@ -32,6 +34,13 @@ public class InternalResourceItemController implements RemoteResourceService {
     @PostMapping("/changeResAttr")
     public R<Void> updateAttributes(@Validated @RequestBody ResourceUpdateReqDTO dto) {
         resourceService.updateResourceAttributes(dto);
+        return R.ok();
+    }
+
+    @PostMapping("/addOriginalEditors")
+    public R<Void> addOriginalEditors(@RequestParam("resourceId") String resourceId,
+                                      @RequestParam("originalEditorIds") List<String> originalEditorIds) {
+        resourceService.addOriginalEditors(resourceId, originalEditorIds);
         return R.ok();
     }
 

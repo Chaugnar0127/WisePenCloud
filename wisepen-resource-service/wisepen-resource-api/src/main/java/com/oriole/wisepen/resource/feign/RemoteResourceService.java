@@ -10,6 +10,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.util.List;
+
 /**
  * 提供给其他微服务的权限 RPC 接口
  */
@@ -24,6 +26,11 @@ public interface RemoteResourceService {
     @Operation(summary = "更新资源属性", description = "更新已有资源的大小等元信息")
     @PostMapping("/internal/resource/changeResAttr")
     R<Void> updateAttributes(@RequestBody ResourceUpdateReqDTO dto);
+
+    @Operation(summary = "追加资源原始编辑者", description = "将编辑者并集追加到资源 originalEditorIds")
+    @PostMapping("/internal/resource/addOriginalEditors")
+    R<Void> addOriginalEditors(@RequestParam("resourceId") String resourceId,
+                               @RequestParam("originalEditorIds") List<String> originalEditorIds);
 
     @Operation(summary = "获取资源详细信息", description = "获取单个资源的详细信息，包括当前挂载的标签、资源覆盖权限及指定用户权限")
     @PostMapping("/internal/resource/getResourceInfo")

@@ -502,6 +502,10 @@ public class ResourceServiceImpl implements IResourceService {
     public String createResourceItem(ResourceCreateReqDTO dto) {
         ResourceItemEntity entity = new ResourceItemEntity();
         BeanUtil.copyProperties(dto, entity);
+        // 新建资源：未指定编辑者时默认创建者；Fork 走 forkResource，不得复用此默认逻辑
+        entity.setOriginalEditorIds(dto.getOriginalEditorIds() == null
+                ? new ArrayList<>(Collections.singletonList(dto.getOwnerId()))
+                : new ArrayList<>(dto.getOriginalEditorIds()));
         resourceItemRepository.save(entity);
         try {
             String pathTagID = !StringUtils.hasText(dto.getPathTagId()) ?
@@ -548,11 +552,13 @@ public class ResourceServiceImpl implements IResourceService {
         req.setOwnerId(ownerId);
         assertValidForkResourceType(req.getResourceType());
 
-        resourceItemRepository.findById(req.getSourceResourceId())
+        ResourceItemEntity source = resourceItemRepository.findById(req.getSourceResourceId())
                 .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
 
         ResourceItemEntity entity = new ResourceItemEntity();
         BeanUtil.copyProperties(req, entity, CopyOptions.create().ignoreProperties("sourceResourceId", "version"));
+        // 仅继承源列表，不按 fork 者补 owner（与 createResourceItem 的默认 [ownerId] 区分）
+        entity.setOriginalEditorIds(copyOriginalEditorIdsFromSource(source));
         entity.setLifecycleStatus(ResourceLifecycleStatus.READY);
 
         resourceItemRepository.save(entity);
@@ -634,6 +640,14 @@ public class ResourceServiceImpl implements IResourceService {
                 .collect(Collectors.toList());
         log.info("resourceFork timed out count={} timeoutMinutes={} resourceIds={}",
                 timedOut.size(), timeoutMinutes, summarizeIds(resourceIds));
+    }
+
+    /** Fork：原样继承源资源编辑者列表，不因新 owner 自动追加 fork 者。 */
+    private List<String> copyOriginalEditorIdsFromSource(ResourceItemEntity source) {
+        if (source.getOriginalEditorIds() == null || source.getOriginalEditorIds().isEmpty()) {
+            return new ArrayList<>();
+        }
+        return new ArrayList<>(source.getOriginalEditorIds());
     }
 
     private ResourceForkMessage buildForkMessage(ResourceForkRequest req, String newResourceId, String ownerId) {
@@ -743,6 +757,26 @@ public class ResourceServiceImpl implements IResourceService {
             resourceItemRepository.save(entity);
             log.info("resourceAttributes updated resourceId={}", entity.getResourceId());
         }, () -> log.warn("resourceAttributes update skipped resourceId={}", dto.getResourceId()));
+    }
+
+    @Override
+    public void addOriginalEditors(String resourceId, List<String> editorIdsToAdd) {
+        if (editorIdsToAdd == null || editorIdsToAdd.isEmpty()) {
+            return;
+        }
+        resourceItemRepository.findById(resourceId).ifPresentOrElse(entity -> {
+            List<String> originalEditorIds = entity.getOriginalEditorIds() == null
+                    ? new ArrayList<>()
+                    : new ArrayList<>(entity.getOriginalEditorIds());
+            originalEditorIds.addAll(editorIdsToAdd);
+            entity.setOriginalEditorIds(originalEditorIds.stream()
+                    .filter(StringUtils::hasText)
+                    .distinct()
+                    .toList());
+            resourceItemRepository.save(entity);
+            log.info("resourceOriginalEditors updated resourceId={} editorCount={}",
+                    entity.getResourceId(), entity.getOriginalEditorIds().size());
+        }, () -> log.warn("resourceOriginalEditors update skipped resourceId={}", resourceId));
     }
 
     @Override

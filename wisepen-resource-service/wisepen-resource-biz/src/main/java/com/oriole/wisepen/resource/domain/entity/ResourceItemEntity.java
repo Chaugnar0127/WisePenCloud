@@ -26,6 +26,9 @@ public class ResourceItemEntity extends ResourceItemInfoBase {
 
     private List<GroupTagBind> groupBinds = new ArrayList<>();
 
+    /** 曾参与编辑该资源的用户 ID（去重并集，用于上架资格等） */
+    private List<String> originalEditorIds = new ArrayList<>();
+
     // 预计算后的运行时权限
     private Map<String, ComputedGroupAcl> computedGroupAcls;
 

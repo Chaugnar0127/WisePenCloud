@@ -9,6 +9,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 @Data
 @Builder
 @NoArgsConstructor
@@ -25,4 +27,7 @@ public class ResourceCreateReqDTO {
 
     private String preview;        // 初始预览图
     private Long size;             // 初始大小/字数
+
+    /** 原始编辑者；未传时由 resource 服务默认 [ownerId] */
+    private List<String> originalEditorIds;
 }
