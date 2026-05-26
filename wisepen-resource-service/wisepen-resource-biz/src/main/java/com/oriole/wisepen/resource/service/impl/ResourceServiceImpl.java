@@ -740,7 +740,7 @@ public class ResourceServiceImpl implements IResourceService {
     }
 
     /**
-     * 集市购买 fork 完成：写入 purchasedBuyerIds；失败则冲正（源资源 grant 已在支付时完成）。
+     * 集市购买 fork 完成：失败则冲正并删除 sellId+buyerId 购买记录（源资源 grant 已在支付时完成）。
      */
     private void onMarketPurchaseForkCompleted(ResourceForkCompletedMessage message) {
         if (message.getMarketOrderId() == null) {
@@ -751,8 +751,13 @@ public class ResourceServiceImpl implements IResourceService {
         ResourceSellInfo sellInfo = ResourceSellInfos.requireSellInfo(source, message.getMarketSellId());
 
         if (!message.isSuccess()) {
-            marketTradeService.tryReversePaidTrade(message.getMarketOrderId(),
-                    InfoPointTradeReverseReason.DELIVERY_FAILED, "FORK_FAILED");
+            if (!marketTradeService.tryReversePaidTrade(message.getMarketOrderId(),
+                    InfoPointTradeReverseReason.DELIVERY_FAILED, "FORK_FAILED")) {
+                log.error("MARKET_TRADE_REVERSE_ALERT fork failed and reverse failed "
+                                + "resourceId={} sellId={} orderId={} buyerId={} newResourceId={}",
+                        source.getResourceId(), message.getMarketSellId(), message.getMarketOrderId(),
+                        message.getMarketBuyerId(), message.getNewResourceId());
+            }
             removeMarketPurchasedBuyer(sellInfo, message.getMarketBuyerId(), source);
             return;
         }

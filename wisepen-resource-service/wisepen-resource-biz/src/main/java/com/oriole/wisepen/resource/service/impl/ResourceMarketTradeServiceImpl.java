@@ -34,6 +34,9 @@ public class ResourceMarketTradeServiceImpl implements IResourceMarketTradeServi
                 orderId, buyerId, sellerId, price);
     }
 
+    /** 日志告警关键字，供监控规则匹配（如 Loki/ELK alert）。 */
+    private static final String REVERSE_ALERT = "MARKET_TRADE_REVERSE_ALERT";
+
     @Override
     public boolean tryReversePaidTrade(Long orderId, InfoPointTradeReverseReason reason, String detail) {
         try {
@@ -43,12 +46,17 @@ public class ResourceMarketTradeServiceImpl implements IResourceMarketTradeServi
                     .detail(detail)
                     .build());
             if (response == null || !Integer.valueOf(200).equals(response.getCode())) {
+                log.error("{} wallet rejected orderId={} reason={} detail={} code={} msg={}",
+                        REVERSE_ALERT, orderId, reason, detail,
+                        response == null ? null : response.getCode(),
+                        response == null ? null : response.getMsg());
                 return false;
             }
             log.info("market trade reversed orderId={} reason={}", orderId, reason);
             return true;
         } catch (Exception ex) {
-            log.error("market trade reverse failed orderId={} reason={} detail={}", orderId, reason, detail, ex);
+            log.error("{} wallet call failed orderId={} reason={} detail={}",
+                    REVERSE_ALERT, orderId, reason, detail, ex);
             return false;
         }
     }

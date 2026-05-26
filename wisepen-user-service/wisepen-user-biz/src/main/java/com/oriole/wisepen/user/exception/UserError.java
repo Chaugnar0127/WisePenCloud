@@ -61,7 +61,10 @@ public enum UserError implements IResult {
     WALLET_INFO_POINT_INVALID_PRICE(3916, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.INVALID), "交易价格无效"),
     WALLET_INFO_POINT_TRADE_NOT_FOUND(3917, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.NOT_FOUND), "信息点交易不存在"),
     WALLET_INFO_POINT_TRADE_ALREADY_REVOKED(3918, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.STATE_INVALID), "信息点交易已撤回"),
-    WALLET_INFO_POINT_TRADE_REVOKE_NOT_ALLOWED(3919, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.NOT_ALLOWED), "当前状态不允许冲正");
+    WALLET_INFO_POINT_TRADE_REVOKE_NOT_ALLOWED(3919, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.NOT_ALLOWED), "当前状态不允许冲正"),
+    WALLET_INFO_POINT_MARKET_TRADE_EXISTS(3920, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.CONFLICT), "集市交易已存在"),
+    WALLET_INFO_POINT_TRADE_SETTLE_INCONSISTENT(3921, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.STATE_INVALID), "集市结算流水异常，无法处理"),
+    WALLET_INFO_POINT_TRADE_SETTLE_MISMATCH(3922, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.INVALID), "集市结算参数与已有流水不一致");
 
     private final Integer code;
     private final ResultKey key;

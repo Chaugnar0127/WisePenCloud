@@ -17,6 +17,6 @@ public class ResourcePurchaseResponse extends SellInfoBase {
     @Schema(description = "资源 ID")
     private String resourceId;
 
-    @Schema(description = "集市购买订单号，与钱包流水 relatedId 一致")
+    @Schema(description = "集市订单号（由 sellId+buyerId 确定性生成），与钱包流水 relatedId 一致")
     private Long orderId;
 }

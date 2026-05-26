@@ -23,9 +23,11 @@ import com.oriole.wisepen.resource.domain.dto.res.ResourceSellInfoResponse;
 import com.oriole.wisepen.resource.domain.entity.ResourceItemEntity;
 import com.oriole.wisepen.resource.enums.ResourceAction;
 import com.oriole.wisepen.resource.enums.ResourceType;
+import com.oriole.wisepen.resource.enums.SaleMethod;
 import com.oriole.wisepen.resource.exception.ResourceError;
 import com.oriole.wisepen.resource.repository.ResourceItemRepository;
 import com.oriole.wisepen.resource.service.IResourceMarketService;
+import com.oriole.wisepen.resource.util.MarketOrderIds;
 import com.oriole.wisepen.resource.service.IResourceMarketTradeService;
 import com.oriole.wisepen.resource.service.IResourceService;
 import com.oriole.wisepen.resource.service.ITagService;
@@ -97,7 +99,6 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
 
         boolean duplicateSale = resource.getSellInfos().stream()
                 .anyMatch(sellInfo -> Objects.equals(req.getGroupId(), sellInfo.getGroupId())
-                        && sellInfo.getSaleMethod() == req.getSaleMethod()
                         && !Boolean.TRUE.equals(sellInfo.getOffShelf()));
         if (duplicateSale) {
             throw new ServiceException(ResourceError.SELL_INFO_ALREADY_LISTED);
@@ -131,6 +132,7 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
         ResourceSellInfo sellInfo = BeanUtil.copyProperties(req, ResourceSellInfo.class);
         BeanUtil.fillBeanWithMap(Map.of(
                 "sellId", IdUtil.fastSimpleUUID(),
+                "saleMethod", SaleMethod.COPY_SUBSCRIPTION,
                 "version", listedVersion,
                 "offShelf", false,
                 "listedAt", LocalDateTime.now(),
@@ -205,12 +207,7 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
         if (sellInfo.getPurchasedBuyerIds().contains(buyerIdStr)) {
             throw new ServiceException(ResourceError.MARKET_PURCHASE_ALREADY_EXISTS);
         }
-
-        Long orderId = IdUtil.getSnowflakeNextId();
-        marketTradeService.chargeMarketOrder(buyerId, Long.valueOf(resource.getOwnerId()), sellInfo.getPrice(), orderId);
-
-        sellInfo.getPurchasedBuyerIds().add(buyerIdStr);
-        resourceItemRepository.save(resource);
+        Long orderId = MarketOrderIds.of(sellInfo.getSellId(), buyerIdStr);
 
         ResourceForkRequest forkReq = ResourceForkRequest.builder()
                 .sourceResourceId(resource.getResourceId())
@@ -221,6 +218,9 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
                 .version(sellInfo.getVersion())
                 .build();
         try {
+            marketTradeService.chargeMarketOrder(buyerId, Long.valueOf(resource.getOwnerId()), sellInfo.getPrice(), orderId);
+            sellInfo.getPurchasedBuyerIds().add(buyerIdStr);
+            resourceItemRepository.save(resource);
             resourceService.grantUserResourceActions(resource.getResourceId(), buyerIdStr,
                     List.of(ResourceAction.DISCOVER, ResourceAction.VIEW,
                             ResourceAction.DOWNLOAD_WATERMARK, ResourceAction.FORK));
@@ -228,10 +228,15 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
         } catch (RuntimeException ex) {
             log.error("market purchase delivery failed resourceId={} sellId={} orderId={}",
                     resource.getResourceId(), sellInfo.getSellId(), orderId, ex);
-            sellInfo.getPurchasedBuyerIds().remove(buyerIdStr);
-            resourceItemRepository.save(resource);
-            marketTradeService.tryReversePaidTrade(orderId,
-                    InfoPointTradeReverseReason.DELIVERY_FAILED, ex.getMessage());
+            if (sellInfo.getPurchasedBuyerIds().remove(buyerIdStr)) {
+                resourceItemRepository.save(resource);
+            }
+            if (!marketTradeService.tryReversePaidTrade(orderId,
+                    InfoPointTradeReverseReason.DELIVERY_FAILED, ex.getMessage())) {
+                log.error("MARKET_TRADE_REVERSE_ALERT purchase delivery failed and reverse failed "
+                                + "resourceId={} sellId={} orderId={} buyerId={}",
+                        resource.getResourceId(), sellInfo.getSellId(), orderId, buyerId);
+            }
             throw ex;
         }
 
