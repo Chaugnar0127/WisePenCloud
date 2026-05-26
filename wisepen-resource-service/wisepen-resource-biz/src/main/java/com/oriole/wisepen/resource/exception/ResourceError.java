@@ -53,7 +53,11 @@ public enum ResourceError implements IResult {
     SELL_INFO_ALREADY_LISTED(5621, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_MARKET, ErrorReason.CONFLICT), "该资源在此小组下已有相同售卖方式的未下架商品"),
     RESOURCE_TYPE_UNSUPPORTED_FOR_SELL(5631, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_MARKET, ErrorReason.UNSUPPORTED), "该资源类型暂不支持上架"),
     SELL_PUBLISHER_NOT_ORIGINAL_EDITOR(5632, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_MARKET, ErrorReason.NOT_ALLOWED), "仅原始编辑者可上架该资源"),
-    NOTE_VERSION_RESOLVE_FAILED(5633, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_MARKET, ErrorReason.EXTERNAL_FAILED), "无法解析笔记版本，暂不能上架");
+    NOTE_VERSION_RESOLVE_FAILED(5633, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_MARKET, ErrorReason.EXTERNAL_FAILED), "无法解析笔记版本，暂不能上架"),
+    SELL_INFO_NOT_PURCHASABLE(5612, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_MARKET, ErrorReason.STATE_INVALID), "该售卖项当前不可购买"),
+    MARKET_PURCHASE_ALREADY_EXISTS(5622, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_MARKET, ErrorReason.CONFLICT), "您已购买过该售卖项"),
+    SELF_PURCHASE_NOT_ALLOWED(5634, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_MARKET, ErrorReason.NOT_ALLOWED), "不能购买自己的资源"),
+    RESOURCE_MARKET_TRADE_SETTLE_FAILED(5651, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_MARKET, ErrorReason.EXTERNAL_FAILED), "集市交易结算失败");
 
     private final Integer code;
     private final ResultKey key;

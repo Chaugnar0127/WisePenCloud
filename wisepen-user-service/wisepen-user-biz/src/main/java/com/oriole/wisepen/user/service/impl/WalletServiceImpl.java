@@ -240,40 +240,15 @@ public class WalletServiceImpl implements IWalletService {
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void confirmInfoPointTradeSuccess(Long relatedId) {
-        List<InfoPointTransactionRecordEntity> records = requireMarketTradeRecords(relatedId);
-        if (records.stream().anyMatch(record -> record.getTradeStatus() == InfoPointTradeStatus.ADMIN_REVOKED)) {
-            throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_ALREADY_REVOKED);
-        }
-        if (records.stream().allMatch(record -> record.getTradeStatus() == InfoPointTradeStatus.TRADE_SUCCESS)) {
-            return;
-        }
-
-        int affectedRows = infoPointTransactionRecordMapper.update(null,
-                Wrappers.<InfoPointTransactionRecordEntity>lambdaUpdate()
-                        .eq(InfoPointTransactionRecordEntity::getRelatedId, relatedId)
-                        .eq(InfoPointTransactionRecordEntity::getTradeStatus, InfoPointTradeStatus.PAID)
-                        .in(InfoPointTransactionRecordEntity::getChangeType,
-                                InfoPointChangeType.MARKET_PURCHASE, InfoPointChangeType.MARKET_INCOME)
-                        .set(InfoPointTransactionRecordEntity::getTradeStatus, InfoPointTradeStatus.TRADE_SUCCESS));
-        if (affectedRows != 2) {
-            if (records.stream().anyMatch(record -> record.getTradeStatus() == InfoPointTradeStatus.TRADE_SUCCESS)) {
-                throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_ALREADY_CONFIRMED);
-            }
-            throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_CONFIRM_NOT_ALLOWED);
-        }
-        log.info("信息点交易交割成功: relatedId={}", relatedId);
-    }
-
-    @Override
-    @Transactional(rollbackFor = Exception.class)
     public void reverseInfoPointTrade(InfoPointTradeReverseRequest req) {
         Long relatedId = req.getRelatedId();
-        Long operatorId = req.getOperatorId();
         List<InfoPointTransactionRecordEntity> records = requireMarketTradeRecords(relatedId);
         if (records.stream().anyMatch(record -> record.getTradeStatus() == InfoPointTradeStatus.ADMIN_REVOKED)) {
             log.info("信息点交易冲正幂等跳过: relatedId={}", relatedId);
             return;
+        }
+        if (records.stream().anyMatch(record -> record.getTradeStatus() != InfoPointTradeStatus.PAID)) {
+            throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_REVOKE_NOT_ALLOWED);
         }
 
         InfoPointTransactionRecordEntity purchase = records.stream()
@@ -285,25 +260,29 @@ public class WalletServiceImpl implements IWalletService {
                 .findFirst()
                 .orElseThrow(() -> new ServiceException(UserError.WALLET_INFO_POINT_TRADE_REVOKE_NOT_ALLOWED));
 
+        Long operatorId = req.getOperatorId();
+
         String meta = buildReverseMeta(req.getReason(), req.getDetail());
-        changeInfoPointBalance(InfoPointChangeRequest.builder()
+        InfoPointChangeRequest.InfoPointChangeRequestBuilder purchaseRevoke = InfoPointChangeRequest.builder()
                 .userId(purchase.getUserId())
                 .changeAmount(-purchase.getChangeAmount())
                 .changeType(InfoPointChangeType.MARKET_TRADE_REVOKE)
                 .tradeStatus(InfoPointTradeStatus.ADMIN_REVOKED)
                 .relatedId(relatedId)
-                .operatorId(operatorId)
-                .meta(meta)
-                .build());
-        changeInfoPointBalance(InfoPointChangeRequest.builder()
+                .meta(meta);
+        InfoPointChangeRequest.InfoPointChangeRequestBuilder incomeRevoke = InfoPointChangeRequest.builder()
                 .userId(income.getUserId())
                 .changeAmount(-income.getChangeAmount())
                 .changeType(InfoPointChangeType.MARKET_TRADE_REVOKE)
                 .tradeStatus(InfoPointTradeStatus.ADMIN_REVOKED)
                 .relatedId(relatedId)
-                .operatorId(operatorId)
-                .meta(meta)
-                .build());
+                .meta(meta);
+        if (operatorId != null) {
+            purchaseRevoke.operatorId(operatorId);
+            incomeRevoke.operatorId(operatorId);
+        }
+        changeInfoPointBalance(purchaseRevoke.build());
+        changeInfoPointBalance(incomeRevoke.build());
 
         infoPointTransactionRecordMapper.update(null,
                 Wrappers.<InfoPointTransactionRecordEntity>lambdaUpdate()

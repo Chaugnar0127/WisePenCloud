@@ -11,6 +11,7 @@ import com.oriole.wisepen.resource.config.ResourceProperties;
 import com.oriole.wisepen.resource.constant.ResourceConstants;
 import com.oriole.wisepen.resource.domain.ComputedGroupAcl;
 import com.oriole.wisepen.resource.domain.GroupTagBind;
+import com.oriole.wisepen.resource.domain.ResourceSellInfo;
 import com.oriole.wisepen.resource.domain.dto.*;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceForkRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceForkRetryRequest;
@@ -36,10 +37,12 @@ import com.oriole.wisepen.resource.repository.ResourceUserInteractRecordReposito
 import com.oriole.wisepen.resource.repository.TagRepository;
 import com.oriole.wisepen.resource.mq.IEventPublisher;
 import com.oriole.wisepen.resource.service.IGroupResService;
+import com.oriole.wisepen.resource.service.IResourceMarketTradeService;
 import com.oriole.wisepen.resource.service.IResourceService;
 import com.oriole.wisepen.resource.service.ISearchSyncService;
 import com.oriole.wisepen.resource.service.ITagService;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
+import com.oriole.wisepen.user.api.enums.InfoPointTradeReverseReason;
 import com.oriole.wisepen.user.api.feign.RemoteUserService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
@@ -85,6 +88,7 @@ public class ResourceServiceImpl implements IResourceService {
     private final ResourceProperties resourceProperties;
 
     private final RemoteUserService remoteUserService;
+    private final IResourceMarketTradeService marketTradeService;
 
     @TransactionalEventListener
     public void handleTagTrashedEvent(TagTrashedEvent event) {
@@ -294,6 +298,28 @@ public class ResourceServiceImpl implements IResourceService {
 
         // 保存资源级权限覆盖后，触发重算
         eventPublisher.publishAclRecalculateEvent(entity.getResourceId(), "RESOURCE_ACTION_PERMISSION_CHANGED");
+    }
+
+    @Override
+    public void grantUserResourceActions(String resourceId, String userId, List<ResourceAction> actions) {
+        ResourceItemEntity entity = resourceItemRepository.findById(resourceId)
+                .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
+
+        int grantedMask = ResourceAction.actionsToPermissionCode(actions);
+        Map<String, Integer> specifiedMaskMap = entity.getSpecifiedUsersGrantedActionsMask();
+        if (specifiedMaskMap == null) {
+            specifiedMaskMap = new HashMap<>();
+            entity.setSpecifiedUsersGrantedActionsMask(specifiedMaskMap);
+        }
+
+        int oldMask = specifiedMaskMap.getOrDefault(userId, 0);
+        specifiedMaskMap.put(userId, oldMask | grantedMask);
+
+        resourceItemRepository.save(entity);
+        log.info("resource userActions granted resourceId={} userId={} oldMask={} grantMask={} newMask={}",
+                entity.getResourceId(), userId, oldMask, grantedMask, specifiedMaskMap.get(userId));
+
+        eventPublisher.publishAclRecalculateEvent(entity.getResourceId(), "RESOURCE_USER_ACTIONS_GRANTED");
     }
 
     @Override
@@ -551,7 +577,7 @@ public class ResourceServiceImpl implements IResourceService {
     }
 
     @Override
-    public String forkResource(ResourceForkRequest req, String ownerId) {
+    public String forkResource(ResourceForkRequest req, String ownerId, Long marketOrderId, String marketSellId) {
         req.setOwnerId(ownerId);
         assertValidForkResourceType(req.getResourceType());
 
@@ -559,8 +585,8 @@ public class ResourceServiceImpl implements IResourceService {
                 .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
 
         ResourceItemEntity entity = new ResourceItemEntity();
-        BeanUtil.copyProperties(req, entity, CopyOptions.create().ignoreProperties("sourceResourceId", "version"));
-        // 仅继承源列表，不按 fork 者补 owner（与 createResourceItem 的默认 [ownerId] 区分）
+        BeanUtil.copyProperties(req, entity, CopyOptions.create()
+                .setIgnoreProperties("sourceResourceId", "version"));
         entity.setOriginalEditorIds(copyOriginalEditorIdsFromSource(source));
         entity.setLifecycleStatus(ResourceLifecycleStatus.READY);
 
@@ -581,18 +607,24 @@ public class ResourceServiceImpl implements IResourceService {
 
             resourceInteractionInfoRepository.save(new ResourceInteractionInfoEntity(newResourceId));
 
-            eventPublisher.publishResourceForkEvent(buildForkMessage(req, newResourceId, ownerId));
+            eventPublisher.publishResourceForkEvent(
+                    buildForkMessage(req, newResourceId, ownerId, marketOrderId, marketSellId));
 
             entity.setLifecycleStatus(ResourceLifecycleStatus.FORKING);
             resourceItemRepository.save(entity);
 
-            log.info("resource fork started sourceResourceId={} newResourceId={} ownerId={} resourceType={}",
-                    req.getSourceResourceId(), newResourceId, ownerId, req.getResourceType());
+            if (marketOrderId != null) {
+                log.info("resource market fork started sourceResourceId={} newResourceId={} ownerId={} orderId={}",
+                        req.getSourceResourceId(), newResourceId, ownerId, marketOrderId);
+            } else {
+                log.info("resource fork started sourceResourceId={} newResourceId={} ownerId={} resourceType={}",
+                        req.getSourceResourceId(), newResourceId, ownerId, req.getResourceType());
+            }
             return newResourceId;
         } catch (Exception e) {
             resourceItemRepository.deleteById(newResourceId);
             resourceInteractionInfoRepository.deleteById(newResourceId);
-            log.warn("resourceFork compensated newResourceId={}", newResourceId, e);
+            log.warn("resourceFork compensated newResourceId={} orderId={}", newResourceId, marketOrderId, e);
             throw e;
         }
     }
@@ -614,12 +646,12 @@ public class ResourceServiceImpl implements IResourceService {
         req.setResourceType(type);
 
         BeanUtil.copyProperties(req, entity, CopyOptions.create()
-                .ignoreProperties("sourceResourceId", "version", "newResourceId")
+                .setIgnoreProperties("sourceResourceId", "version", "newResourceId")
                 .ignoreNullValue());
         entity.setLifecycleStatus(ResourceLifecycleStatus.FORKING);
         resourceItemRepository.save(entity);
 
-        eventPublisher.publishResourceForkEvent(buildForkMessage(req, req.getNewResourceId(), ownerId));
+        eventPublisher.publishResourceForkEvent(buildForkMessage(req, req.getNewResourceId(), ownerId, null, null));
         log.info("resource fork retry sourceResourceId={} newResourceId={} ownerId={}",
                 req.getSourceResourceId(), req.getNewResourceId(), ownerId);
     }
@@ -653,7 +685,8 @@ public class ResourceServiceImpl implements IResourceService {
         return new ArrayList<>(source.getOriginalEditorIds());
     }
 
-    private ResourceForkMessage buildForkMessage(ResourceForkRequest req, String newResourceId, String ownerId) {
+    private ResourceForkMessage buildForkMessage(ResourceForkRequest req, String newResourceId, String ownerId,
+            Long marketOrderId, String marketSellId) {
         return ResourceForkMessage.builder()
                 .sourceResourceId(req.getSourceResourceId())
                 .newResourceId(newResourceId)
@@ -661,6 +694,8 @@ public class ResourceServiceImpl implements IResourceService {
                 .version(req.getVersion())
                 .forkedBy(ownerId)
                 .ownerId(ownerId)
+                .marketOrderId(marketOrderId)
+                .marketSellId(marketSellId)
                 .build();
     }
 
@@ -699,6 +734,39 @@ public class ResourceServiceImpl implements IResourceService {
             log.warn("resourceForkCompleted failed newResourceId={} resourceType={} error={}",
                     newResourceId, message.getResourceType(), message.getErrorMessage());
         }
+
+        onMarketPurchaseForkCompleted(message);
+    }
+
+    /**
+     * 集市购买 fork 完成：写入 purchasedBuyerIds；失败则冲正（源资源 grant 已在支付时完成）。
+     */
+    private void onMarketPurchaseForkCompleted(ResourceForkCompletedMessage message) {
+        if (message.getMarketOrderId() == null) {
+            return;
+        }
+        if (!message.isSuccess()) {
+            marketTradeService.tryReversePaidTrade(message.getMarketOrderId(),
+                    InfoPointTradeReverseReason.DELIVERY_FAILED, "FORK_FAILED");
+            return;
+        }
+
+        ResourceItemEntity source = resourceItemRepository.findById(message.getSourceResourceId())
+                .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
+        ResourceSellInfo sellInfo = source.getSellInfos().stream()
+                .filter(si -> Objects.equals(si.getSellId(), message.getMarketSellId()))
+                .findFirst()
+                .orElseThrow(() -> new ServiceException(ResourceError.SELL_INFO_NOT_FOUND));
+
+        String buyerIdStr = message.getMarketBuyerId().toString();
+        if (sellInfo.getPurchasedBuyerIds().contains(buyerIdStr)) {
+            return;
+        }
+        sellInfo.getPurchasedBuyerIds().add(buyerIdStr);
+        resourceItemRepository.save(source);
+        log.info("market purchase fork completed resourceId={} sellId={} buyerId={} orderId={} newResourceId={}",
+                source.getResourceId(), message.getMarketSellId(), message.getMarketBuyerId(),
+                message.getMarketOrderId(), message.getNewResourceId());
     }
 
     @Override

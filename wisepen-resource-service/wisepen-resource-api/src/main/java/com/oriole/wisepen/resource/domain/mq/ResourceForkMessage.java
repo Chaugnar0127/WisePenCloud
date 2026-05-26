@@ -23,4 +23,8 @@ public class ResourceForkMessage implements Serializable {
     private Long version;
     private String forkedBy;
     private String ownerId;
+    /** 集市购买订单号，非集市 fork 为空 */
+    private Long marketOrderId;
+    /** 集市售卖项 ID，非集市 fork 为空 */
+    private String marketSellId;
 }

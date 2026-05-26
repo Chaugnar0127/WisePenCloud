@@ -61,9 +61,7 @@ public enum UserError implements IResult {
     WALLET_INFO_POINT_INVALID_PRICE(3916, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.INVALID), "交易价格无效"),
     WALLET_INFO_POINT_TRADE_NOT_FOUND(3917, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.NOT_FOUND), "信息点交易不存在"),
     WALLET_INFO_POINT_TRADE_ALREADY_REVOKED(3918, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.STATE_INVALID), "信息点交易已撤回"),
-    WALLET_INFO_POINT_TRADE_REVOKE_NOT_ALLOWED(3919, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.NOT_ALLOWED), "当前状态不允许冲正"),
-    WALLET_INFO_POINT_TRADE_ALREADY_CONFIRMED(3920, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.STATE_INVALID), "信息点交易已确认完成"),
-    WALLET_INFO_POINT_TRADE_CONFIRM_NOT_ALLOWED(3921, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.NOT_ALLOWED), "当前状态不允许确认交易");
+    WALLET_INFO_POINT_TRADE_REVOKE_NOT_ALLOWED(3919, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.NOT_ALLOWED), "当前状态不允许冲正");
 
     private final Integer code;
     private final ResultKey key;

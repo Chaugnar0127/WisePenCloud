@@ -3,6 +3,7 @@ package com.oriole.wisepen.note.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.StrUtil;
 import com.oriole.wisepen.common.core.exception.ServiceException;
+import com.oriole.wisepen.note.api.constant.NoteForkFailureDetail;
 import com.oriole.wisepen.note.api.domain.base.NoteInfoBase;
 import com.oriole.wisepen.note.api.domain.dto.req.NoteCreateRequest;
 import com.oriole.wisepen.note.domain.entity.NoteInfoEntity;
@@ -90,13 +91,13 @@ public class NoteServiceImpl implements INoteService {
         String newResourceId = message.getNewResourceId();
         try {
             if (noteDocumentRepository.findById(newResourceId).isPresent()) {
-                publishForkCompleted(newResourceId, true, null);
+                publishForkCompleted(message, newResourceId, true, null);
                 return;
             }
 
             NoteInfoEntity sourceInfo = noteDocumentRepository.findById(sourceResourceId).orElse(null);
             if (sourceInfo == null) {
-                publishForkCompleted(newResourceId, false, "source note not found");
+                publishForkCompleted(message, newResourceId, false, NoteForkFailureDetail.SOURCE_NOTE_NOT_FOUND);
                 return;
             }
 
@@ -108,7 +109,7 @@ public class NoteServiceImpl implements INoteService {
             if (targetVersion != null) {
                 boolean hasExactVersion = sourceVersions.stream().anyMatch(v -> targetVersion.equals(v.getVersion()));
                 if (!hasExactVersion) {
-                    publishForkCompleted(newResourceId, false, "target version not found");
+                    publishForkCompleted(message, newResourceId, false, NoteForkFailureDetail.TARGET_VERSION_NOT_FOUND);
                     return;
                 }
             }
@@ -132,17 +133,22 @@ public class NoteServiceImpl implements INoteService {
             }
             noteDocumentRepository.save(newInfo);
 
-            publishForkCompleted(newResourceId, true, null);
+            publishForkCompleted(message, newResourceId, true, null);
         } catch (Exception e) {
             log.warn("noteFork failed sourceResourceId={} newResourceId={} version={}",
                     sourceResourceId, newResourceId, message.getVersion(), e);
-            publishForkCompleted(newResourceId, false, e.getMessage());
+            publishForkCompleted(message, newResourceId, false, e.getMessage());
         }
     }
 
-    private void publishForkCompleted(String newResourceId, boolean success, String errorMessage) {
+    private void publishForkCompleted(ResourceForkMessage message, String newResourceId, boolean success,
+            String errorMessage) {
         noteEventPublisher.publishForkCompleted(ResourceForkCompletedMessage.builder()
                 .newResourceId(newResourceId)
+                .sourceResourceId(message.getSourceResourceId())
+                .marketOrderId(message.getMarketOrderId())
+                .marketSellId(message.getMarketSellId())
+                .marketBuyerId(Long.valueOf(message.getOwnerId()))
                 .success(success)
                 .errorMessage(errorMessage)
                 .resourceType(ResourceType.NOTE)

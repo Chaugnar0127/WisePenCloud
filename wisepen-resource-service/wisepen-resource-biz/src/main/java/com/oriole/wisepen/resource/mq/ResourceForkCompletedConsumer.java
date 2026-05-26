@@ -18,8 +18,9 @@ public class ResourceForkCompletedConsumer {
 
     @KafkaListener(topics = TOPIC_RESOURCE_FORK_COMPLETED, groupId = "wisepen-resource-fork-completed-group")
     public void onForkCompleted(ResourceForkCompletedMessage message) {
-        log.info("resourceForkCompleted received topic={} newResourceId={} success={} resourceType={}",
-                TOPIC_RESOURCE_FORK_COMPLETED, message.getNewResourceId(), message.isSuccess(), message.getResourceType());
+        log.info("resourceForkCompleted received topic={} newResourceId={} success={} resourceType={} marketOrderId={}",
+                TOPIC_RESOURCE_FORK_COMPLETED, message.getNewResourceId(), message.isSuccess(),
+                message.getResourceType(), message.getMarketOrderId());
         try {
             resourceService.onForkCompleted(message);
         } catch (Exception e) {

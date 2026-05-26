@@ -19,10 +19,6 @@ public interface RemoteWalletService {
     @PostMapping("/internal/wallet/infopoint/settleTrade")
     R<Void> settleInfoPointTrade(@RequestBody InfoPointTradeSettleRequest req);
 
-    @Operation(summary = "内部确认信息点交易成功")
-    @PostMapping("/internal/wallet/infopoint/confirmTradeSuccess")
-    R<Void> confirmInfoPointTradeSuccess(@RequestParam("relatedId") Long relatedId);
-
     @Operation(summary = "内部冲正信息点集市交易")
     @PostMapping("/internal/wallet/infopoint/reverseTrade")
     R<Void> reverseInfoPointTrade(@RequestBody InfoPointTradeReverseRequest req);

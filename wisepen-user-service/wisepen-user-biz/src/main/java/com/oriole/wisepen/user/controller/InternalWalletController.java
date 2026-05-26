@@ -23,13 +23,8 @@ public class InternalWalletController implements RemoteWalletService {
     }
 
     @Override
-    public R<Void> confirmInfoPointTradeSuccess(Long relatedId) {
-        walletService.confirmInfoPointTradeSuccess(relatedId);
-        return R.ok();
-    }
-
-    @Override
     public R<Void> reverseInfoPointTrade(@RequestBody @Valid InfoPointTradeReverseRequest req) {
+        // 内部 Feign 无登录态，不设置 operatorId；对外 Controller 需注入 req.operatorId
         walletService.reverseInfoPointTrade(req);
         return R.ok();
     }

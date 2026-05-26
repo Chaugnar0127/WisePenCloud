@@ -17,7 +17,7 @@ public class InfoPointTradeReverseRequest {
     @NotNull(message = WalletValidationMsg.INFO_POINT_TRADE_RELATED_ID_NOT_NULL)
     private Long relatedId;
 
-    @NotNull(message = WalletValidationMsg.INFO_POINT_TRADE_USER_ID_NOT_NULL)
+    /** 操作人，由 Controller 从安全上下文注入；内部 Feign 冲正可不传 */
     private Long operatorId;
 
     @NotNull(message = WalletValidationMsg.INFO_POINT_TRADE_REVERSE_REASON_NOT_NULL)

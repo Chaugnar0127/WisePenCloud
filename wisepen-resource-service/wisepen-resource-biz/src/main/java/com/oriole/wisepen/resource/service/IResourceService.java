@@ -13,6 +13,7 @@ import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateActionPermission
 import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateTagsRequest;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
 import com.oriole.wisepen.resource.domain.entity.ResourceItemEntity;
+import com.oriole.wisepen.resource.enums.ResourceAction;
 import com.oriole.wisepen.resource.enums.ResourceSortBy;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
 
@@ -33,6 +34,8 @@ public interface IResourceService {
     void updateGroupResourceTags(String resourceId, String groupId, String userId, GroupRoleType groupRole, List<String> tagIds);
 
     void updateResourceActionPermission(ResourceUpdateActionPermissionRequest req);
+
+    void grantUserResourceActions(String resourceId, String userId, List<ResourceAction> actions);
 
     PageR<ResourceItemResponse> listResources(String currentUserId,
                                               String groupId, GroupRoleType userGroupRole,
@@ -57,8 +60,9 @@ public interface IResourceService {
 
     /**
      * Fork 源资源到指定用户个人库：创建新元数据 → Kafka 广播 → FORKING。
+     * {@code marketOrderId} 非空时为集市购买 fork，Kafka 消息带订单号；副本 owner 即 fork 者，鉴权走 owner 全权限。
      */
-    String forkResource(ResourceForkRequest req, String ownerId);
+    String forkResource(ResourceForkRequest req, String ownerId, Long marketOrderId, String marketSellId);
 
     void onForkCompleted(ResourceForkCompletedMessage message);
 

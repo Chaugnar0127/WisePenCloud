@@ -5,9 +5,11 @@ import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.common.core.domain.enums.BusinessType;
 import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
+import com.oriole.wisepen.resource.domain.dto.req.ResourcePurchaseRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourcePublishSellRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceReviewSellRequest;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceMarketDetailResponse;
+import com.oriole.wisepen.resource.domain.dto.res.ResourcePurchaseResponse;
 import com.oriole.wisepen.resource.service.IResourceMarketService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -56,5 +58,13 @@ public class ResourceMarketController {
                 SecurityContextHolder.getIdentityType(),
                 SecurityContextHolder.getGroupRoleMap());
         return R.ok();
+    }
+
+    @Operation(summary = "购买资源", description = "同步扣款并授予源资源权限，提交 fork（TOPIC_RESOURCE_FORK）；purchasedBuyerIds 在 FORK_COMPLETED 后写入")
+    @Log(title = "购买资源", businessType = BusinessType.INSERT)
+    @PostMapping("/purchaseProduct")
+    public R<ResourcePurchaseResponse> purchaseProduct(@Validated @RequestBody ResourcePurchaseRequest req) {
+        SecurityContextHolder.assertInGroup(Long.valueOf(req.getGroupId()));
+        return R.ok(resourceMarketService.purchaseProduct(req, SecurityContextHolder.getUserId()));
     }
 }

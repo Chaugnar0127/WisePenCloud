@@ -17,7 +17,14 @@ import java.io.Serializable;
 @AllArgsConstructor
 public class ResourceForkCompletedMessage implements Serializable {
     private String newResourceId;
+    private String sourceResourceId;
     private boolean success;
     private String errorMessage;
     private ResourceType resourceType;
+    /** 集市购买订单号，非集市 fork 为空 */
+    private Long marketOrderId;
+    /** 集市售卖项 ID，非集市 fork 为空 */
+    private String marketSellId;
+    /** 集市买家用户 ID，非集市 fork 为空 */
+    private Long marketBuyerId;
 }

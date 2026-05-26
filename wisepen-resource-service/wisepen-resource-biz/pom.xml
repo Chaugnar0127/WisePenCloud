@@ -88,6 +88,11 @@
             <version>1.0.0</version>
             <scope>compile</scope>
         </dependency>
+        <dependency>
+            <groupId>com.oriole</groupId>
+            <artifactId>wisepen-user-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
     </dependencies>
 

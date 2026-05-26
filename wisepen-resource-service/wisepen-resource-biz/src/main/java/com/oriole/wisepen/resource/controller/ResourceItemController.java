@@ -44,7 +44,7 @@ public class ResourceItemController {
         Long userId = SecurityContextHolder.getUserId();
         String ownerId = userId.toString();
         resourceService.assertForkPermission(req.getSourceResourceId(), userId, SecurityContextHolder.getGroupRoleMap());
-        return R.ok(resourceService.forkResource(req, ownerId));
+        return R.ok(resourceService.forkResource(req, ownerId, null, null));
     }
 
     @Operation(summary = "重试 Fork 资源", description = "仅 FORK_FAILED 状态可重试；请求体需包含 newResourceId 及与首次 fork 相同的源资源参数")

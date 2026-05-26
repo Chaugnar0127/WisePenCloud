@@ -5,6 +5,7 @@ import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.document.api.constant.DocumentConstants;
+import com.oriole.wisepen.document.api.constant.DocumentForkFailureDetail;
 import com.oriole.wisepen.document.api.domain.base.DocumentInfoBase;
 import com.oriole.wisepen.document.api.domain.base.DocumentStatus;
 import com.oriole.wisepen.document.api.domain.base.DocumentUploadMeta;
@@ -327,30 +328,18 @@ public class DocumentServiceImpl implements IDocumentService {
             DocumentInfoEntity existing = documentInfoRepository.findByResourceId(newResourceId).orElse(null);
             if (existing != null) {
                 if (existing.getDocumentStatus() != null && existing.getDocumentStatus().getStatus() == DocumentStatusEnum.READY) {
-                    eventPublisher.publishForkCompleted(ResourceForkCompletedMessage.builder()
-                            .newResourceId(newResourceId)
-                            .success(true)
-                            .resourceType(resourceType)
-                            .build());
+                    publishForkCompleted(message, newResourceId, true, null, resourceType);
                     return;
                 }
-                eventPublisher.publishForkCompleted(ResourceForkCompletedMessage.builder()
-                        .newResourceId(newResourceId)
-                        .success(false)
-                        .errorMessage("document exists but not READY")
-                        .resourceType(resourceType)
-                        .build());
+                publishForkCompleted(message, newResourceId, false,
+                        DocumentForkFailureDetail.DOCUMENT_EXISTS_BUT_NOT_READY, resourceType);
                 return;
             }
 
             DocumentInfoEntity source = documentInfoRepository.findByResourceId(message.getSourceResourceId()).orElse(null);
             if (source == null || source.getDocumentStatus() == null || source.getDocumentStatus().getStatus() != DocumentStatusEnum.READY) {
-                eventPublisher.publishForkCompleted(ResourceForkCompletedMessage.builder()
-                        .newResourceId(newResourceId)
-                        .success(false)
-                        .errorMessage("source document not READY")
-                        .resourceType(resourceType)
-                        .build());
+                publishForkCompleted(message, newResourceId, false,
+                        DocumentForkFailureDetail.SOURCE_DOCUMENT_NOT_READY, resourceType);
                 return;
             }
 
@@ -391,11 +380,7 @@ public class DocumentServiceImpl implements IDocumentService {
                 documentPdfMetaRepository.save(pdfMeta);
             }
 
-            eventPublisher.publishForkCompleted(ResourceForkCompletedMessage.builder()
-                    .newResourceId(newResourceId)
-                    .success(true)
-                    .resourceType(resourceType)
-                    .build());
+            publishForkCompleted(message, newResourceId, true, null, resourceType);
             eventPublisher.publishReadyEvent(DocumentReadyMessage.builder()
                     .resourceId(newResourceId)
                     .content(rawText)
@@ -412,13 +397,22 @@ public class DocumentServiceImpl implements IDocumentService {
             } catch (Exception cleanupEx) {
                 log.warn("documentFork cleanup failed newResourceId={}", newResourceId, cleanupEx);
             }
-            eventPublisher.publishForkCompleted(ResourceForkCompletedMessage.builder()
-                    .newResourceId(newResourceId)
-                    .success(false)
-                    .errorMessage(e.getMessage())
-                    .resourceType(resourceType)
-                    .build());
+            publishForkCompleted(message, newResourceId, false, e.getMessage(), resourceType);
         }
+    }
+
+    private void publishForkCompleted(ResourceForkMessage message, String newResourceId, boolean success,
+            String errorMessage, ResourceType resourceType) {
+        eventPublisher.publishForkCompleted(ResourceForkCompletedMessage.builder()
+                .newResourceId(newResourceId)
+                .sourceResourceId(message.getSourceResourceId())
+                .marketOrderId(message.getMarketOrderId())
+                .marketSellId(message.getMarketSellId())
+                .marketBuyerId(Long.valueOf(message.getOwnerId()))
+                .success(success)
+                .errorMessage(errorMessage)
+                .resourceType(resourceType)
+                .build());
     }
 
     private String cloneObjectKey(String sourceObjectKey, String bizTag, String extension, List<String> createdObjectKeys) {
