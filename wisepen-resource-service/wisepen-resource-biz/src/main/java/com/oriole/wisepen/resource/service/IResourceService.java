@@ -6,6 +6,7 @@ import com.oriole.wisepen.common.core.domain.enums.list.QueryLogicEnum;
 import com.oriole.wisepen.common.core.domain.enums.list.SortDirectionEnum;
 import com.oriole.wisepen.resource.domain.dto.*;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceForkRequest;
+import com.oriole.wisepen.resource.domain.dto.req.ResourceForkRetryRequest;
 import com.oriole.wisepen.resource.domain.mq.ResourceForkCompletedMessage;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceRenameRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateActionPermissionRequest;
@@ -59,6 +60,10 @@ public interface IResourceService {
     String forkResource(ResourceForkRequest req, String ownerId);
 
     void onForkCompleted(ResourceForkCompletedMessage message);
+
+    void retryFork(ResourceForkRetryRequest req, String ownerId);
+
+    void markForkTimedOut();
 
     void hardRemoveResources(List<String> resourceIds);
 

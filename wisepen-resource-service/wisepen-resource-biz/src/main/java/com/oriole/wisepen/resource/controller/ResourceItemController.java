@@ -12,6 +12,7 @@ import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
 import com.oriole.wisepen.resource.constant.ResourceConstants;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceForkRequest;
+import com.oriole.wisepen.resource.domain.dto.req.ResourceForkRetryRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateActionPermissionRequest;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceRenameRequest;
@@ -44,6 +45,15 @@ public class ResourceItemController {
         String ownerId = userId.toString();
         resourceService.assertForkPermission(req.getSourceResourceId(), userId, SecurityContextHolder.getGroupRoleMap());
         return R.ok(resourceService.forkResource(req, ownerId));
+    }
+
+    @Operation(summary = "重试 Fork 资源", description = "仅 FORK_FAILED 状态可重试；请求体需包含 newResourceId 及与首次 fork 相同的源资源参数")
+    @Log(title = "重试 Fork 资源", businessType = BusinessType.UPDATE)
+    @PostMapping("/retryForkResource")
+    public R<Void> retryForkResource(@Validated @RequestBody ResourceForkRetryRequest req) {
+        String ownerId = SecurityContextHolder.getUserId().toString();
+        resourceService.retryFork(req, ownerId);
+        return R.ok();
     }
 
     // 重命名资源

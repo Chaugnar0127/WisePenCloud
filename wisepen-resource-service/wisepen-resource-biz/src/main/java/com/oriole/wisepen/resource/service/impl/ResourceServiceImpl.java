@@ -7,11 +7,13 @@ import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.domain.enums.list.QueryLogicEnum;
 import com.oriole.wisepen.common.core.domain.enums.list.SortDirectionEnum;
 import com.oriole.wisepen.common.core.exception.ServiceException;
+import com.oriole.wisepen.resource.config.ResourceProperties;
 import com.oriole.wisepen.resource.constant.ResourceConstants;
 import com.oriole.wisepen.resource.domain.ComputedGroupAcl;
 import com.oriole.wisepen.resource.domain.GroupTagBind;
 import com.oriole.wisepen.resource.domain.dto.*;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceForkRequest;
+import com.oriole.wisepen.resource.domain.dto.req.ResourceForkRetryRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceRenameRequest;
 import com.oriole.wisepen.resource.domain.mq.ResourceForkCompletedMessage;
 import com.oriole.wisepen.resource.domain.mq.ResourceForkMessage;
@@ -80,6 +82,7 @@ public class ResourceServiceImpl implements IResourceService {
     private final IGroupResService groupResService;
     private final ITagService tagService;
     private final ISearchSyncService searchSyncService;
+    private final ResourceProperties resourceProperties;
 
     private final RemoteUserService remoteUserService;
 
@@ -568,15 +571,7 @@ public class ResourceServiceImpl implements IResourceService {
 
             resourceInteractionInfoRepository.save(new ResourceInteractionInfoEntity(newResourceId));
 
-            ResourceForkMessage forkMessage = ResourceForkMessage.builder()
-                    .sourceResourceId(req.getSourceResourceId())
-                    .newResourceId(newResourceId)
-                    .resourceType(req.getResourceType())
-                    .version(req.getVersion())
-                    .forkedBy(ownerId)
-                    .ownerId(ownerId)
-                    .build();
-            eventPublisher.publishResourceForkEvent(forkMessage);
+            eventPublisher.publishResourceForkEvent(buildForkMessage(req, newResourceId, ownerId));
 
             entity.setLifecycleStatus(ResourceLifecycleStatus.FORKING);
             resourceItemRepository.save(entity);
@@ -590,6 +585,63 @@ public class ResourceServiceImpl implements IResourceService {
             log.warn("resourceFork compensated newResourceId={}", newResourceId, e);
             throw e;
         }
+    }
+
+    @Override
+    public void retryFork(ResourceForkRetryRequest req, String ownerId) {
+        ResourceItemEntity entity = resourceItemRepository.findById(req.getNewResourceId())
+                .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
+        if (!ownerId.equals(entity.getOwnerId())) {
+            throw new ServiceException(ResourceError.RESOURCE_PERMISSION_DENIED);
+        }
+        if (entity.getLifecycleStatus() != ResourceLifecycleStatus.FORK_FAILED) {
+            throw new ServiceException(ResourceError.CANNOT_RETRY_FORK_IN_CURRENT_STATE);
+        }
+        if (req.getResourceType() != null && req.getResourceType() != entity.getResourceType()) {
+            throw new ServiceException(ResourceError.RESOURCE_NOT_FOUND);
+        }
+
+        BeanUtil.copyProperties(req, entity, CopyOptions.create()
+                .ignoreProperties("sourceResourceId", "version", "newResourceId")
+                .ignoreNullValue());
+        entity.setLifecycleStatus(ResourceLifecycleStatus.FORKING);
+        resourceItemRepository.save(entity);
+
+        eventPublisher.publishResourceForkEvent(buildForkMessage(req, req.getNewResourceId(), ownerId));
+        log.info("resource fork retry sourceResourceId={} newResourceId={} ownerId={}",
+                req.getSourceResourceId(), req.getNewResourceId(), ownerId);
+    }
+
+    @Override
+    public void markForkTimedOut() {
+        int timeoutMinutes = resourceProperties.getForkTimeoutMinutes();
+        LocalDateTime threshold = LocalDateTime.now().minusMinutes(timeoutMinutes);
+        Query query = Query.query(Criteria.where("lifecycleStatus").is(ResourceLifecycleStatus.FORKING)
+                .and("updateTime").lt(threshold));
+        List<ResourceItemEntity> timedOut = mongoTemplate.find(query, ResourceItemEntity.class);
+        if (timedOut.isEmpty()) {
+            return;
+        }
+        for (ResourceItemEntity entity : timedOut) {
+            entity.setLifecycleStatus(ResourceLifecycleStatus.FORK_FAILED);
+            resourceItemRepository.save(entity);
+        }
+        List<String> resourceIds = timedOut.stream()
+                .map(ResourceItemEntity::getResourceId)
+                .collect(Collectors.toList());
+        log.info("resourceFork timed out count={} timeoutMinutes={} resourceIds={}",
+                timedOut.size(), timeoutMinutes, summarizeIds(resourceIds));
+    }
+
+    private ResourceForkMessage buildForkMessage(ResourceForkRequest req, String newResourceId, String ownerId) {
+        return ResourceForkMessage.builder()
+                .sourceResourceId(req.getSourceResourceId())
+                .newResourceId(newResourceId)
+                .resourceType(req.getResourceType())
+                .version(req.getVersion())
+                .forkedBy(ownerId)
+                .ownerId(ownerId)
+                .build();
     }
 
     @Override

@@ -39,6 +39,7 @@ public enum ResourceError implements IResult {
     RESOURCE_PERMISSION_DENIED(5421, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.PERMISSION_DENIED),"无权访问或操作该资源"),
     SCORE_OUT_OF_RANGE(5431, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.INVALID), "评分必须在1到5之间"),
     RESOURCE_SEARCH_FAILED(5441, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.FAILED), "搜索资源失败"),
+    CANNOT_RETRY_FORK_IN_CURRENT_STATE(5451, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.NOT_ALLOWED), "当前资源状态不允许重试 Fork"),
 
     // 资源标签相关异常
     CANNOT_BIND_RESOURCE_TO_MULTIPLE_PATH_NODES(5511, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_TAG, ErrorReason.NOT_ALLOWED),"不能为资源绑定多个路径节点"),
