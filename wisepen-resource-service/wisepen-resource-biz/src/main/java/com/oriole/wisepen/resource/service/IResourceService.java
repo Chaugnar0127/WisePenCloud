@@ -5,6 +5,7 @@ import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.domain.enums.list.QueryLogicEnum;
 import com.oriole.wisepen.common.core.domain.enums.list.SortDirectionEnum;
 import com.oriole.wisepen.resource.domain.dto.*;
+import com.oriole.wisepen.resource.domain.dto.req.ResourceForkRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceRenameRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateActionPermissionRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateTagsRequest;
@@ -13,6 +14,7 @@ import com.oriole.wisepen.resource.domain.entity.ResourceItemEntity;
 import com.oriole.wisepen.resource.enums.ResourceSortBy;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 public interface IResourceService {
@@ -47,6 +49,13 @@ public interface IResourceService {
     // ToService：增加、移除、更新资源；检查特定资源的权限
 
     String createResourceItem(ResourceCreateReqDTO dto);
+
+    void assertForkPermission(String sourceResourceId, Long userId, Map<Long, GroupRoleType> groupRoles);
+
+    /**
+     * Fork 源资源到指定用户个人库：创建新元数据 → Kafka 广播 → FORKING。
+     */
+    String forkResource(ResourceForkRequest req, String ownerId);
 
     void hardRemoveResources(List<String> resourceIds);
 

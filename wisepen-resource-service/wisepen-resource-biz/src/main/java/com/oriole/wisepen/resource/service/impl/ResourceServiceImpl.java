@@ -11,7 +11,9 @@ import com.oriole.wisepen.resource.constant.ResourceConstants;
 import com.oriole.wisepen.resource.domain.ComputedGroupAcl;
 import com.oriole.wisepen.resource.domain.GroupTagBind;
 import com.oriole.wisepen.resource.domain.dto.*;
+import com.oriole.wisepen.resource.domain.dto.req.ResourceForkRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceRenameRequest;
+import com.oriole.wisepen.resource.domain.mq.ResourceForkMessage;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateActionPermissionRequest;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
 import com.oriole.wisepen.resource.domain.entity.GroupResConfigEntity;
@@ -521,6 +523,72 @@ public class ResourceServiceImpl implements IResourceService {
         log.info("resource created resourceId={} ownerId={} resourceType={} pathTagId={}",
                 entity.getResourceId(), dto.getOwnerId(), dto.getResourceType(), dto.getPathTagId());
         return entity.getResourceId();
+    }
+
+    @Override
+    public void assertForkPermission(String sourceResourceId, Long userId, Map<Long, GroupRoleType> groupRoles) {
+        ResourceCheckPermissionResDTO perm = checkPermission(ResourceCheckPermissionReqDTO.builder()
+                .resourceId(sourceResourceId)
+                .userId(userId)
+                .groupRoles(groupRoles)
+                .build());
+        if (perm.getResourceAccessRole() == ResourceAccessRole.NONE
+                || perm.getAllowedActions() == null
+                || !perm.getAllowedActions().contains(ResourceAction.FORK)) {
+            throw new ServiceException(ResourceError.RESOURCE_PERMISSION_DENIED);
+        }
+    }
+
+    @Override
+    public String forkResource(ResourceForkRequest req, String ownerId) {
+        req.setOwnerId(ownerId);
+
+        resourceItemRepository.findById(req.getSourceResourceId())
+                .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
+
+        ResourceItemEntity entity = new ResourceItemEntity();
+        BeanUtil.copyProperties(req, entity, CopyOptions.create().ignoreProperties("sourceResourceId", "version"));
+        entity.setLifecycleStatus(ResourceLifecycleStatus.READY);
+
+        resourceItemRepository.save(entity);
+        String newResourceId = entity.getResourceId();
+
+        try {
+            String pathTagId = tagRepository.findByGroupIdAndParentIdAndTagName(
+                            ResourceConstants.PERSONAL_GROUP_PREFIX + ownerId, "0", ResourceConstants.ROOT_TAG_NAME)
+                    .orElseThrow(() -> new ServiceException(ResourceError.TAG_NODE_NOT_FOUND))
+                    .getTagId();
+
+            ResourceUpdateTagsRequest bindReq = new ResourceUpdateTagsRequest();
+            bindReq.setResourceId(newResourceId);
+            bindReq.setGroupId(ResourceConstants.PERSONAL_GROUP_PREFIX + ownerId);
+            bindReq.setTagIds(Collections.singletonList(pathTagId));
+            this.updateResourceTags(bindReq);
+
+            resourceInteractionInfoRepository.save(new ResourceInteractionInfoEntity(newResourceId));
+
+            ResourceForkMessage forkMessage = ResourceForkMessage.builder()
+                    .sourceResourceId(req.getSourceResourceId())
+                    .newResourceId(newResourceId)
+                    .resourceType(req.getResourceType())
+                    .version(req.getVersion())
+                    .forkedBy(ownerId)
+                    .ownerId(ownerId)
+                    .build();
+            eventPublisher.publishResourceForkEvent(forkMessage);
+
+            entity.setLifecycleStatus(ResourceLifecycleStatus.FORKING);
+            resourceItemRepository.save(entity);
+
+            log.info("resource fork started sourceResourceId={} newResourceId={} ownerId={} resourceType={}",
+                    req.getSourceResourceId(), newResourceId, ownerId, req.getResourceType());
+            return newResourceId;
+        } catch (Exception e) {
+            resourceItemRepository.deleteById(newResourceId);
+            resourceInteractionInfoRepository.deleteById(newResourceId);
+            log.warn("resourceFork compensated newResourceId={}", newResourceId, e);
+            throw e;
+        }
     }
 
     @Override

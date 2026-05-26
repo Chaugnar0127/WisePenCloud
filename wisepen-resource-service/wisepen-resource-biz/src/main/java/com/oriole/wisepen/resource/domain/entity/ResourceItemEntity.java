@@ -3,6 +3,7 @@ package com.oriole.wisepen.resource.domain.entity;
 import com.oriole.wisepen.resource.domain.ComputedGroupAcl;
 import com.oriole.wisepen.resource.domain.GroupTagBind;
 import com.oriole.wisepen.resource.domain.base.ResourceItemInfoBase;
+import com.oriole.wisepen.resource.enums.ResourceLifecycleStatus;
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
@@ -20,6 +21,8 @@ import java.util.Map;
 public class ResourceItemEntity extends ResourceItemInfoBase {
     @Id
     private String resourceId; // 资源全局唯一ID
+
+    private ResourceLifecycleStatus lifecycleStatus = ResourceLifecycleStatus.READY;
 
     private List<GroupTagBind> groupBinds = new ArrayList<>();
 

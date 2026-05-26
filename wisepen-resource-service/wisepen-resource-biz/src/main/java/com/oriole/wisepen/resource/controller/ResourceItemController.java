@@ -11,6 +11,7 @@ import com.oriole.wisepen.common.core.domain.enums.list.SortDirectionEnum;
 import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
 import com.oriole.wisepen.resource.constant.ResourceConstants;
+import com.oriole.wisepen.resource.domain.dto.req.ResourceForkRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateActionPermissionRequest;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceRenameRequest;
@@ -34,6 +35,16 @@ import java.util.List;
 public class ResourceItemController {
 
     private final IResourceService resourceService;
+    //复制资源
+    @Operation(summary = "Fork 资源", description = "需具备 FORK 权限；version 为空时 fork 当前最新快照（如订阅更新）")
+    @Log(title = "Fork 资源", businessType = BusinessType.INSERT)
+    @PostMapping("/forkResource")
+    public R<String> forkResource(@Validated @RequestBody ResourceForkRequest req) {
+        Long userId = SecurityContextHolder.getUserId();
+        String ownerId = userId.toString();
+        resourceService.assertForkPermission(req.getSourceResourceId(), userId, SecurityContextHolder.getGroupRoleMap());
+        return R.ok(resourceService.forkResource(req, ownerId));
+    }
 
     // 重命名资源
     @Operation(summary = "重命名资源", description = "用户修改资源名称")
