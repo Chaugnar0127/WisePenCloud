@@ -16,7 +16,6 @@ import com.oriole.wisepen.resource.domain.dto.req.ResourceForkRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourcePublishSellRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourcePurchaseRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceReviewSellRequest;
-import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateTagsRequest;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceMarketDetailResponse;
 import com.oriole.wisepen.resource.domain.dto.res.ResourcePurchaseResponse;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceSellInfoResponse;
@@ -90,6 +89,7 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
         ResourceItemEntity resource = resourceItemRepository.findById(req.getResourceId())
                 .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
 
+        // 市场上架必须由资源所有者本人发起，避免代他人资源提交售卖。
         resourceService.assertResourceOwner(resource.getResourceId(), currentUserId);
 
         List<String> editorIds = resource.getOriginalEditorIds();
@@ -104,6 +104,7 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
             throw new ServiceException(ResourceError.SELL_INFO_ALREADY_LISTED);
         }
 
+        // 上架时固化资源版本，购买后 fork 的内容必须与审核通过版本一致。
         ResourceType resourceType = resource.getResourceType();
         Long listedVersion;
         if (resourceType == ResourceType.NOTE) {
@@ -148,7 +149,7 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
 
     @Override
     public void reviewSellInfo(ResourceReviewSellRequest req, Long reviewerId, IdentityType identityType,
-            Map<Long, GroupRoleType> groupRoles) {
+                               Map<Long, GroupRoleType> groupRoles) {
         ResourceItemEntity resource = resourceItemRepository.findById(req.getResourceId())
                 .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
 
@@ -178,13 +179,7 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
                 resource.getResourceId(), sellInfo.getSellId(), req.getApproved());
 
         if (Boolean.TRUE.equals(req.getApproved())) {
-            ResourceUpdateTagsRequest tagReq = new ResourceUpdateTagsRequest();
-            BeanUtil.fillBeanWithMap(Map.of(
-                    "resourceId", resource.getResourceId(),
-                    "groupId", sellInfo.getGroupId(),
-                    "tagIds", List.of(sellInfo.getTagId())
-            ), tagReq, false);
-            resourceService.updateResourceTags(tagReq);
+            resourceService.updatePersonalResourceTags(resource.getResourceId(), sellInfo.getGroupId(), List.of(sellInfo.getTagId()));
         }
     }
 
@@ -197,6 +192,7 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
             throw new ServiceException(ResourceError.SELL_INFO_NOT_FOUND);
         }
 
+        // 只有审核通过且未下架的售卖项才允许购买。
         if (!isPurchasable(sellInfo)) {
             throw new ServiceException(ResourceError.SELL_INFO_NOT_PURCHASABLE);
         }
@@ -219,6 +215,7 @@ public class ResourceMarketServiceImpl implements IResourceMarketService {
                 .build();
         try {
             marketTradeService.chargeMarketOrder(buyerId, Long.valueOf(resource.getOwnerId()), sellInfo.getPrice(), orderId);
+            // 扣款成功后先登记购买人，再授权并 fork；后续投递失败会在 catch 中冲正。
             sellInfo.getPurchasedBuyerIds().add(buyerIdStr);
             resourceItemRepository.save(resource);
             resourceService.grantUserResourceActions(resource.getResourceId(), buyerIdStr,

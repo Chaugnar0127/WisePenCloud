@@ -13,6 +13,7 @@ public interface ResourceValidationMsg {
 
     // 拓扑与组织关系校验
     String GROUP_ID_NOT_BLANK = "组ID不能为空";
+    String GROUP_ID_FORMAT_INVALID = "组ID格式不正确";
     String TAG_IDS_NOT_NULL = "标签列表不能为null";
 
     String TAG_ID_NOT_BLANK = "目标标签ID不能为空";

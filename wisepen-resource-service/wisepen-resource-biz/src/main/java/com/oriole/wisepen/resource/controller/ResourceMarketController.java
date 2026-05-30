@@ -5,6 +5,7 @@ import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.common.core.domain.enums.BusinessType;
 import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
+import com.oriole.wisepen.resource.constant.ResourceValidationMsg;
 import com.oriole.wisepen.resource.domain.dto.req.ResourcePurchaseRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourcePublishSellRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceReviewSellRequest;
@@ -13,6 +14,8 @@ import com.oriole.wisepen.resource.domain.dto.res.ResourcePurchaseResponse;
 import com.oriole.wisepen.resource.service.IResourceMarketService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,6 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/resource/market")
 @RequiredArgsConstructor
 @CheckLogin
+@Validated
 public class ResourceMarketController {
 
     private final IResourceMarketService resourceMarketService;
@@ -34,8 +38,9 @@ public class ResourceMarketController {
     @Operation(summary = "商品详情", description = "返回该资源在指定市场小组下已审核可购的售卖项")
     @GetMapping("/getProductDetail")
     public R<ResourceMarketDetailResponse> getMarketDetail(
-            @RequestParam("resourceId") String resourceId,
-            @RequestParam("groupId") String groupId) {
+            @RequestParam("resourceId") @NotBlank(message = ResourceValidationMsg.RESOURCE_ID_NOT_BLANK) String resourceId,
+            @RequestParam("groupId") @NotBlank(message = ResourceValidationMsg.GROUP_ID_NOT_BLANK)
+            @Pattern(regexp = "\\d+", message = ResourceValidationMsg.GROUP_ID_FORMAT_INVALID) String groupId) {
         SecurityContextHolder.assertInGroup(Long.valueOf(groupId));
         return R.ok(resourceMarketService.getMarketDetail(resourceId, groupId));
     }

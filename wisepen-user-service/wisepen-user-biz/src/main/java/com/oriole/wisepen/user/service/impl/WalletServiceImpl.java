@@ -149,10 +149,8 @@ public class WalletServiceImpl implements IWalletService {
     public void changeInfoPointBalance(InfoPointChangeRequest req) {
         Long userId = req.getUserId();
         Integer changeAmount = req.getChangeAmount();
-        if (changeAmount == null || changeAmount == 0) {
-            throw new ServiceException(UserError.WALLET_INFO_POINT_CHANGE_AMOUNT_INVALID);
-        }
 
+        // 账户不存在时先创建空账户，保证后续原子增减余额能命中记录。
         if (!infoPointMapper.exists(Wrappers.<UserInfoPointEntity>lambdaQuery().eq(UserInfoPointEntity::getUserId, userId))) {
             infoPointMapper.insert(UserInfoPointEntity.builder()
                     .userId(userId)
@@ -163,6 +161,7 @@ public class WalletServiceImpl implements IWalletService {
         LambdaUpdateWrapper<UserInfoPointEntity> updateWrapper = Wrappers.<UserInfoPointEntity>lambdaUpdate()
                 .eq(UserInfoPointEntity::getUserId, userId);
         if (changeAmount < 0) {
+            // 扣减余额必须在 SQL 条件中完成，避免并发下余额被扣成负数。
             updateWrapper.ge(UserInfoPointEntity::getInfoPointBalance, -changeAmount);
         }
         updateWrapper.setSql("info_point_balance = info_point_balance + {0}", changeAmount);
@@ -195,13 +194,7 @@ public class WalletServiceImpl implements IWalletService {
         Integer price = req.getPrice();
         Long relatedId = req.getRelatedId();
 
-        if (buyerId.equals(sellerId)) {
-            throw new ServiceException(UserError.WALLET_INFO_POINT_SELF_TRANSACTION_NOT_ALLOWED);
-        }
-        if (price == null || price <= 0) {
-            throw new ServiceException(UserError.WALLET_INFO_POINT_INVALID_PRICE);
-        }
-
+        // relatedId 是市场订单的幂等键，已有流水需要按当前状态补偿或跳过。
         List<InfoPointTransactionRecordEntity> existing = listMarketTradeRecords(relatedId);
         if (!existing.isEmpty()) {
             settleFromExistingRecords(existing, buyerId, sellerId, price, relatedId);
@@ -209,22 +202,26 @@ public class WalletServiceImpl implements IWalletService {
         }
 
         try {
-            changeInfoPointBalance(InfoPointChangeRequest.builder()
+            InfoPointChangeRequest purchase = InfoPointChangeRequest.builder()
                     .userId(buyerId)
                     .changeAmount(-price)
                     .changeType(InfoPointChangeType.MARKET_PURCHASE)
                     .tradeStatus(InfoPointTradeStatus.PAID)
                     .relatedId(relatedId)
                     .operatorId(buyerId)
-                    .build());
-            changeInfoPointBalance(InfoPointChangeRequest.builder()
+                    .build();
+
+            InfoPointChangeRequest income = InfoPointChangeRequest.builder()
                     .userId(sellerId)
                     .changeAmount(price)
                     .changeType(InfoPointChangeType.MARKET_INCOME)
                     .tradeStatus(InfoPointTradeStatus.PAID)
                     .relatedId(relatedId)
                     .operatorId(buyerId)
-                    .build());
+                    .build();
+
+            changeInfoPointBalance(purchase);
+            changeInfoPointBalance(income);
         } catch (DuplicateKeyException ex) {
             if (isMarketTradeFullySettled(relatedId)) {
                 log.info("信息点交易结算幂等跳过(唯一索引): relatedId={}", relatedId);
@@ -249,6 +246,7 @@ public class WalletServiceImpl implements IWalletService {
         if (records == null || records.isEmpty()) {
             throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_NOT_FOUND);
         }
+        // 冲正可能由投递失败重试触发，已撤回流水直接幂等返回。
         if (records.stream().anyMatch(record -> record.getTradeStatus() == InfoPointTradeStatus.ADMIN_REVOKED)) {
             log.info("信息点交易冲正幂等跳过: relatedId={}", relatedId);
             return;
@@ -278,26 +276,30 @@ public class WalletServiceImpl implements IWalletService {
                     .filter(record -> record.getChangeType() == InfoPointChangeType.MARKET_INCOME)
                     .findFirst()
                     .orElseThrow(() -> new ServiceException(UserError.WALLET_INFO_POINT_TRADE_SETTLE_INCONSISTENT));
-            InfoPointChangeRequest.InfoPointChangeRequestBuilder purchaseRevoke = InfoPointChangeRequest.builder()
+
+            InfoPointChangeRequest purchaseRevoke = InfoPointChangeRequest.builder()
                     .userId(purchase.getUserId())
                     .changeAmount(-purchase.getChangeAmount())
                     .changeType(InfoPointChangeType.MARKET_TRADE_REVOKE)
                     .tradeStatus(InfoPointTradeStatus.ADMIN_REVOKED)
                     .relatedId(relatedId)
-                    .meta(meta);
-            InfoPointChangeRequest.InfoPointChangeRequestBuilder incomeRevoke = InfoPointChangeRequest.builder()
+                    .meta(meta)
+                    .operatorId(operatorId)
+                    .build();
+
+            InfoPointChangeRequest incomeRevoke = InfoPointChangeRequest.builder()
                     .userId(income.getUserId())
                     .changeAmount(-income.getChangeAmount())
                     .changeType(InfoPointChangeType.MARKET_TRADE_REVOKE)
                     .tradeStatus(InfoPointTradeStatus.ADMIN_REVOKED)
                     .relatedId(relatedId)
-                    .meta(meta);
-            if (operatorId != null) {
-                purchaseRevoke.operatorId(operatorId);
-                incomeRevoke.operatorId(operatorId);
-            }
-            changeInfoPointBalance(purchaseRevoke.build());
-            changeInfoPointBalance(incomeRevoke.build());
+                    .meta(meta)
+                    .operatorId(operatorId)
+                    .build();
+
+            changeInfoPointBalance(purchaseRevoke);
+            changeInfoPointBalance(incomeRevoke);
+
             infoPointTransactionRecordMapper.update(null,
                     Wrappers.<InfoPointTransactionRecordEntity>lambdaUpdate()
                             .eq(InfoPointTransactionRecordEntity::getRelatedId, relatedId)
@@ -305,17 +307,18 @@ public class WalletServiceImpl implements IWalletService {
                                     InfoPointChangeType.MARKET_PURCHASE, InfoPointChangeType.MARKET_INCOME)
                             .set(InfoPointTransactionRecordEntity::getTradeStatus, InfoPointTradeStatus.ADMIN_REVOKED));
         } else {
-            InfoPointChangeRequest.InfoPointChangeRequestBuilder purchaseRevoke = InfoPointChangeRequest.builder()
+            InfoPointChangeRequest purchaseRevoke = InfoPointChangeRequest.builder()
                     .userId(purchase.getUserId())
                     .changeAmount(-purchase.getChangeAmount())
                     .changeType(InfoPointChangeType.MARKET_TRADE_REVOKE)
                     .tradeStatus(InfoPointTradeStatus.ADMIN_REVOKED)
                     .relatedId(relatedId)
-                    .meta(meta);
-            if (operatorId != null) {
-                purchaseRevoke.operatorId(operatorId);
-            }
-            changeInfoPointBalance(purchaseRevoke.build());
+                    .meta(meta)
+                    .operatorId(operatorId)
+                    .build();
+
+            changeInfoPointBalance(purchaseRevoke);
+
             infoPointTransactionRecordMapper.update(null,
                     Wrappers.<InfoPointTransactionRecordEntity>lambdaUpdate()
                             .eq(InfoPointTransactionRecordEntity::getRelatedId, relatedId)
@@ -335,9 +338,11 @@ public class WalletServiceImpl implements IWalletService {
         return JSONUtil.toJsonStr(payload);
     }
 
-    /** 已有集市流水时的结算：幂等跳过、补卖方入账或报错。 */
+    /**
+     * 已有集市流水时的结算：幂等跳过、补卖方入账或报错。
+     */
     private void settleFromExistingRecords(List<InfoPointTransactionRecordEntity> existing, Long buyerId,
-            Long sellerId, Integer price, Long relatedId) {
+                                           Long sellerId, Integer price, Long relatedId) {
         if (existing.stream().anyMatch(record -> record.getTradeStatus() == InfoPointTradeStatus.ADMIN_REVOKED)) {
             throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_ALREADY_REVOKED);
         }
@@ -362,14 +367,16 @@ public class WalletServiceImpl implements IWalletService {
             throw new ServiceException(UserError.WALLET_INFO_POINT_TRADE_SETTLE_MISMATCH);
         }
         try {
-            changeInfoPointBalance(InfoPointChangeRequest.builder()
+            InfoPointChangeRequest income = InfoPointChangeRequest.builder()
                     .userId(sellerId)
                     .changeAmount(price)
                     .changeType(InfoPointChangeType.MARKET_INCOME)
                     .tradeStatus(InfoPointTradeStatus.PAID)
                     .relatedId(relatedId)
                     .operatorId(buyerId)
-                    .build());
+                    .build();
+
+            changeInfoPointBalance(income);
         } catch (DuplicateKeyException ex) {
             if (!isMarketTradeFullySettled(relatedId)) {
                 throw new ServiceException(UserError.WALLET_INFO_POINT_MARKET_TRADE_EXISTS);
@@ -470,11 +477,11 @@ public class WalletServiceImpl implements IWalletService {
                 .eq(GroupMemberEntity::getUserId, userId);
         GroupMemberEntity member = groupMemberMapper.selectOne(queryWrapper);
 
-        Integer groupTokenBalance = member.getTokenLimit()  - member.getTokenUsed();
+        Integer groupTokenBalance = member.getTokenLimit() - member.getTokenUsed();
         Integer overageTokenBill = 0;
         // 如果当前余额不足以支付订单
-        if (groupTokenBalance < tokenBill){
-            overageTokenBill  = tokenBill - groupTokenBalance; // 超支部分，转个人支付
+        if (groupTokenBalance < tokenBill) {
+            overageTokenBill = tokenBill - groupTokenBalance; // 超支部分，转个人支付
             tokenBill = groupTokenBalance; // 扣除所有余量
             // 触发组成员熔断
             redisCacheManager.blockGroupMemberChat(groupId, userId);
@@ -530,7 +537,7 @@ public class WalletServiceImpl implements IWalletService {
     }
 
     @Override
-    public void transferTokenBetweenGroupAndUser(Long userId, WalletTransferTokenRequest req){
+    public void transferTokenBetweenGroupAndUser(Long userId, WalletTransferTokenRequest req) {
         this.transferTokenBetweenGroupAndUser(userId, req.getGroupId(), req.getTokenCount(), req.getTokenTransferType());
     }
 
@@ -545,12 +552,14 @@ public class WalletServiceImpl implements IWalletService {
 
         switch (tokenTransferType) {
             case GROUP_INFLOW:
-                if (userWalletEntity.getTokenBalance() < tokenCount) throw new ServiceException(UserError.WALLET_TOKEN_LIMIT_BELOW_USED);
+                if (userWalletEntity.getTokenBalance() < tokenCount)
+                    throw new ServiceException(UserError.WALLET_TOKEN_LIMIT_BELOW_USED);
                 this.changeUserTokenBalance(userId, userId, -tokenCount, TokenTransactionType.TRANSFER_OUT, null);
                 this.changeGroupTokenBalance(groupId, userId, tokenCount, TokenTransactionType.TRANSFER_IN, null);
                 break;
             case USER_INFLOW:
-                if (groupEntity.getTokenBalance() < tokenCount) throw new ServiceException(UserError.WALLET_TOKEN_LIMIT_BELOW_USED);
+                if (groupEntity.getTokenBalance() < tokenCount)
+                    throw new ServiceException(UserError.WALLET_TOKEN_LIMIT_BELOW_USED);
                 this.changeUserTokenBalance(userId, userId, tokenCount, TokenTransactionType.TRANSFER_IN, null);
                 this.changeGroupTokenBalance(groupId, userId, -tokenCount, TokenTransactionType.TRANSFER_OUT, null);
                 break;
@@ -563,11 +572,12 @@ public class WalletServiceImpl implements IWalletService {
         TokenVoucherEntity voucher = tokenVoucherMapper.selectOne(wrapper);
 
         // 兑换券不存在
-        if (voucher==null) throw new ServiceException(UserError.WALLET_VOUCHER_NOT_FOUND);
+        if (voucher == null) throw new ServiceException(UserError.WALLET_VOUCHER_NOT_FOUND);
         // 兑换券已被使用
         if (voucher.getStatus() == VoucherStatus.USED) throw new ServiceException(UserError.WALLET_VOUCHER_INVALID);
         // 兑换券已过期
-        if (voucher.getExpireTime() != null && !LocalDateTime.now().isBefore(voucher.getExpireTime())) throw new ServiceException(UserError.WALLET_VOUCHER_EXPIRED);
+        if (voucher.getExpireTime() != null && !LocalDateTime.now().isBefore(voucher.getExpireTime()))
+            throw new ServiceException(UserError.WALLET_VOUCHER_EXPIRED);
 
         String voucherCodeMasked = "****-****-****-" + voucherCode.substring(voucherCode.length() - 4);
         // 先消费 Voucher

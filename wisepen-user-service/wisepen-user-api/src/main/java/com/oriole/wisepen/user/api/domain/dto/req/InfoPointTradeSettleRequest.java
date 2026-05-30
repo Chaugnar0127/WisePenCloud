@@ -1,6 +1,8 @@
 package com.oriole.wisepen.user.api.domain.dto.req;
 
 import com.oriole.wisepen.user.api.constant.WalletValidationMsg;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.AllArgsConstructor;
@@ -26,4 +28,10 @@ public class InfoPointTradeSettleRequest {
 
     @NotNull(message = WalletValidationMsg.INFO_POINT_TRADE_RELATED_ID_NOT_NULL)
     private Long relatedId;
+
+    @JsonIgnore
+    @AssertTrue(message = WalletValidationMsg.INFO_POINT_SELF_TRANSACTION_NOT_ALLOWED)
+    public boolean isNotSelfTransaction() {
+        return buyerId == null || !buyerId.equals(sellerId);
+    }
 }
