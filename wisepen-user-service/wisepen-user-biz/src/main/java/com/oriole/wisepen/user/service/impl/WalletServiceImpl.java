@@ -10,9 +10,6 @@ import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.oriole.wisepen.common.core.domain.PageR;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
-import com.oriole.wisepen.user.api.domain.dto.req.InfoPointChangeRequest;
-import com.oriole.wisepen.user.api.domain.dto.req.InfoPointTradeReverseRequest;
-import com.oriole.wisepen.user.api.domain.dto.req.InfoPointTradeSettleRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.WalletTransferTokenRequest;
 import com.oriole.wisepen.user.api.enums.*;
 import com.oriole.wisepen.common.core.domain.enums.GroupType;
@@ -27,7 +24,6 @@ import com.oriole.wisepen.user.domain.entity.*;
 import com.oriole.wisepen.user.event.GroupTokenConsumeEvent;
 import com.oriole.wisepen.user.exception.UserError;
 import com.oriole.wisepen.user.mapper.*;
-import com.oriole.wisepen.user.service.IInfoPointWalletService;
 import com.oriole.wisepen.user.service.IWalletService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -90,7 +86,7 @@ public class WalletServiceImpl implements IWalletService {
 
     @Override
     // 改变小组 Token 余额
-    public void changeGroupTokenBalance(Long groupId, Long operator, Integer changedToken, TokenTransactionType type, String Meta) {
+    public void changeGroupTokenBalance(Long groupId, Long operator, Integer changedToken, TokenTransactionType type, String meta) {
         GroupEntity group = groupMapper.selectById(groupId);
         if (group == null) {
             throw new ServiceException(UserError.GROUP_NOT_EXIST);
@@ -109,7 +105,7 @@ public class WalletServiceImpl implements IWalletService {
                 .traceId(IdUtil.randomUUID())
                 .payerId(groupId).payerType(TokenPayerType.GROUP)
                 .tokenCount(changedToken)
-                .tokenTransactionType(type).operatorId(operator).meta(Meta).build();
+                .tokenTransactionType(type).operatorId(operator).meta(meta).build();
         tokenTransactionRecordMapper.insert(record);
 
         groupMapper.update(null, wrapper);
@@ -122,7 +118,7 @@ public class WalletServiceImpl implements IWalletService {
 
     @Override
     // 改变个人 Token 余额
-    public void changeUserTokenBalance(Long userId, Long operator, Integer changedToken, TokenTransactionType type, String Meta) {
+    public void changeUserTokenBalance(Long userId, Long operator, Integer changedToken, TokenTransactionType type, String meta) {
         UserWalletEntity walletEntity = userWalletsMapper.selectById(userId);
 
         LambdaUpdateWrapper<UserWalletEntity> wrapper = new LambdaUpdateWrapper<>();
@@ -134,7 +130,7 @@ public class WalletServiceImpl implements IWalletService {
                 .traceId(IdUtil.randomUUID())
                 .payerId(userId).payerType(TokenPayerType.USER)
                 .tokenCount(changedToken)
-                .tokenTransactionType(type).operatorId(operator).meta(Meta).build();
+                .tokenTransactionType(type).operatorId(operator).meta(meta).build();
         tokenTransactionRecordMapper.insert(record);
 
         userWalletsMapper.update(null, wrapper);
@@ -210,7 +206,7 @@ public class WalletServiceImpl implements IWalletService {
 
     @Override
     // 更新组成员 Token 用量
-    public Integer updateGroupMemberTokenUsed(Long groupId, Long userId, String traceId, Integer tokenBill, String BillMeta) {
+    public Integer updateGroupMemberTokenUsed(Long groupId, Long userId, String traceId, Integer tokenBill, String billMeta) {
         // 查询组成员最新额度消耗情况
         LambdaQueryWrapper<GroupMemberEntity> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(GroupMemberEntity::getGroupId, groupId)
@@ -246,7 +242,7 @@ public class WalletServiceImpl implements IWalletService {
                 .payerId(groupId).payerType(TokenPayerType.GROUP)
                 .tokenCount(tokenBill).tokenTransactionType(TokenTransactionType.SPEND)
                 .operatorId(userId)
-                .meta(BillMeta).build();
+                .meta(billMeta).build();
         tokenTransactionRecordMapper.insert(record);
         return overageTokenBill;
     }

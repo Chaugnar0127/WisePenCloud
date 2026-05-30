@@ -11,7 +11,6 @@ import com.oriole.wisepen.user.api.enums.InfoPointChangeType;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.user.exception.UserError;
 import com.oriole.wisepen.user.service.IInfoPointWalletService;
-import com.oriole.wisepen.user.service.IWalletService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;

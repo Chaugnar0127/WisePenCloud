@@ -1,9 +1,6 @@
 package com.oriole.wisepen.user.service;
 
 import com.oriole.wisepen.common.core.domain.PageR;
-import com.oriole.wisepen.user.api.domain.dto.req.InfoPointChangeRequest;
-import com.oriole.wisepen.user.api.domain.dto.req.InfoPointTradeReverseRequest;
-import com.oriole.wisepen.user.api.domain.dto.req.InfoPointTradeSettleRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.WalletTransferTokenRequest;
 import com.oriole.wisepen.user.api.domain.dto.res.WalletDetailResponse;
 import com.oriole.wisepen.user.api.enums.TokenPayerType;
@@ -20,23 +17,28 @@ public interface IWalletService {
     void consumptionToken(TokenConsumptionMessage message);
 
     // 改变小组 Token 余额
-    void changeGroupTokenBalance(Long groupId, Long operator, Integer changedToken, TokenTransactionType type, String Meta);
+    void changeGroupTokenBalance(Long groupId, Long operator, Integer changedToken, TokenTransactionType type, String meta);
+
     // 改变个人 Token 余额
-    void changeUserTokenBalance(Long groupId, Long operator, Integer changedToken, TokenTransactionType type, String Meta);
+    void changeUserTokenBalance(Long groupId, Long operator, Integer changedToken, TokenTransactionType type, String meta);
 
     // 更新组成员 Token 配额
     void updateGroupMemberTokenLimit(GroupMemberTokenLimitUpdateRequest req);
 
     // 更新组 Token 用量
     void updateGroupTokenUsed(Long groupId, Integer usedToken);
+
     // 更新组成员 Token 用量
-    Integer updateGroupMemberTokenUsed(Long groupId, Long userId, String traceId, Integer tokenBill, String BillMeta);
+    Integer updateGroupMemberTokenUsed(Long groupId, Long userId, String traceId, Integer tokenBill, String billMeta);
+
     // 更新个人 Token 用量
     void updateUserTokenUsed(Long userId, String traceId, Integer tokenBill, String billMeta);
 
     // 转移 Token（仅限小组所有者）
     void transferTokenBetweenGroupAndUser(Long userId, WalletTransferTokenRequest req);
+
     void transferTokenBetweenGroupAndUser(Long userId, Long groupId, Integer tokenCount, TokenTransferType tokenTransferType);
+
     // 核销点卡
     void redeemVoucher(Long userId, String voucherCode);
 
