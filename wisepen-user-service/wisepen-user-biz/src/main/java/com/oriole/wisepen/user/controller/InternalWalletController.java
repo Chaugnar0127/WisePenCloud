@@ -4,7 +4,7 @@ import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.user.api.domain.dto.req.InfoPointTradeReverseRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.InfoPointTradeSettleRequest;
 import com.oriole.wisepen.user.api.feign.RemoteWalletService;
-import com.oriole.wisepen.user.service.IWalletService;
+import com.oriole.wisepen.user.service.IInfoPointWalletService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class InternalWalletController implements RemoteWalletService {
 
-    private final IWalletService walletService;
+    private final IInfoPointWalletService walletService;
 
     @Override
     public R<Void> settleInfoPointTrade(@RequestBody @Valid InfoPointTradeSettleRequest req) {

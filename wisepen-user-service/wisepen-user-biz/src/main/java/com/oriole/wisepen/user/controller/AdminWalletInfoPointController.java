@@ -10,6 +10,7 @@ import com.oriole.wisepen.user.api.domain.dto.req.InfoPointChangeRequest;
 import com.oriole.wisepen.user.api.enums.InfoPointChangeType;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.user.exception.UserError;
+import com.oriole.wisepen.user.service.IInfoPointWalletService;
 import com.oriole.wisepen.user.service.IWalletService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
@@ -29,7 +30,7 @@ import org.springframework.web.bind.annotation.RestController;
 @CheckRole(IdentityType.ADMIN)
 public class AdminWalletInfoPointController {
 
-    private final IWalletService walletService;
+    private final IInfoPointWalletService walletService;
 
     @GetMapping("/balance")
     @Log(title = "管理员查询用户信息点余额", businessType = BusinessType.SELECT)
