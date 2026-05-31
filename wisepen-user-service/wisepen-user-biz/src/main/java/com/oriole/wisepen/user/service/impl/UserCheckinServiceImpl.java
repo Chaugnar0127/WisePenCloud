@@ -33,7 +33,10 @@ public class UserCheckinServiceImpl implements IUserCheckinService {
     @Transactional(rollbackFor = Exception.class)
     public UserCheckinResponse checkin(Long userId) {
         LocalDate today = LocalDate.now();
-        if (hasCheckedIn(userId, today)) {
+        if (userCheckinMapper.exists(
+                Wrappers.<UserCheckinEntity>lambdaQuery()
+                        .eq(UserCheckinEntity::getUserId, userId)
+                        .eq(UserCheckinEntity::getCheckinDate, today))) {
             throw new ServiceException(UserError.USER_CHECKIN_ALREADY_DONE);
         }
 
@@ -81,12 +84,5 @@ public class UserCheckinServiceImpl implements IUserCheckinService {
                 .checkinDate(today)
                 .rewardAmount(checkin == null ? userProperties.getCheckin().getRewardAmount() : checkin.getRewardAmount())
                 .build();
-    }
-
-    private boolean hasCheckedIn(Long userId, LocalDate checkinDate) {
-        return userCheckinMapper.exists(
-                Wrappers.<UserCheckinEntity>lambdaQuery()
-                        .eq(UserCheckinEntity::getUserId, userId)
-                        .eq(UserCheckinEntity::getCheckinDate, checkinDate));
     }
 }

@@ -20,7 +20,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @TableName("sys_user_checkin")
 public class UserCheckinEntity implements Serializable {
-
+    // TODO: 建表
     @TableId(value = "checkin_id", type = IdType.ASSIGN_ID)
     private Long checkinId;
 
