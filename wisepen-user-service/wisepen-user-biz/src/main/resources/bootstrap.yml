@@ -29,3 +29,8 @@ spring:
         - 10 #指定首选的网络号段 (校园网段10开头)
   profiles:
     active: dev # 激活开发环境配置
+
+wisepen:
+  user:
+    checkin:
+      reward-amount: ${WISEPEN_USER_CHECKIN_REWARD_AMOUNT:5}

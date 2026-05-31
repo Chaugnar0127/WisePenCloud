@@ -64,7 +64,9 @@ public enum UserError implements IResult {
     WALLET_INFO_POINT_TRADE_REVOKE_NOT_ALLOWED(3919, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.NOT_ALLOWED), "当前状态不允许冲正"),
     WALLET_INFO_POINT_MARKET_TRADE_EXISTS(3920, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.CONFLICT), "集市交易已存在"),
     WALLET_INFO_POINT_TRADE_SETTLE_INCONSISTENT(3921, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.STATE_INVALID), "集市结算流水异常，无法处理"),
-    WALLET_INFO_POINT_TRADE_SETTLE_MISMATCH(3922, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.INVALID), "集市结算参数与已有流水不一致");
+    WALLET_INFO_POINT_TRADE_SETTLE_MISMATCH(3922, new ResultKey(BusinessDomain.USER, UserSubject.WALLET_INFO_POINT, ErrorReason.INVALID), "集市结算参数与已有流水不一致"),
+
+    USER_CHECKIN_ALREADY_DONE(3931, new ResultKey(BusinessDomain.USER, UserSubject.CHECKIN, ErrorReason.ALREADY_EXISTS), "今日已签到");
 
     private final Integer code;
     private final ResultKey key;

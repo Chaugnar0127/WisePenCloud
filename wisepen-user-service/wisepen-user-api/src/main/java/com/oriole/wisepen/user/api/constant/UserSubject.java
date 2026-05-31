@@ -13,7 +13,8 @@ public enum UserSubject implements IBusinessSubject {
     WALLET,
     WALLET_TOKEN,
     WALLET_INFO_POINT,
-    VOUCHER;
+    VOUCHER,
+    CHECKIN;
 
     @Override
     public String key() {

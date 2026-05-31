@@ -16,7 +16,8 @@ public enum InfoPointChangeType {
     EXCHANGE_FROM_TOKEN(4, "Token兑换收入"),
     ADMIN_GRANT(5, "管理员发放"),
     ADMIN_YIELD(6, "管理员扣除"),
-    MARKET_TRADE_REVOKE(7, "集市交易撤销");
+    MARKET_TRADE_REVOKE(7, "集市交易撤销"),
+    CHECKIN_REWARD(8, "签到奖励");
 
     @EnumValue
     @JsonValue
