@@ -31,7 +31,7 @@ public class AdminWalletInfoPointController {
 
     private final IInfoPointWalletService walletService;
 
-    @GetMapping("/balance")
+    @GetMapping("/getBalance")
     @Log(title = "管理员查询用户信息点余额", businessType = BusinessType.SELECT)
     public R<Integer> getBalance(@RequestParam("userId") @NotNull Long userId) {
         return R.ok(walletService.getInfoPointBalance(userId));

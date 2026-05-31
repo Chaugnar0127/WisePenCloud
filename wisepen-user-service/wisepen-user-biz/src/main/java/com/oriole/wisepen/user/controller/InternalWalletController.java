@@ -7,22 +7,24 @@ import com.oriole.wisepen.user.api.feign.RemoteWalletService;
 import com.oriole.wisepen.user.service.IInfoPointWalletService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
+@RequestMapping("/internal/wallet/infopoint")
 @RequiredArgsConstructor
 public class InternalWalletController implements RemoteWalletService {
 
     private final IInfoPointWalletService walletService;
 
     @Override
+    @PostMapping("/settleTrade")
     public R<Void> settleInfoPointTrade(@RequestBody @Valid InfoPointTradeSettleRequest req) {
         walletService.settleInfoPointTrade(req);
         return R.ok();
     }
 
     @Override
+    @PostMapping("/reverseTrade")
     public R<Void> reverseInfoPointTrade(@RequestBody @Valid InfoPointTradeReverseRequest req) {
         // 内部 Feign 无登录态，不设置 operatorId；对外 Controller 需注入 req.operatorId
         walletService.reverseInfoPointTrade(req);
@@ -30,6 +32,7 @@ public class InternalWalletController implements RemoteWalletService {
     }
 
     @Override
+    @GetMapping("/getBalance")
     public R<Integer> getInfoPointBalance(Long userId) {
         return R.ok(walletService.getInfoPointBalance(userId));
     }

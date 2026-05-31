@@ -24,6 +24,6 @@ public interface RemoteWalletService {
     R<Void> reverseInfoPointTrade(@RequestBody InfoPointTradeReverseRequest req);
 
     @Operation(summary = "内部查询信息点余额")
-    @GetMapping("/internal/wallet/infopoint/balance")
+    @GetMapping("/internal/wallet/infopoint/getBalance")
     R<Integer> getInfoPointBalance(@RequestParam("userId") Long userId);
 }
