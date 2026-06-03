@@ -81,8 +81,8 @@ public class ResourceItemController {
             }
             resourceService.updateGroupResourceTags(
                     req.getResourceId(),
-                    userId,
                     req.getGroupId(),
+                    userId,
                     groupRole,
                     req.getTagIds()
             );
