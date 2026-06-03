@@ -16,29 +16,13 @@ import org.springframework.util.StringUtils;
 public class SkillUpdateRequest {
     private String resourceId;
 
-    @Deprecated
-    private String skillId;
-
     private String name;
-
-    @Deprecated
-    private String skillName;
 
     private String description;
 
     @AssertTrue(message = SkillValidationMsg.SKILL_ID_NOT_BLANK)
     @JsonIgnore
     public boolean isResourceIdPresent() {
-        return StringUtils.hasText(resourceId) || StringUtils.hasText(skillId);
-    }
-
-    @JsonIgnore
-    public String getEffectiveResourceId() {
-        return StringUtils.hasText(resourceId) ? resourceId : skillId;
-    }
-
-    @JsonIgnore
-    public String getEffectiveName() {
-        return StringUtils.hasText(name) ? name : skillName;
+        return StringUtils.hasText(resourceId);
     }
 }

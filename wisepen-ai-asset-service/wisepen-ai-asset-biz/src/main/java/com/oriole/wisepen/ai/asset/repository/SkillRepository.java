@@ -12,14 +12,4 @@ public interface SkillRepository extends MongoRepository<SkillEntity, String> {
     Optional<SkillEntity> findByResourceId(String resourceId);
 
     void deleteByResourceIdIn(List<String> resourceIds);
-
-    @Deprecated
-    default Optional<SkillEntity> findBySkillId(String skillId) {
-        return findByResourceId(skillId);
-    }
-
-    @Deprecated
-    default void deleteBySkillIdIn(List<String> skillIds) {
-        deleteByResourceIdIn(skillIds);
-    }
 }

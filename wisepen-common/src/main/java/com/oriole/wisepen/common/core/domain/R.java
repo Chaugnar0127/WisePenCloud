@@ -24,12 +24,10 @@ public class R<T> implements Serializable {
 
     // ================== 成功响应 ==================
 
-    @Deprecated
     public static <T> R<T> ok() {
         return new R<>(200, null, null, null);
     }
 
-    @Deprecated
     public static <T> R<T> ok(T data) {
         return new R<>(200, null, null, data);
     }

@@ -254,9 +254,10 @@ public class AliyunOssProvider implements StorageProvider {
             // 阿里云的 getObjectMetadata 是一个轻量级的 HEAD 请求，不拉取文件主体
             ObjectMetadata metadata = ossClient.getObjectMetadata(config.getBucketName(), objectKey);
 
-            StorageRecordBase record = new StorageRecordBase();
-            record.setObjectKey(objectKey);
-            record.setSize(metadata.getContentLength());
+            StorageRecordBase record = StorageRecordBase.builder()
+                    .objectKey(objectKey)
+                    .size(metadata.getContentLength())
+                    .build();
             // 阿里云通常在 ETag 中存储文件的 MD5 (大文件分片上传除外，这里做个兼容处理)
             String eTag = metadata.getETag();
             if (eTag != null) {

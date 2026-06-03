@@ -21,12 +21,6 @@ public enum SkillSourceTypeEnum {
         if (code == null) {
             return null;
         }
-        if ("PACKAGE_UPLOAD".equalsIgnoreCase(code) || "MANUAL_CREATE".equalsIgnoreCase(code)) {
-            return MANUAL;
-        }
-        if ("MARKDOWN_CONVERT".equalsIgnoreCase(code)) {
-            return BY_AGENT;
-        }
         return Arrays.stream(values())
                 .filter(item -> item.code.equalsIgnoreCase(code))
                 .findFirst()

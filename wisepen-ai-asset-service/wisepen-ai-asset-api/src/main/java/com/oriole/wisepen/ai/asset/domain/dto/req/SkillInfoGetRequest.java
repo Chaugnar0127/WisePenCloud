@@ -13,5 +13,5 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class SkillInfoGetRequest {
     @NotBlank(message = SkillValidationMsg.SKILL_ID_NOT_BLANK)
-    private String skillId;
+    private String resourceId;
 }

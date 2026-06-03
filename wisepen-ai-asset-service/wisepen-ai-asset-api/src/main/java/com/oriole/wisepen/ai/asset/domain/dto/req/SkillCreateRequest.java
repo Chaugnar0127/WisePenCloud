@@ -17,9 +17,6 @@ import org.springframework.util.StringUtils;
 public class SkillCreateRequest {
     private String name;
 
-    @Deprecated
-    private String skillName;
-
     private String description;
 
     @Builder.Default
@@ -28,11 +25,6 @@ public class SkillCreateRequest {
     @AssertTrue(message = SkillValidationMsg.SKILL_NAME_NOT_BLANK)
     @JsonIgnore
     public boolean isNamePresent() {
-        return StringUtils.hasText(name) || StringUtils.hasText(skillName);
-    }
-
-    @JsonIgnore
-    public String getEffectiveName() {
-        return StringUtils.hasText(name) ? name : skillName;
+        return StringUtils.hasText(name);
     }
 }
