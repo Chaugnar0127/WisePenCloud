@@ -22,8 +22,6 @@ public class SkillEntity extends SkillInfoBase {
     @Id
     private String resourceId;
 
-    private String storageBizTag;
-
     @CreatedDate
     private LocalDateTime createTime;
 

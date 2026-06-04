@@ -1,24 +1,30 @@
 package com.oriole.wisepen.ai.asset.domain.entity;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import com.oriole.wisepen.ai.asset.domain.base.SkillVersionBase;
+import lombok.*;
+import lombok.experimental.SuperBuilder;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.mongodb.core.mapping.Document;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.time.LocalDateTime;
 
+@EqualsAndHashCode(callSuper = true)
 @Data
-@Builder
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class SkillVersionEntity {
-    private String version;
-    private String skillMdObjectKey;
-    @Builder.Default
-    private Boolean published = false;
-    @Builder.Default
-    private Boolean enabled = false;
-    @Builder.Default
-    private List<SkillAssetEntity> assetsManifest = new ArrayList<>();
+@Document(collection = "wisepen_skill_versions")
+public class SkillVersionEntity extends SkillVersionBase {
+    @Id
+    private String id;
+
+    private String resourceId;
+
+    @CreatedDate
+    private LocalDateTime createTime;
+
+    @LastModifiedDate
+    private LocalDateTime updateTime;
 }

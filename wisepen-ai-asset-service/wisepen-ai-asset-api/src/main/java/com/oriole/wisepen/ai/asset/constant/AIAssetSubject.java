@@ -4,7 +4,7 @@ import com.oriole.wisepen.common.core.domain.IBusinessSubject;
 
 import java.util.Locale;
 
-public enum SkillSubject implements IBusinessSubject {
+public enum AIAssetSubject implements IBusinessSubject {
     SKILL;
 
     @Override

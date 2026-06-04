@@ -1,18 +1,15 @@
 package com.oriole.wisepen.ai.asset.service.impl;
 
-import cn.hutool.core.bean.BeanUtil;
-import com.oriole.wisepen.common.core.exception.ServiceException;
+import com.oriole.wisepen.ai.asset.domain.base.SkillInfoBase;
 import com.oriole.wisepen.ai.asset.domain.dto.req.SkillCreateRequest;
-import com.oriole.wisepen.ai.asset.domain.dto.req.SkillInfoRequest;
 import com.oriole.wisepen.ai.asset.domain.dto.req.SkillUpdateRequest;
 import com.oriole.wisepen.ai.asset.domain.entity.SkillEntity;
-import com.oriole.wisepen.ai.asset.enums.SkillAuditStatusEnum;
-import com.oriole.wisepen.ai.asset.enums.SkillSourceTypeEnum;
-import com.oriole.wisepen.ai.asset.enums.SkillStatusEnum;
+import com.oriole.wisepen.ai.asset.enums.SkillSourceType;
 import com.oriole.wisepen.ai.asset.exception.SkillError;
 import com.oriole.wisepen.ai.asset.repository.SkillRepository;
-import com.oriole.wisepen.ai.asset.repository.SkillVersionRepository;
 import com.oriole.wisepen.ai.asset.service.ISkillService;
+import com.oriole.wisepen.ai.asset.service.ISkillVersionService;
+import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.resource.domain.dto.ResourceCreateReqDTO;
 import com.oriole.wisepen.resource.enums.ResourceType;
 import com.oriole.wisepen.resource.feign.RemoteResourceService;
@@ -28,62 +25,54 @@ import java.util.List;
 public class SkillServiceImpl implements ISkillService {
 
     private final SkillRepository skillRepository;
+    private final ISkillVersionService skillVersionService;
     private final RemoteResourceService remoteResourceService;
-    private final SkillVersionRepository skillVersionRepository;
 
     @Override
-    public String createSkill(SkillCreateRequest dto, String userId) {
-        ResourceCreateReqDTO resourceReq = ResourceCreateReqDTO.builder()
-                .resourceName(dto.getName())
+    public String createSkill(SkillCreateRequest req, String userId) {
+        String resourceId = remoteResourceService.createResource(ResourceCreateReqDTO.builder()
+                .resourceName(req.getTitle())
                 .resourceType(ResourceType.SKILL)
                 .ownerId(userId)
-                .build();
-        String resourceId = remoteResourceService.createResource(resourceReq).getData();
+                .build()).getData();
         if (!StringUtils.hasText(resourceId)) {
             throw new ServiceException(SkillError.SKILL_RESOURCE_REGISTER_FAILED);
         }
 
         SkillEntity entity = SkillEntity.builder()
                 .resourceId(resourceId)
-                .name(dto.getName())
-                .ownerId(userId)
-                .description(dto.getDescription() == null ? "" : dto.getDescription())
+                .name(req.getName() == null ? "" : req.getName())
+                .description(req.getDescription() == null ? "" : req.getDescription())
                 .version(0)
-                .sourceType(dto.getSourceType() == null ? SkillSourceTypeEnum.MANUAL : dto.getSourceType())
-                .skillStatus(SkillStatusEnum.DRAFT)
-                .auditStatus(SkillAuditStatusEnum.NOT_SUBMITTED)
+                .sourceType(req.getSourceType() == null ? SkillSourceType.MANUAL : req.getSourceType())
                 .build();
         skillRepository.save(entity);
+        // 直接新建首份草案(1)
+        skillVersionService.createDraftSkillVersion(resourceId, 1);
         return resourceId;
     }
 
     @Override
     @Transactional
     public void deleteSkills(List<String> resourceIds) {
-        if (resourceIds == null || resourceIds.isEmpty()) {
-            return;
-        }
+        skillVersionService.deleteAllVersionsByResourceIds(resourceIds);
         skillRepository.deleteByResourceIdIn(resourceIds);
-        skillVersionRepository.deleteByResourceIdIn(resourceIds);
     }
 
     @Override
-    public void updateSkill(SkillUpdateRequest dto) {
-        SkillEntity entity = skillRepository.findByResourceId(dto.getResourceId())
+    public void updateSkill(SkillUpdateRequest req) {
+        SkillEntity entity = skillRepository.findByResourceId(req.getResourceId())
                 .orElseThrow(() -> new ServiceException(SkillError.SKILL_NOT_FOUND));
-        if (dto.getName() != null) {
-            entity.setName(dto.getName());
-        }
-        if (dto.getDescription() != null) {
-            entity.setDescription(dto.getDescription());
-        }
+
+        if (req.getName() != null) entity.setName(req.getName());
+        if (req.getDescription() != null) entity.setDescription(req.getDescription());
+
         skillRepository.save(entity);
     }
 
     @Override
-    public SkillInfoRequest getSkillInfo(String resourceId) {
-        SkillEntity entity = skillRepository.findByResourceId(resourceId)
+    public SkillInfoBase getSkillInfo(String resourceId) {
+        return skillRepository.findByResourceId(resourceId)
                 .orElseThrow(() -> new ServiceException(SkillError.SKILL_NOT_FOUND));
-        return BeanUtil.copyProperties(entity, SkillInfoRequest.class);
     }
 }

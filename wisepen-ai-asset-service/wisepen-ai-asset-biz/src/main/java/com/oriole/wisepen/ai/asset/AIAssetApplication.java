@@ -3,11 +3,15 @@ package com.oriole.wisepen.ai.asset;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.client.discovery.EnableDiscoveryClient;
+import org.springframework.data.mongodb.config.EnableMongoAuditing;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
+@EnableScheduling
 @EnableDiscoveryClient
 @SpringBootApplication
-public class SkillApplication {
+@EnableMongoAuditing
+public class AIAssetApplication {
     public static void main(String[] args) {
-        SpringApplication.run(SkillApplication.class, args);
+        SpringApplication.run(AIAssetApplication.class, args);
     }
 }

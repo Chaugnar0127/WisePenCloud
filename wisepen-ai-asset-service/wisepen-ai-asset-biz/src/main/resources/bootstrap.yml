@@ -1,9 +1,9 @@
 server:
-  port: 9210 # 本地启动占用 9410 端口
+  port: 19910 # 本地启动占用 9410 端口
 
 spring:
   application:
-    name: wisepen-skill-service # 服务名，也是 Nacos 里的 Data ID
+    name: wisepen-ai-asset-service # 服务名，也是 Nacos 里的 Data ID
   cloud:
     nacos:
       discovery:

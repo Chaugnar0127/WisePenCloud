@@ -1,7 +1,7 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="AIAssetApplication" type="SpringBootApplicationConfigurationType" factoryName="Spring Boot">
     <module name="wisepen-ai-asset-biz" />
-    <option name="SPRING_BOOT_MAIN_CLASS" value="com.oriole.wisepen.ai.asset.SkillApplication" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="com.oriole.wisepen.ai.asset.AIAssetApplication" />
     <option name="VM_PARAMETERS" value="-javaagent:$ProjectFileDir$/opentelemetry-javaagent.jar -Dotel.service.name=wisepen-user-service -Dotel.traces.sampler=always_on" />
     <extension name="net.ashald.envfile">
       <option name="IS_ENABLED" value="true" />

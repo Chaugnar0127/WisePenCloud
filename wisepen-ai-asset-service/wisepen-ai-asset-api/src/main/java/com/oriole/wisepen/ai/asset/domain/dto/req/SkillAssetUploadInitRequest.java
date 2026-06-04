@@ -1,0 +1,51 @@
+package com.oriole.wisepen.ai.asset.domain.dto.req;
+
+import com.oriole.wisepen.ai.asset.constant.SkillValidationMsg;
+import com.oriole.wisepen.ai.asset.enums.SkillAssetResourceType;
+import com.oriole.wisepen.common.core.domain.IBusinessSubject;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.ArrayList;
+import java.util.List;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class SkillAssetUploadInitRequest {
+    @NotBlank(message = SkillValidationMsg.SKILL_ID_NOT_BLANK)
+    private String resourceId;
+
+    private Integer draftVersion;
+
+    @Valid
+    @NotEmpty(message = SkillValidationMsg.SKILL_ASSET_LIST_NOT_EMPTY)
+    @Builder.Default
+    private List<SkillAssetUploadRequest> assets = new ArrayList<>();
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SkillAssetUploadRequest {
+        @NotBlank(message = SkillValidationMsg.SKILL_ASSET_NAME_NOT_BLANK)
+        private String name;
+
+        @NotBlank(message = SkillValidationMsg.SKILL_ASSET_PATH_NOT_BLANK)
+        private String path;
+
+        @NotNull(message = SkillValidationMsg.SKILL_ASSET_TYPE_NOT_BLANK)
+        private SkillAssetResourceType skillAssetResourceType;
+
+        private String md5;
+
+        private Long expectedSize;
+    }
+}
