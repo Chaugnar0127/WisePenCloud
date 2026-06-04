@@ -82,14 +82,14 @@ public class UserServiceImpl implements IUserService {
         return userList.stream().filter(Objects::nonNull).collect(Collectors.toMap(
                 UserEntity::getUserId,
                 user -> BeanUtil.copyProperties(user, UserDisplayBase.class),
-                (existing, replacement) -> existing
-        ));
+                (existing, replacement) -> existing));
     }
 
     @Override
     public void register(AuthRegisterRequest req) {
         // 校验用户名是否存在
-        if (userMapper.selectCount(Wrappers.<UserEntity>lambdaQuery().eq(UserEntity::getUsername, req.getUsername())) > 0) {
+        if (userMapper
+                .selectCount(Wrappers.<UserEntity>lambdaQuery().eq(UserEntity::getUsername, req.getUsername())) > 0) {
             throw new ServiceException(UserError.USERNAME_ALREADY_EXISTS);
         }
 
@@ -122,12 +122,13 @@ public class UserServiceImpl implements IUserService {
     public void sendResetMail(AuthPwdResetVerifyRequest req) {
         // 查询学号对应用户
         String username = req.getUsername();
-        UserEntity userEntity = userMapper.selectOne(Wrappers.<UserEntity>lambdaQuery().eq(UserEntity::getUsername, username).last("LIMIT 1"));
+        UserEntity userEntity = userMapper
+                .selectOne(Wrappers.<UserEntity>lambdaQuery().eq(UserEntity::getUsername, username).last("LIMIT 1"));
 
-        if(userEntity == null){
+        if (userEntity == null) {
             log.warn("重置密码申请：用户名 {} 不存在，流程静默终止", username);
             return; // 处于安全考虑，不存在也不报错，防止撞库
-        } else if(userEntity.getStatus() == Status.UNIDENTIFIED){
+        } else if (userEntity.getStatus() == Status.UNIDENTIFIED) {
             // 未通过身份认证，不能找回密码
             throw new ServiceException(UserError.CANNOT_OPERATE_BEFORE_AUTH_VERIFICATION);
         }
@@ -167,20 +168,22 @@ public class UserServiceImpl implements IUserService {
 
         // 组装响应
         UserDetailInfoResponse res = new UserDetailInfoResponse();
+        res.setUserId(userId);
         res.setUserInfo(BeanUtil.copyProperties(userEntity, UserInfoBase.class));
         res.setUserProfile(BeanUtil.copyProperties(userProfileEntity, UserProfileBase.class));
 
         // 如果已验证
         if (userEntity.getStatus() != Status.UNIDENTIFIED) {
             // 设置只读字段
-            List<String> readonlyFields = strategyFactory.getStrategy(userEntity.getVerificationMode()).getReadonlyFields();
+            List<String> readonlyFields = strategyFactory.getStrategy(userEntity.getVerificationMode())
+                    .getReadonlyFields();
             res.setReadonlyFields(readonlyFields);
         }
         return res;
     }
 
     @Override
-    public void resetPasswordAdmin(AuthPwdAdminResetRequest req){
+    public void resetPasswordAdmin(AuthPwdAdminResetRequest req) {
         Long userId = req.getUserId();
         updatePasswordByUserId(userId,
                 StrUtil.isBlank(req.getNewPassword()) ? userProperties.getDefaultPassword() : req.getNewPassword());
@@ -188,9 +191,9 @@ public class UserServiceImpl implements IUserService {
     }
 
     @Override
-    public void resetPassword(AuthPwdResetRequest req){
+    public void resetPassword(AuthPwdResetRequest req) {
         Long userId = redisCacheManager.getPwdResetUser(req.getToken());
-        if(userId == null){
+        if (userId == null) {
             throw new ServiceException(UserError.USER_PASSWORD_RESET_EXPIRED);
         }
 
@@ -211,7 +214,7 @@ public class UserServiceImpl implements IUserService {
     @Override
     public void updateProfile(Long userId, UserProfileUpdateRequest req) {
         UserEntity userEntity = userMapper.selectById(userId);
-        if(userEntity.getStatus() == Status.UNIDENTIFIED){
+        if (userEntity.getStatus() == Status.UNIDENTIFIED) {
             // 未通过身份认证，不能更新Profile
             throw new ServiceException(UserError.CANNOT_OPERATE_BEFORE_AUTH_VERIFICATION);
         }
@@ -292,7 +295,8 @@ public class UserServiceImpl implements IUserService {
     }
 
     @Override
-    public PageR<UserEntity> getUserListAdmin(int page, int size, String keyword, Status status, IdentityType identityType) {
+    public PageR<UserEntity> getUserListAdmin(int page, int size, String keyword, Status status,
+            IdentityType identityType) {
         page = Math.max(1, page);
         size = Math.max(1, size);
 
@@ -309,7 +313,8 @@ public class UserServiceImpl implements IUserService {
             // 关键词模糊匹配 realName，或精确匹配 campusNo、username，或尝试作为 id 精确匹配
             String kw = keyword.trim();
             queryWrapper.and(wrapper -> {
-                wrapper.like(UserEntity::getRealName, kw).or().eq(UserEntity::getCampusNo, kw).or().eq(UserEntity::getUsername, kw);
+                wrapper.like(UserEntity::getRealName, kw).or().eq(UserEntity::getCampusNo, kw).or()
+                        .eq(UserEntity::getUsername, kw);
                 wrapper.or().eq(UserEntity::getUserId, Long.valueOf(kw));
             });
         }
