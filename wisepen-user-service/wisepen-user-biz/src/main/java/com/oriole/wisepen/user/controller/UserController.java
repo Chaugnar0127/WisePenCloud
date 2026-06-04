@@ -12,12 +12,15 @@ import com.oriole.wisepen.user.api.domain.dto.req.UserProfileUpdateRequest;
 import com.oriole.wisepen.user.api.enums.UserVerificationMode;
 import com.oriole.wisepen.user.service.IUserService;
 import com.oriole.wisepen.user.strategy.VerificationStrategyFactory;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.Map;
 
+@Tag(name = "用户资料", description = "用户资料查询、更新与身份验证")
 @RestController
 @RequestMapping("/user")
 @RequiredArgsConstructor
@@ -26,6 +29,7 @@ public class UserController {
     private final IUserService userService;
     private final VerificationStrategyFactory verificationStrategyFactory;
 
+    @Operation(summary = "获取当前用户信息")
     @CheckLogin
     @GetMapping("/getUserInfo")
     @Log(title = "用户信息获取", businessType= BusinessType.SELECT, isSaveResponseData=false)
@@ -35,6 +39,7 @@ public class UserController {
         return R.ok(userInfo);
     }
 
+    @Operation(summary = "更新用户资料")
     @CheckLogin
     @PutMapping("/changeUserProfile")
     @Log(title = "更新用户资料", businessType = BusinessType.UPDATE)
@@ -43,6 +48,7 @@ public class UserController {
         return R.ok();
     }
 
+    @Operation(summary = "更新用户信息")
     @CheckLogin
     @PutMapping("/changeUserInfo")
     @Log(title = "更新用户信息", businessType = BusinessType.UPDATE)
@@ -51,6 +57,7 @@ public class UserController {
         return R.ok();
     }
 
+    @Operation(summary = "发起邮箱验证")
     @CheckLogin
     @PostMapping("/verify/initiateEmailVerify")
     @Log(title = "发起邮箱验证", businessType = BusinessType.OTHER)
@@ -62,6 +69,7 @@ public class UserController {
         return R.ok();
     }
 
+    @Operation(summary = "回调检查邮箱验证")
     @GetMapping("/verify/checkEmailVerify")
     @Log(title = "邮箱验证回调", businessType = BusinessType.OTHER)
     public R<Void> checkEmailVerify(@RequestParam("token") String token) {
@@ -71,6 +79,7 @@ public class UserController {
         return R.ok();
     }
 
+    @Operation(summary = "发起复旦 UIS 认证")
     @CheckLogin
     @PostMapping("/verify/initiateFudanUISVerify")
     @Log(title = "发起复旦UIS认证", businessType = BusinessType.OTHER)
@@ -83,6 +92,7 @@ public class UserController {
         return R.ok();
     }
 
+    @Operation(summary = "检查复旦 UIS 认证状态")
     @CheckLogin
     @GetMapping("/verify/checkFudanUISVerify")
     @Log(title = "检查复旦UIS认证状态", businessType = BusinessType.OTHER)

@@ -8,6 +8,8 @@ import com.oriole.wisepen.file.storage.api.domain.dto.StorageRecordDTO;
 import com.oriole.wisepen.file.storage.api.enums.StorageSceneEnum;
 import com.oriole.wisepen.file.storage.exception.FileStorageError;
 import com.oriole.wisepen.file.storage.service.IStorageService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -17,6 +19,7 @@ import java.util.EnumSet;
 
 import static com.oriole.wisepen.file.storage.api.enums.StorageSceneEnum.*;
 
+@Tag(name = "文件存储", description = "用户文件与图片上传代理接口")
 @RestController
 @RequestMapping("/storage/")
 @RequiredArgsConstructor
@@ -31,6 +34,7 @@ public class StorageController {
      * @param scene   业务场景
      * @param bizTag  业务隔离标识
      */
+    @Operation(summary = "上传图床图片")
     @PostMapping("/imageUpload")
     public R<StorageRecordDTO> uploadImageProxy(
             @RequestParam("file") MultipartFile file,

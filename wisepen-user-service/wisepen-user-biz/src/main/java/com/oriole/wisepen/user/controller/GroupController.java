@@ -17,11 +17,14 @@ import com.oriole.wisepen.user.api.domain.dto.res.GroupDetailInfoResponse;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupItemInfoResponse;
 import com.oriole.wisepen.user.api.enums.GroupRoleFilter;
 import com.oriole.wisepen.user.service.IGroupService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+@Tag(name = "小组管理", description = "小组加入、创建、编辑、解散与查询")
 @RestController
 @RequestMapping("/group")
 @RequiredArgsConstructor
@@ -31,6 +34,7 @@ public class GroupController {
 
 	private final IGroupService groupService;
 
+	@Operation(summary = "加入小组")
 	@PostMapping("/joinGroup")
 	public R<Void> joinGroup(@RequestBody @Valid GroupMemberJoinRequest req) {
 		groupService.joinGroup(req, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap().keySet());
@@ -38,6 +42,7 @@ public class GroupController {
 		return R.ok();
 	}
 
+	@Operation(summary = "创建小组")
 	@PostMapping("/addGroup")
 	public R<Long> createGroup(@RequestBody @Valid GroupCreateRequest req) {
 
@@ -53,6 +58,7 @@ public class GroupController {
 		return R.ok(groupService.createGroup(req, SecurityContextHolder.getUserId()));
 	}
 
+	@Operation(summary = "修改小组信息")
 	@PostMapping("/changeGroup")
 	public R<Void> updateGroup(@RequestBody @Valid GroupUpdateRequest req) {
 		SecurityContextHolder.assertGroupRole(req.getGroupId(), GroupRoleType.OWNER);
@@ -69,6 +75,7 @@ public class GroupController {
 		return R.ok();
 	}
 
+	@Operation(summary = "解散小组")
 	@PostMapping("/removeGroup")
 	public R<Void> deleteGroup(@RequestBody @Valid GroupDeleteRequest req) {
 		SecurityContextHolder.assertGroupRole(req.getGroupId(), GroupRoleType.OWNER);
@@ -77,6 +84,7 @@ public class GroupController {
 		return R.ok();
 	}
 
+	@Operation(summary = "分页查询小组列表")
 	@GetMapping("/list")
 	public R<PageR<GroupItemInfoResponse>> listGroups(
 			@RequestParam GroupRoleFilter groupRoleFilter,
@@ -86,11 +94,13 @@ public class GroupController {
 		return R.ok(groupService.getGroupList(SecurityContextHolder.getUserId(), groupRoleFilter, page, size));
 	}
 
+	@Operation(summary = "获取小组基础信息")
 	@GetMapping("/getGroupBaseInfo")
 	public R<GroupItemInfoResponse> getGroupBaseInfo(@RequestParam("groupId") Long groupId) {
 		return R.ok(groupService.getGroupBaseInfoById(groupId));
 	}
 
+	@Operation(summary = "获取小组详细信息")
 	@GetMapping("/getGroupDetailInfo")
 	public R<GroupDetailInfoResponse> getGroupDetailInfo(@RequestParam("groupId") Long groupId) {
 		SecurityContextHolder.assertGroupRole(groupId, GroupRoleType.OWNER, GroupRoleType.ADMIN);

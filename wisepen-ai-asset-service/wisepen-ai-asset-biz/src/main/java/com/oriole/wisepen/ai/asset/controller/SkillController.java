@@ -34,7 +34,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "Skill 管理", description = "Skill 的创建、更新与查询")
+@Tag(name = "技能资产管理", description = "技能资产的创建、更新、查询、发布与文件管理")
 @RestController
 @RequestMapping("/skill")
 @RequiredArgsConstructor
@@ -45,7 +45,7 @@ public class SkillController {
     private final ISkillVersionService skillVersionService;
     private final RemoteResourceService remoteResourceService;
 
-    @Operation(summary = "创建 Skill")
+    @Operation(summary = "创建技能资产")
     @Log(title = "创建 Skill", businessType = BusinessType.INSERT)
     @PostMapping("/createSkill")
     public R<String> createSkill(@Validated @RequestBody SkillCreateRequest request) {
@@ -54,7 +54,7 @@ public class SkillController {
         return R.ok(resourceId);
     }
 
-    @Operation(summary = "更新 Skill 信息", description = "更新 Skill 的name与desc")
+    @Operation(summary = "更新技能资产信息")
     @Log(title = "更新 Skill 信息", businessType = BusinessType.UPDATE)
     @PostMapping("/changeSkillInfo")
     public R<Void> updateSkillInfo(@Validated @RequestBody SkillUpdateRequest request) {
@@ -63,7 +63,7 @@ public class SkillController {
         return R.ok();
     }
 
-    @Operation(summary = "获取 Skill 信息")
+    @Operation(summary = "获取技能资产信息")
     @PostMapping("/getSkillInfo")
     public R<SkillInfoResponse> getSkillInfo(@RequestParam String resourceId) {
         // 若无权限将抛出异常，此处无需重复鉴权
@@ -75,14 +75,14 @@ public class SkillController {
         return R.ok(skillInfoResponse);
     }
 
-    @Operation(summary = "获取 Skill 特定版本信息", description = "查询指定版本或当前确认版本的文件快照")
+    @Operation(summary = "获取技能资产版本信息", description = "查询指定版本或当前确认版本的文件快照")
     @PostMapping("/getSkillVersionInfo")
     public R<SkillVersionInfoResponse> getSkillVersionInfo(@RequestParam String resourceId, Integer version) {
         assertSkillOwner(resourceId);
         return R.ok(skillVersionService.getSkillVersion(resourceId, version));
     }
 
-    @Operation(summary = "发布 Skill 版本", description = "确认当前草稿版本并推进主档版本号")
+    @Operation(summary = "发布技能资产版本", description = "确认当前草稿版本并推进主档版本号")
     @Log(title = "发布 Skill 版本", businessType = BusinessType.UPDATE)
     @PostMapping("/publishSkillVersion")
     public R<Void> publishSkillVersion(@Validated @RequestBody SkillVersionPublishRequest request) {
@@ -91,7 +91,7 @@ public class SkillController {
         return R.ok();
     }
 
-    @Operation(summary = "上传 Skill 资源", description = "为草稿版本Skill添加或替换文件")
+    @Operation(summary = "上传技能资产文件", description = "为草稿版本技能资产添加或替换文件")
     @Log(title = "上传 Skill 资源", businessType = BusinessType.INSERT)
     @PostMapping("/initUploadSkillAssets")
     public R<SkillAssetUploadInitResponse> initUploadSkillAssets(@Validated @RequestBody SkillAssetUploadInitRequest request) {
@@ -100,7 +100,7 @@ public class SkillController {
         return R.ok(skillAssetUploadInitResponse);
     }
 
-    @Operation(summary = "删除草稿中的 Skill 资源", description = "为草稿版本Skill删除文件")
+    @Operation(summary = "删除技能资产草稿文件", description = "删除草稿版本技能资产中的文件")
     @Log(title = "Delete Skill asset", businessType = BusinessType.DELETE)
     @PostMapping("/deleteSkillAssets")
     public R<Void> deleteSkillAssets(@Validated @RequestBody SkillAssetDeleteRequest request) {

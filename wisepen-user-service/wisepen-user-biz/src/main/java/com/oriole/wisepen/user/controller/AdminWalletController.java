@@ -9,6 +9,8 @@ import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.common.security.annotation.CheckRole;
 import com.oriole.wisepen.user.api.domain.dto.req.WalletChangeCoinBalanceRequest;
 import com.oriole.wisepen.user.service.IWalletService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+@Tag(name = "管理员钱包管理", description = "管理员调整用户钱包余额")
 @RestController
 @RequestMapping("/admin/user/wallet")
 @RequiredArgsConstructor
@@ -24,6 +27,7 @@ public class AdminWalletController {
 
     private final IWalletService walletService;
 
+    @Operation(summary = "管理员调整用户信息点")
     @PostMapping("/changeBalance")
     @Log(title = "管理员调整用户信息点", businessType = BusinessType.UPDATE)
     public R<Void> changeBalance(@RequestBody @Valid WalletChangeCoinBalanceRequest req) {

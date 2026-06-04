@@ -10,6 +10,8 @@ import com.oriole.wisepen.user.api.domain.dto.req.AuthPwdResetRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.AuthPwdResetVerifyRequest;
 import com.oriole.wisepen.user.service.AuthService;
 import com.oriole.wisepen.user.service.IUserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 
 import static com.oriole.wisepen.common.core.constant.SecurityConstants.AUTHORIZATION_TOKEN;
 
+@Tag(name = "用户认证", description = "用户登录、登出、注册与密码重置")
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
@@ -26,6 +29,7 @@ public class AuthController {
     private final AuthService authService;
     private final IUserService userService;
 
+    @Operation(summary = "用户登录")
     @PostMapping("/login")
     public R<String> login(@Valid @RequestBody AuthLoginRequest loginRequest, HttpServletResponse response) {
         String sessionId = authService.login(loginRequest);
@@ -36,6 +40,7 @@ public class AuthController {
         return R.ok(sessionId);
     }
 
+    @Operation(summary = "用户登出")
     @CheckLogin
     @PostMapping("/logout")
     public R<Void> logout(HttpServletResponse response) {
@@ -60,18 +65,21 @@ public class AuthController {
         return cookie;
     }
 
+    @Operation(summary = "用户注册")
     @PostMapping("/register")
     public R<String> register(@Valid @RequestBody AuthRegisterRequest req) {
         userService.register(req);
         return R.ok();
     }
 
+    @Operation(summary = "发送密码重置邮件")
     @PostMapping("/sendResetMail")
     public R<Void> sendResetMail(@Valid @RequestBody AuthPwdResetVerifyRequest req) {
         userService.sendResetMail(req);
         return R.ok();
     }
 
+    @Operation(summary = "重置用户密码")
     @PostMapping("/resetPassword")
     public R<Void> resetPassword(@Valid @RequestBody AuthPwdResetRequest req) {
         userService.resetPassword(req);

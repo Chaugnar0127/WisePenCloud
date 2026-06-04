@@ -18,7 +18,7 @@ public class InternalNoteController implements RemoteNoteService {
 
     private final INoteVersionService noteVersionService;
 
-    @Operation(summary = "获取最新快照")
+    @Operation(summary = "内部获取最新笔记快照")
     @GetMapping("/getNoteLatestVersion")
     @Override
     public R<NoteSnapshotResponse> getNoteLatestVersion(@RequestParam("resourceId") String resourceId) {

@@ -11,10 +11,13 @@ import com.oriole.wisepen.user.api.enums.Status;
 import com.oriole.wisepen.user.domain.entity.UserEntity;
 import com.oriole.wisepen.user.domain.entity.UserProfileEntity;
 import com.oriole.wisepen.user.service.IUserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
 
+@Tag(name = "管理员用户管理", description = "管理员查询和维护用户资料、状态与密码")
 @RestController
 @RequestMapping("/admin/user")
 @RequiredArgsConstructor
@@ -23,6 +26,7 @@ public class AdminUserController {
 
     private final IUserService userService;
 
+    @Operation(summary = "管理员查询用户列表")
     @GetMapping("/getUserList")
     @Log(title = "管理员查询用户列表", businessType = BusinessType.SELECT)
     public R<PageR<UserEntity>> getUserList(
@@ -35,12 +39,14 @@ public class AdminUserController {
         return R.ok(userService.getUserListAdmin(page, size, keyword, status, identityType));
     }
 
+    @Operation(summary = "管理员获取用户详情")
     @GetMapping("/getUserInfo")
     @Log(title = "管理员获取用户详情", businessType = BusinessType.SELECT)
     public R<UserProfileEntity> getUserInfo(@RequestParam("userId") Long userId) {
         return R.ok(userService.getUserDetailInfoAdmin(userId));
     }
 
+    @Operation(summary = "管理员更新用户资料")
     @PostMapping("/changeUserProfile")
     @Log(title = "管理员更新用户资料", businessType = BusinessType.UPDATE)
     public R<Void> updateUserProfile(@RequestBody UserProfileAdminUpdateRequest req) {
@@ -48,6 +54,7 @@ public class AdminUserController {
         return R.ok();
     }
 
+    @Operation(summary = "管理员更新用户信息")
     @PostMapping("/changeUserInfo")
     @Log(title = "管理员更新用户信息", businessType = BusinessType.UPDATE)
     public R<Void> updateUserInfo(@RequestBody UserInfoAdminUpdateRequest req) {
@@ -55,6 +62,7 @@ public class AdminUserController {
         return R.ok();
     }
 
+    @Operation(summary = "管理员重置用户密码")
     @PostMapping("/resetPassword")
     @Log(title = "管理员重置用户密码", businessType = BusinessType.UPDATE)
     public R<Void> resetPassword(@RequestBody AuthPwdAdminResetRequest req) {

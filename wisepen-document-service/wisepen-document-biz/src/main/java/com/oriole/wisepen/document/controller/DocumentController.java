@@ -19,6 +19,7 @@ import com.oriole.wisepen.resource.enums.ResourceAccessRole;
 import com.oriole.wisepen.resource.enums.ResourceAction;
 import com.oriole.wisepen.resource.feign.RemoteResourceService;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -32,6 +33,7 @@ import static com.oriole.wisepen.document.exception.DocumentError.DOCUMENT_PERMI
 
 
 @Slf4j
+@Tag(name = "文档处理", description = "文档上传、处理状态、预览与信息查询")
 @RestController
 @RequestMapping("/document")
 @RequiredArgsConstructor

@@ -19,7 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
  *
  * @author Xiong Heng
  */
-@Tag(name = "用户反馈", description = "用户反馈接口")
+@Tag(name = "用户反馈", description = "用户提交问题报错、功能建议与使用咨询")
 @RestController
 @RequestMapping("/system/feedback")
 @RequiredArgsConstructor

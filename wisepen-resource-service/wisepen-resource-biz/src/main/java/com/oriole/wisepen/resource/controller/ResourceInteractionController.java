@@ -25,14 +25,14 @@ public class ResourceInteractionController {
 
     private final IResourceInteractionService resourceInteractionService;
 
-    @Operation(summary = "获取指定用户对某资源的交互状态", description = "获取指定用户对某资源的交互状态")
+    @Operation(summary = "获取资源交互状态")
     @GetMapping("/getResourceUserInteractionRecord")
     public R<ResourceUserInteractionRecordResponse> getResourceUserInteractionRecord(@RequestParam String resourceId) {
         String userId = SecurityContextHolder.getUserId().toString();
         return R.ok(resourceInteractionService.getResourceUserInteractionInfo(resourceId, userId));
     }
 
-    @Operation(summary = "对资源进行阅读", description = "对资源进行阅读")
+    @Operation(summary = "记录资源阅读")
     @Log(title = "资源阅读", businessType = BusinessType.UPDATE)
     @PostMapping("/read")
     public R<Void> changeResourceReadStatus(@Validated @RequestBody ResourceReadRequest request) {
@@ -41,7 +41,7 @@ public class ResourceInteractionController {
         return R.ok();
     }
 
-    @Operation(summary = "对资源进行点赞/取消点赞", description = "对资源进行点赞/取消点赞（点赞状态反转）")
+    @Operation(summary = "切换资源点赞状态", description = "对资源进行点赞或取消点赞")
     @Log(title = "资源点赞", businessType = BusinessType.UPDATE)
     @PostMapping("/toggleLike")
     public R<Void> changeResourceLikeStatus(@Validated @RequestBody ResourceLikeRequest request) {
@@ -50,7 +50,7 @@ public class ResourceInteractionController {
         return R.ok();
     }
 
-    @Operation(summary = "对资源进行评分", description = "对资源进行评分")
+    @Operation(summary = "评价资源")
     @Log(title = "资源评分", businessType = BusinessType.UPDATE)
     @PostMapping("/rate")
     public R<Void> changeResourceScore(@Validated @RequestBody ResourceRateRequest request) {
