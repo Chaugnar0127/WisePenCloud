@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 @FeignClient(contextId = "remoteWalletService", value = "wisepen-user-service")
 public interface RemoteWalletService {
 
-    @Operation(summary = "内部信息点交易结算（幂等）")
+    @Operation(summary = "内部金币交易结算")
     @PostMapping("/internal/user/wallet/settleTrade")
     R<Void> settleCoinTrade(@RequestBody WalletSettleCoinTradeRequest req);
 }

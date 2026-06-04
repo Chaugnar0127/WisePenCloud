@@ -111,12 +111,8 @@ public class UserServiceImpl implements IUserService {
                 .build();
         userProfileMapper.insert(userProfile);
 
-        UserWalletEntity userWallets = UserWalletEntity.builder()
-                .userId(user.getUserId())
-                .tokenBalance(0)
-                .tokenUsed(0)
-                .coinBalance(0)
-                .build();
+        UserWalletEntity userWallets = UserWalletEntity.builder().userId(user.getUserId())
+                .tokenBalance(0).tokenUsed(0).coinBalance(0).build();
         userWalletsMapper.insert(userWallets);
     }
 
