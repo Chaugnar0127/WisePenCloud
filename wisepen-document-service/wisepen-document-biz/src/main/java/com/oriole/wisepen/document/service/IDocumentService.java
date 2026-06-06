@@ -2,6 +2,7 @@ package com.oriole.wisepen.document.service;
 
 import com.oriole.wisepen.document.api.domain.base.DocumentInfoBase;
 import com.oriole.wisepen.document.api.domain.base.DocumentStatus;
+import com.oriole.wisepen.document.api.domain.dto.req.DocumentForkRequest;
 import com.oriole.wisepen.document.api.domain.dto.req.DocumentUploadInitRequest;
 import com.oriole.wisepen.document.api.domain.dto.res.DocumentUploadInitResponse;
 import com.oriole.wisepen.document.domain.entity.DocumentContentEntity;
@@ -47,4 +48,7 @@ public interface IDocumentService {
 
     // 文档就绪
     void finalizeToReady(String documentId);
+
+    // 复制文档。version=0 表示当前文档内容
+    void forkDocument(DocumentForkRequest request);
 }

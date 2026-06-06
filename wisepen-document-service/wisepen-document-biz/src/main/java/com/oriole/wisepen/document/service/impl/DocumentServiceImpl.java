@@ -8,6 +8,7 @@ import com.oriole.wisepen.document.api.constant.DocumentConstants;
 import com.oriole.wisepen.document.api.domain.base.DocumentInfoBase;
 import com.oriole.wisepen.document.api.domain.base.DocumentStatus;
 import com.oriole.wisepen.document.api.domain.base.DocumentUploadMeta;
+import com.oriole.wisepen.document.api.domain.dto.req.DocumentForkRequest;
 import com.oriole.wisepen.document.api.domain.dto.req.DocumentUploadInitRequest;
 import com.oriole.wisepen.document.api.domain.dto.res.DocumentUploadInitResponse;
 import com.oriole.wisepen.document.api.domain.mq.DocumentParseTaskMessage;
@@ -22,6 +23,7 @@ import com.oriole.wisepen.document.repository.DocumentContentRepository;
 import com.oriole.wisepen.document.repository.DocumentInfoRepository;
 import com.oriole.wisepen.document.repository.DocumentPdfMetaRepository;
 import com.oriole.wisepen.document.service.IDocumentService;
+import com.oriole.wisepen.file.storage.api.domain.dto.StorageCopyRequest;
 import com.oriole.wisepen.file.storage.api.domain.dto.StorageRecordDTO;
 import com.oriole.wisepen.file.storage.api.domain.dto.UploadInitReqDTO;
 import com.oriole.wisepen.file.storage.api.domain.dto.UploadInitRespDTO;
@@ -74,8 +76,7 @@ public class DocumentServiceImpl implements IDocumentService {
                     .bizTag(documentId)
                     .expectedSize(request.getExpectedSize())
                     .build()).getData();
-        }
-        catch (Exception e) {
+        } catch (Exception e) {
             log.warn("存储服务申请上传 URL 失败", e);
             throw new ServiceException(DocumentError.DOCUMENT_UPLOAD_URL_APPLY_FAILED, e.getMessage());
         }
@@ -90,8 +91,8 @@ public class DocumentServiceImpl implements IDocumentService {
                 .uploadMeta(meta)
                 .sourceObjectKey(uploadInitRespDTO.getObjectKey())
                 .documentStatus(new DocumentStatus(
-                        uploadInitRespDTO.getFlashUploaded()?
-                        DocumentStatusEnum.UPLOADED : DocumentStatusEnum.UPLOADING
+                        uploadInitRespDTO.getFlashUploaded() ?
+                                DocumentStatusEnum.UPLOADED : DocumentStatusEnum.UPLOADING
                 )).build();
         documentInfoRepository.save(entity);
 
@@ -312,5 +313,86 @@ public class DocumentServiceImpl implements IDocumentService {
                 .build());
 
         log.debug("文档已就绪 DocumentId={}", documentId);
+    }
+
+    @Override
+    public void forkDocument(DocumentForkRequest request) {
+        DocumentInfoEntity sourceInfo = documentInfoRepository.findByResourceId(request.getSourceResourceId())
+                .orElseThrow(() -> new ServiceException(DocumentError.DOCUMENT_NOT_FOUND));
+        if (sourceInfo.getDocumentStatus() == null
+                || sourceInfo.getDocumentStatus().getStatus() != DocumentStatusEnum.READY) {
+            throw new ServiceException(DocumentError.DOCUMENT_PREVIEW_NOT_READY);
+        }
+
+        String targetDocumentId = IdUtil.fastSimpleUUID();
+        List<String> copiedObjectKeys = new ArrayList<>();
+        try {
+            StorageRecordDTO copied = remoteStorageService.copyObject(StorageCopyRequest.builder()
+                    .sourceObjectKey(sourceInfo.getSourceObjectKey())
+                    .scene(StorageSceneEnum.PRIVATE_DOC)
+                    .bizTag(targetDocumentId)
+                    .build()).getData();
+            String sourceObjectKey = copied.getObjectKey();
+            copiedObjectKeys.add(sourceObjectKey);
+
+            copied = remoteStorageService.copyObject(StorageCopyRequest.builder()
+                    .sourceObjectKey(sourceInfo.getPreviewObjectKey())
+                    .scene(StorageSceneEnum.PRIVATE_DOC)
+                    .bizTag(targetDocumentId)
+                    .build()).getData();
+            String previewObjectKey = copied.getObjectKey();
+            copiedObjectKeys.add(previewObjectKey);
+
+            DocumentUploadMeta uploadMeta = DocumentUploadMeta.builder()
+                    .documentName(sourceInfo.getUploadMeta().getDocumentName())
+                    .uploaderId(request.getBuyerId())
+                    .fileType(sourceInfo.getUploadMeta().getFileType())
+                    .size(sourceInfo.getUploadMeta().getSize())
+                    .build();
+            DocumentInfoEntity targetInfo = DocumentInfoEntity.builder()
+                    .documentId(targetDocumentId)
+                    .resourceId(request.getTargetResourceId())
+                    .sourceObjectKey(sourceObjectKey)
+                    .previewObjectKey(previewObjectKey)
+                    .uploadMeta(uploadMeta)
+                    .documentStatus(new DocumentStatus(DocumentStatusEnum.READY))
+                    .maxPreviewPages(sourceInfo.getMaxPreviewPages())
+                    .build();
+            documentInfoRepository.save(targetInfo);
+
+            documentContentRepository.findById(sourceInfo.getDocumentId())
+                    .map(sourceContent -> DocumentContentEntity.builder()
+                            .documentId(targetDocumentId)
+                            .rawText(sourceContent.getRawText())
+                            .build())
+                    .ifPresent(documentContentRepository::save);
+
+            documentPdfMetaRepository.findById(sourceInfo.getDocumentId())
+                    .map(sourceMeta -> {
+                        DocumentPdfMetaEntity targetMeta = BeanUtil.copyProperties(sourceMeta, DocumentPdfMetaEntity.class);
+                        targetMeta.setDocumentId(targetDocumentId);
+                        return targetMeta;
+                    })
+                    .ifPresent(documentPdfMetaRepository::save);
+
+            eventPublisher.publishReadyEvent(DocumentReadyMessage.builder()
+                    .resourceId(request.getTargetResourceId())
+                    .content(documentContentRepository.findById(targetDocumentId)
+                            .map(DocumentContentEntity::getRawText)
+                            .orElse(null))
+                    .build());
+            log.info("document forked sourceResourceId={} targetResourceId={} targetDocumentId={}",
+                    request.getSourceResourceId(), request.getTargetResourceId(), targetDocumentId);
+        } catch (Exception e) {
+            if (!copiedObjectKeys.isEmpty()) {
+                eventPublisher.publishFileDeleteEvent(copiedObjectKeys);
+            }
+            documentContentRepository.deleteByDocumentId(targetDocumentId);
+            documentPdfMetaRepository.deleteById(targetDocumentId);
+            documentInfoRepository.deleteById(targetDocumentId);
+            log.warn("document fork compensated sourceResourceId={} targetResourceId={} targetDocumentId={}",
+                    request.getSourceResourceId(), request.getTargetResourceId(), targetDocumentId, e);
+            throw new ServiceException(DocumentError.DOCUMENT_FORK_FAILED, e.getMessage());
+        }
     }
 }
