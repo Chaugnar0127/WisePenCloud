@@ -61,8 +61,9 @@ public enum ResourceError implements IResult {
     MARKET_PURCHASE_ALREADY_FORKED(5726, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.NOT_ALLOWED), "该购买记录已完成复制"),
     CANNOT_BIND_MARKET_RESOURCE_DIRECTLY(5727, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_TAG, ErrorReason.NOT_ALLOWED), "集市资源挂载必须通过上架接口完成"),
     MARKET_LISTING_NOT_PENDING(5728, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.NOT_ALLOWED), "上架记录不在待审核状态"),
-    MARKET_AUDIT_STATUS_INVALID(5729, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.INVALID), "审核状态仅允许通过或驳回"),
-    MARKET_AUDIT_MESSAGE_REQUIRED(5730, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.INVALID), "驳回时必须填写审核说明");
+    MARKET_AUDIT_STATUS_INVALID(5729, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.INVALID), "审核状态仅允许通过、驳回或封禁"),
+    MARKET_AUDIT_MESSAGE_REQUIRED(5730, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.INVALID), "驳回或封禁时必须填写审核说明"),
+    MARKET_LISTING_BANNED(5731, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.NOT_ALLOWED), "该上架记录已被封禁，不可再次上架");
 
     private final Integer code;
     private final ResultKey key;

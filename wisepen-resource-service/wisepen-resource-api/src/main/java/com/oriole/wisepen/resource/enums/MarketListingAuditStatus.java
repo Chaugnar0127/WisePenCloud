@@ -16,7 +16,9 @@ public enum MarketListingAuditStatus {
     /** 审核通过，可与 LISTED 状态一起在集市展示 */
     APPROVED(2, "APPROVED"),
     /** 审核驳回，不可在集市展示 */
-    REJECTED(3, "REJECTED");
+    REJECTED(3, "REJECTED"),
+    /** 审核封禁，永久禁止该上架条目再次提交 */
+    BANNED(4, "BANNED");
 
     private final int code;
 

@@ -112,6 +112,9 @@ public class MarketServiceImpl implements IMarketService {
         }
 
         ListingInfo existing = findListingInfo(resource, sellMethod, listedVersion);
+        if (existing != null && existing.getAuditStatus() == MarketListingAuditStatus.BANNED) {
+            throw new ServiceException(ResourceError.MARKET_LISTING_BANNED);
+        }
         if (existing != null && existing.getStatus() == MarketListingStatus.LISTED) {
             throw new ServiceException(ResourceError.MARKET_LISTING_ALREADY_EXISTS);
         }
@@ -208,10 +211,12 @@ public class MarketServiceImpl implements IMarketService {
     @Override
     public MarketListingResponse auditListing(MarketAuditListingRequest request, Long operatorId, Map<Long, GroupRoleType> groupRoles) {
         if (request.getAuditStatus() != MarketListingAuditStatus.APPROVED
-                && request.getAuditStatus() != MarketListingAuditStatus.REJECTED) {
+                && request.getAuditStatus() != MarketListingAuditStatus.REJECTED
+                && request.getAuditStatus() != MarketListingAuditStatus.BANNED) {
             throw new ServiceException(ResourceError.MARKET_AUDIT_STATUS_INVALID);
         }
-        if (request.getAuditStatus() == MarketListingAuditStatus.REJECTED
+        if ((request.getAuditStatus() == MarketListingAuditStatus.REJECTED
+                || request.getAuditStatus() == MarketListingAuditStatus.BANNED)
                 && !StringUtils.hasText(request.getAuditMessage())) {
             throw new ServiceException(ResourceError.MARKET_AUDIT_MESSAGE_REQUIRED);
         }
