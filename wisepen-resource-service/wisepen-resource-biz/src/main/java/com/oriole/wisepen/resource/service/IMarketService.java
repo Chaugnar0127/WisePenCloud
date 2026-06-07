@@ -21,7 +21,5 @@ public interface IMarketService {
 
     MarketPurchaseResponse fork(MarketForkRequest request, Long buyerId);
 
-    PageR<MarketListingResponse> listMyListings(String sellerId, int page, int size);
-
     PageR<MarketPurchaseResponse> listMyPurchases(String buyerId, int page, int size);
 }

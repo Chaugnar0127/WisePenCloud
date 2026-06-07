@@ -51,14 +51,6 @@ public class MarketController {
         return R.ok();
     }
 
-    @Operation(summary = "我的上架")
-    @GetMapping("/listing/listMine")
-    public R<PageR<MarketListingResponse>> listMyListings(
-            @RequestParam(value = "page", defaultValue = "1") @Min(1) int page,
-            @RequestParam(value = "size", defaultValue = "20") @Min(1) int size) {
-        return R.ok(marketService.listMyListings(SecurityContextHolder.getUserId().toString(), page, size));
-    }
-
     @Operation(summary = "购买资源")
     @Log(title = "购买资源", businessType = BusinessType.INSERT)
     @PostMapping("/purchase")

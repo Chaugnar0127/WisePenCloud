@@ -18,7 +18,6 @@ import com.oriole.wisepen.resource.domain.dto.req.MarketPurchaseRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceForkRequest;
 import com.oriole.wisepen.resource.domain.dto.res.MarketListingResponse;
 import com.oriole.wisepen.resource.domain.dto.res.MarketPurchaseResponse;
-import com.oriole.wisepen.resource.domain.entity.MarketListingEntity;
 import com.oriole.wisepen.resource.domain.entity.MarketPurchaseEntity;
 import com.oriole.wisepen.resource.domain.entity.ResourceInteractionInfoEntity;
 import com.oriole.wisepen.resource.domain.entity.ResourceItemEntity;
@@ -29,7 +28,6 @@ import com.oriole.wisepen.resource.enums.MarketSellMethod;
 import com.oriole.wisepen.resource.enums.ResourceAction;
 import com.oriole.wisepen.resource.enums.ResourceType;
 import com.oriole.wisepen.resource.exception.ResourceError;
-import com.oriole.wisepen.resource.repository.MarketListingRepository;
 import com.oriole.wisepen.resource.repository.MarketPurchaseRepository;
 import com.oriole.wisepen.resource.repository.ResourceInteractionInfoRepository;
 import com.oriole.wisepen.resource.repository.ResourceItemRepository;
@@ -50,8 +48,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -65,7 +61,6 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class MarketServiceImpl implements IMarketService {
 
-    private final MarketListingRepository marketListingRepository;
     private final MarketPurchaseRepository marketPurchaseRepository;
     private final ResourceInteractionInfoRepository resourceInteractionInfoRepository;
     private final ResourceItemRepository resourceItemRepository;
@@ -333,41 +328,6 @@ public class MarketServiceImpl implements IMarketService {
             log.warn("market fork compensated purchaseId={} forkedResourceId={}", purchase.getPurchaseId(), forkedResourceId, e);
             throw e;
         }
-    }
-
-    @Override
-    public PageR<MarketListingResponse> listMyListings(String sellerId, int page, int size) {
-        Pageable pageable = PageRequest.of(Math.max(page - 1, 0), size);
-        Page<MarketListingEntity> entityPage = marketListingRepository.findBySellerId(sellerId, pageable);
-        List<String> sourceResourceIds = entityPage.getContent().stream()
-                .map(MarketListingEntity::getSourceResourceId)
-                .toList();
-        Map<String, ResourceInteractionInfoEntity> interactionMap = sourceResourceIds.isEmpty()
-                ? Collections.emptyMap()
-                : resourceInteractionInfoRepository.findByResourceIdIn(sourceResourceIds).stream()
-                .collect(Collectors.toMap(ResourceInteractionInfoEntity::getResourceId, entity -> entity));
-        PageR<MarketListingResponse> pageR = new PageR<>(entityPage.getTotalElements(), page, size);
-        pageR.addAll(entityPage.getContent().stream()
-                .map(entity -> {
-                    MarketListingResponse response = BeanUtil.copyProperties(entity, MarketListingResponse.class);
-                    Map<String, String> tagMap = new HashMap<>();
-                    if (entity.getTagIds() != null && !entity.getTagIds().isEmpty()) {
-                        tagRepository.findAllById(entity.getTagIds()).forEach(tag -> tagMap.put(tag.getTagId(), tag.getTagName()));
-                    }
-                    response.setCurrentTags(tagMap);
-                    response.setResourceInteractionInfo(
-                            interactionMap.getOrDefault(entity.getSourceResourceId(), new ResourceInteractionInfoEntity()));
-                    try {
-                        Long seller = Long.valueOf(entity.getSellerId());
-                        UserDisplayBase sellerInfo = remoteUserService.getUserDisplayInfo(List.of(seller)).getData().get(seller);
-                        response.setSellerInfo(sellerInfo);
-                    } catch (Exception e) {
-                        log.debug("market seller info degraded sellerId={}", entity.getSellerId(), e);
-                    }
-                    return response;
-                })
-                .toList());
-        return pageR;
     }
 
     @Override
