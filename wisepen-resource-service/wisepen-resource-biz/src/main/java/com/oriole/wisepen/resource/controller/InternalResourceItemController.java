@@ -36,6 +36,7 @@ public class InternalResourceItemController implements RemoteResourceService {
                     - 响应：返回新注册资源 ID。
                     """
     )
+    @Log(title = "创建资源", businessType = BusinessType.INSERT)
     @PostMapping("/addRes")
     public R<String> createResource(@Validated @RequestBody ResourceCreateReqDTO dto) {
         String resourceId = resourceService.createResourceItem(dto);

@@ -54,6 +54,7 @@ public class NoteController {
                     - 响应：返回新笔记的资源 ID。
                     """
     )
+    @Log(title = "创建笔记", businessType = BusinessType.INSERT)
     @PostMapping("/addNote")
     public R<String> createNote(@Validated @RequestBody NoteCreateRequest request) {
         String userId = SecurityContextHolder.getUserId().toString();
