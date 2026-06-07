@@ -26,7 +26,6 @@ import com.oriole.wisepen.resource.domain.entity.TagEntity;
 import com.oriole.wisepen.resource.enums.MarketListingAuditStatus;
 import com.oriole.wisepen.resource.enums.MarketListingStatus;
 import com.oriole.wisepen.resource.enums.MarketSellMethod;
-import com.oriole.wisepen.resource.enums.ResourceAccessRole;
 import com.oriole.wisepen.resource.enums.ResourceAction;
 import com.oriole.wisepen.resource.enums.ResourceType;
 import com.oriole.wisepen.resource.exception.ResourceError;
@@ -213,28 +212,38 @@ public class MarketServiceImpl implements IMarketService {
 
     @Override
     public MarketPurchaseResponse purchase(MarketPurchaseRequest request, Long buyerId, Map<Long, GroupRoleType> groupRoles) {
-        MarketListingEntity listing = marketListingRepository.findById(request.getListingId())
+        ResourceItemEntity resource = resourceItemRepository.findByListingInfosListingId(request.getListingId())
                 .orElseThrow(() -> new ServiceException(ResourceError.MARKET_LISTING_NOT_FOUND));
-        if (listing.getStatus() != MarketListingStatus.LISTED) {
+        ListingInfo listing = resource.getListingInfos().stream()
+                .filter(info -> request.getListingId().equals(info.getListingId()))
+                .findFirst()
+                .orElseThrow(() -> new ServiceException(ResourceError.MARKET_LISTING_NOT_FOUND));
+        if (!listing.isMarketVisible()) {
             throw new ServiceException(ResourceError.MARKET_LISTING_NOT_ACTIVE);
         }
         if (buyerId.toString().equals(listing.getSellerId())) {
             throw new ServiceException(ResourceError.MARKET_SELF_PURCHASE_NOT_ALLOWED);
         }
 
-        // 检验权限 or 公开？
-        GroupRoleType marketRole = groupRoles == null ? null : groupRoles.get(Long.valueOf(listing.getMarketGroupId()));
+        Long marketGroupId = Long.valueOf(request.getMarketGroupId());
+        GroupDisplayBase groupInfo = remoteUserService.getGroupDisplayInfo(List.of(marketGroupId)).getData().get(marketGroupId);
+        if (groupInfo == null || groupInfo.getGroupType() != GroupType.MARKET_GROUP) {
+            throw new ServiceException(ResourceError.MARKET_GROUP_REQUIRED);
+        }
+        GroupRoleType marketRole = groupRoles.get(marketGroupId);
         if (marketRole == null || marketRole == GroupRoleType.NOT_MEMBER) {
             throw new ServiceException(ResourceError.RESOURCE_PERMISSION_DENIED);
         }
+        if (resource.getGroupBinds().stream().noneMatch(bind -> request.getMarketGroupId().equals(bind.getGroupId()))) {
+            throw new ServiceException(ResourceError.RESOURCE_PERMISSION_DENIED);
+        }
+
         ResourceCheckPermissionResDTO permission = resourceService.checkPermission(ResourceCheckPermissionReqDTO.builder()
-                .resourceId(listing.getSourceResourceId())
+                .resourceId(resource.getResourceId())
                 .userId(buyerId)
                 .groupRoles(groupRoles)
                 .build());
-        boolean viewable = permission.getResourceAccessRole() == ResourceAccessRole.OWNER
-                || permission.getAllowedActions() != null && permission.getAllowedActions().contains(ResourceAction.VIEW);
-        if (!viewable) {
+        if (permission.getAllowedActions() == null || !permission.getAllowedActions().contains(ResourceAction.VIEW)) {
             throw new ServiceException(ResourceError.RESOURCE_PERMISSION_DENIED);
         }
 
@@ -244,14 +253,18 @@ public class MarketServiceImpl implements IMarketService {
             return BeanUtil.copyProperties(existing, MarketPurchaseResponse.class);
         }
 
-        WalletSettleCoinTradeRequest tradeRequest = BeanUtil.copyProperties(listing, WalletSettleCoinTradeRequest.class);
-        tradeRequest.setTraceId(traceId);
-        tradeRequest.setBuyerId(buyerId);
-        tradeRequest.setSellerId(Long.valueOf(listing.getSellerId()));
-        tradeRequest.setMeta("market listing " + listing.getListingId());
+        WalletSettleCoinTradeRequest tradeRequest = WalletSettleCoinTradeRequest.builder()
+                .traceId(traceId)
+                .buyerId(buyerId)
+                .sellerId(Long.valueOf(listing.getSellerId()))
+                .price(listing.getPrice())
+                .meta("market listing " + listing.getListingId())
+                .build();
         remoteWalletService.settleCoinTrade(tradeRequest);
 
-        MarketPurchaseEntity purchase = BeanUtil.copyProperties(listing, MarketPurchaseEntity.class);
+        MarketPurchaseEntity purchase = BeanUtil.copyProperties(resource, MarketPurchaseEntity.class);
+        BeanUtil.copyProperties(listing, purchase);
+        purchase.setSourceResourceId(resource.getResourceId());
         purchase.setBuyerId(buyerId.toString());
         purchase.setPaidPrice(listing.getPrice());
         purchase.setForkedVersion(listing.getListedVersion() == null ? 0L : listing.getListedVersion());
