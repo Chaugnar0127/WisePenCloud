@@ -1,5 +1,6 @@
 package com.oriole.wisepen.resource.domain.base;
 
+import com.oriole.wisepen.resource.enums.MarketListingAuditStatus;
 import com.oriole.wisepen.resource.enums.MarketListingStatus;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -29,6 +30,10 @@ public class MarketListingBase extends ResourceItemInfoBase {
     private Long listedVersion;
     private MarketListingStatus status;
     private Integer revision;
+    private MarketListingAuditStatus auditStatus;
+    private String auditMessage;
+    private LocalDateTime auditedAt;
+    private String auditorId;
     @CreatedDate
     private LocalDateTime createTime;
     @LastModifiedDate

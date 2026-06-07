@@ -59,7 +59,10 @@ public enum ResourceError implements IResult {
     MARKET_VERSION_NOT_SUPPORTED(5724, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.UNSUPPORTED), "该资源类型暂不支持指定版本"),
     MARKET_RESOURCE_TYPE_NOT_SUPPORTED(5725, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.UNSUPPORTED), "该资源类型暂不支持复制"),
     MARKET_PURCHASE_ALREADY_FORKED(5726, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.NOT_ALLOWED), "该购买记录已完成复制"),
-    CANNOT_BIND_MARKET_RESOURCE_DIRECTLY(5727, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_TAG, ErrorReason.NOT_ALLOWED), "集市资源挂载必须通过上架接口完成");
+    CANNOT_BIND_MARKET_RESOURCE_DIRECTLY(5727, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_TAG, ErrorReason.NOT_ALLOWED), "集市资源挂载必须通过上架接口完成"),
+    MARKET_LISTING_NOT_PENDING(5728, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.NOT_ALLOWED), "上架记录不在待审核状态"),
+    MARKET_AUDIT_STATUS_INVALID(5729, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.INVALID), "审核状态仅允许通过或驳回"),
+    MARKET_AUDIT_MESSAGE_REQUIRED(5730, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.INVALID), "驳回时必须填写审核说明");
 
     private final Integer code;
     private final ResultKey key;

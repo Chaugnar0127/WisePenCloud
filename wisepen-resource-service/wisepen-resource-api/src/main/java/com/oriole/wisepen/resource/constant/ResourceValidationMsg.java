@@ -35,4 +35,7 @@ public interface ResourceValidationMsg {
     String MARKET_VERSION_NOT_NULL = "上架版本不能为空";
     String MARKET_VERSION_INVALID = "上架版本不能小于0";
     String MARKET_SELL_METHOD_NOT_NULL = "售卖方式不能为空";
+
+    String MARKET_AUDIT_STATUS_NOT_NULL = "审核状态不能为空";
+    String MARKET_AUDIT_MESSAGE_NOT_BLANK = "驳回时必须填写审核说明";
 }
