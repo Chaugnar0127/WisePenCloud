@@ -7,7 +7,7 @@ import com.oriole.wisepen.ai.asset.domain.dto.req.SkillCreateRequest;
 import com.oriole.wisepen.ai.asset.domain.dto.req.SkillUpdateRequest;
 import com.oriole.wisepen.ai.asset.domain.dto.req.SkillVersionPublishRequest;
 import com.oriole.wisepen.ai.asset.domain.dto.res.SkillAssetUploadInitResponse;
-import com.oriole.wisepen.ai.asset.domain.dto.res.SkillInfoResponse;
+import com.oriole.wisepen.ai.asset.domain.dto.res.SkillResourceInfoResponse;
 import com.oriole.wisepen.ai.asset.domain.dto.res.SkillVersionInfoResponse;
 import com.oriole.wisepen.ai.asset.exception.SkillError;
 import com.oriole.wisepen.ai.asset.service.ISkillService;
@@ -95,14 +95,14 @@ public class SkillController {
                     """
     )
     @PostMapping("/getSkillInfo")
-    public R<SkillInfoResponse> getSkillInfo(@RequestParam String resourceId) {
+    public R<SkillResourceInfoResponse> getSkillInfo(@RequestParam String resourceId) {
         // 若无权限将抛出异常，此处无需重复鉴权
         ResourceItemResponse resourceInfo = remoteResourceService.getResourceInfo(new ResourceInfoGetReqDTO(
                 resourceId, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap()
         )).getData();
         SkillInfoBase skillInfo = skillService.getSkillInfo(resourceId);
-        SkillInfoResponse skillInfoResponse = SkillInfoResponse.builder().resourceInfo(resourceInfo).skillInfo(skillInfo).build();
-        return R.ok(skillInfoResponse);
+        SkillResourceInfoResponse skillResourceInfoResponse = SkillResourceInfoResponse.builder().resourceInfo(resourceInfo).skillInfo(skillInfo).build();
+        return R.ok(skillResourceInfoResponse);
     }
 
     @Operation(

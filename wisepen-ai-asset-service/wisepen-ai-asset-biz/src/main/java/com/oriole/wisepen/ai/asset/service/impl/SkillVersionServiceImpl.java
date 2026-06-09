@@ -245,7 +245,6 @@ public class SkillVersionServiceImpl implements ISkillVersionService {
         skillRepository.updateVersionByResourceId(req.getResourceId(), draftVersion);
         skillVersionRepository.save(draft);
 
-        eventPublisher.publishSkillPubEvent(skill, draft);
         // 新草案是 version + 1，直接新建
         createDraftSkillVersion(req.getResourceId(), draftVersion + 1);
     }

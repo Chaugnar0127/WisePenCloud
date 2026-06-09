@@ -1,15 +1,17 @@
 package com.oriole.wisepen.ai.asset.domain.dto.res;
 
 import com.oriole.wisepen.ai.asset.domain.base.SkillInfoBase;
-import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
-import lombok.*;
-import lombok.experimental.SuperBuilder;
+import com.oriole.wisepen.ai.asset.domain.base.SkillVersionBase;
+import lombok.EqualsAndHashCode;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-@Data
-@SuperBuilder
+@Getter
+@Setter
 @NoArgsConstructor
-@AllArgsConstructor
-public class SkillInfoResponse {
-    ResourceItemResponse resourceInfo;
-    SkillInfoBase skillInfo;
+@EqualsAndHashCode(callSuper = true)
+public class SkillInfoResponse extends SkillInfoBase {
+    private String resourceId;
+    private SkillVersionBase skillVersion;
 }
