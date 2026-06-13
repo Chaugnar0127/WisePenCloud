@@ -25,6 +25,7 @@ import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @Tag(name = "资源", description = "资源重命名、标签绑定、独立权限和分页查询")
 @RestController
@@ -148,9 +149,9 @@ public class ResourceItemController {
                     - 用途：按个人空间或小组空间分页查询当前用户可见的资源列表。
                     - 请求：groupId 为空时查询当前用户个人资源空间，非空时查询指定小组空间；tagIds 为空表示查询该空间下全部可见资源，非空时按 tagQueryLogicMode 进行多标签筛选；resourceType、page、size、sortBy、sortDir 控制类型过滤、分页和排序。
                     - 约束：当前用户必须已登录；查询小组空间时必须属于目标小组；分页、排序字段、标签组合逻辑和资源类型必须合法。
-                    - 处理：个人空间默认排除个人回收站体系下的资源，除非显式传入回收站内标签；小组空间按当前用户在小组中的角色和资源 ACL 查询可见资源，并批量补充当前标签名和互动统计；不返回当前用户无权查看的资源。
+                    - 处理：个人空间默认排除个人回收站体系下的资源，除非显式传入回收站内标签；小组空间按当前用户在小组中的角色和资源 ACL 查询具备 DISCOVER 的资源；批量补充 ownerInfo、当前查询空间的 currentTags、currentActions 和互动统计；仅资源所有者返回 overrideGrantedActions 与 specifiedUsersGrantedActions；不返回当前用户无权发现的资源。
                     - 失败：未登录 -> PermissionError.NOT_LOGIN；当前用户不属于目标小组 -> PermissionError.PERMISSION_DENIED。
-                    - 响应：返回分页资源列表、总数、当前页资源的标签名映射和互动统计。
+                    - 响应：返回分页资源列表、总数，以及当前页资源的完整列表态 ResourceItemResponse。
                     """
     )
     @GetMapping("/listResources")
@@ -168,6 +169,7 @@ public class ResourceItemController {
             @RequestParam(value = "sortBy", defaultValue = "UPDATE_TIME") ResourceSortBy sortBy,
             @RequestParam(value = "sortDir", defaultValue = "DESC") SortDirectionEnum sortDir) {
         String userId = SecurityContextHolder.getUserId().toString();
+        Map<Long, GroupRoleType> groupRoles = SecurityContextHolder.getGroupRoleMap();
 
         GroupRoleType userGroupRole = null;
         if (!StringUtils.hasText(groupId)) {
@@ -180,6 +182,7 @@ public class ResourceItemController {
                 userId,
                 groupId,
                 userGroupRole,
+                groupRoles,
                 tagIds,
                 tagQueryLogicMode,
                 resourceType,
