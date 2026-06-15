@@ -7,12 +7,15 @@ import com.oriole.wisepen.resource.domain.dto.req.FavoriteCollectionInfoUpdateRe
 import com.oriole.wisepen.resource.domain.dto.req.ResourceFavoriteRequest;
 import com.oriole.wisepen.resource.domain.dto.res.FavoriteCollectionResponse;
 import com.oriole.wisepen.resource.domain.dto.res.FavoriteItemResponse;
+import com.oriole.wisepen.resource.domain.dto.res.ResourceFavoriteStatusResponse;
 
 import java.util.List;
 
 public interface IFavoriteService {
 
     void changeResourceFavoriteStatus(ResourceFavoriteRequest request, String userId);
+
+    ResourceFavoriteStatusResponse getResourceFavoriteStatus(String resourceId, String userId);
 
     String createCollection(FavoriteCollectionCreateRequest request, String userId);
 
