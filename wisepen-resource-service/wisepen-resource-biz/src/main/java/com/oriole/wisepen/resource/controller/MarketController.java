@@ -37,17 +37,17 @@ public class MarketController {
     private final IMarketService marketService;
 
     @Operation(
-            summary = "上架资源",
+            summary = "提交上架信息",
             description = """
-                    - 用途：资源所有者提交资源到集市，进入待审核状态。
-                    - 请求：resourceId 指定资源；marketGroupId 指定集市群；tagIds 指定集市标签；price 是 Fork 购买基础价格；offerVersion 是上架版本。
-                    - 约束：当前用户必须是资源所有者；目标小组必须是集市组；已封禁的上架记录不可再次上架；已发布的上架记录不可重复上架。
-                    - 处理：创建或复用资源上的单条 offerInfo，将状态置为 PENDING，更新集市标签绑定并触发资源 ACL 重算；不创建订单。
-                    - 失败：资源不存在 -> ResourceError.RESOURCE_NOT_FOUND；当前用户不是资源所有者 -> ResourceError.RESOURCE_PERMISSION_DENIED；目标小组不是集市组 -> ResourceError.MARKET_GROUP_REQUIRED；上架记录已发布 -> ResourceError.MARKET_OFFER_ALREADY_EXISTS；上架记录已封禁 -> ResourceError.MARKET_OFFER_BANNED。
+                    - 用途：资源所有者提交或修改资源集市上架信息，进入待审核状态。
+                    - 请求：resourceId 指定资源；marketGroupId 指定集市群；tagIds 指定集市标签；forkOncePrice 是 Fork 一次价格，forkUnlimitedPrice 是 Fork 无限次价格，二者至少填写一个；offerVersion 是上架版本。
+                    - 约束：当前用户必须是资源所有者；目标小组必须是集市组；已封禁的权益不可修改或重新提交。
+                    - 处理：在该集市群的 groupBind 下按已填写价格创建或复用 marketOffer，将本次选择的权益状态置为 PENDING，更新集市标签绑定并触发资源 ACL 重算；未选择的权益不变；不创建订单。
+                    - 失败：资源不存在 -> ResourceError.RESOURCE_NOT_FOUND；当前用户不是资源所有者 -> ResourceError.RESOURCE_PERMISSION_DENIED；目标小组不是集市组 -> ResourceError.MARKET_GROUP_REQUIRED；上架记录已封禁 -> ResourceError.MARKET_OFFER_BANNED。
                     - 响应：成功时返回空结果。
                     """
     )
-    @Log(title = "上架资源", businessType = BusinessType.INSERT)
+    @Log(title = "提交上架信息", businessType = BusinessType.INSERT)
     @PostMapping("/publishOffer")
     public R<Void> publishOffer(@Valid @RequestBody MarketPublishOfferRequest request) {
         marketService.publishOffer(request, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap());
@@ -58,9 +58,9 @@ public class MarketController {
             summary = "下架资源",
             description = """
                     - 用途：卖家或集市管理员将已提交到集市的资源下架。
-                    - 请求：resourceId 指定已上架资源；marketGroupId 指定集市群。
+                    - 请求：resourceId 指定已上架资源；marketGroupId 指定集市群；purchaseTypes 可选，为空时下架该集市群下全部权益。
                     - 约束：目标小组必须是集市组；当前用户必须是卖家本人或该集市群 OWNER、ADMIN。
-                    - 处理：将 offerInfo 状态置为 OFF_SHELF，记录下架时间，并清空该集市群下的资源标签绑定；不删除已有订单。
+                    - 处理：将指定 marketOffer 状态置为 OFF_SHELF；不修改集市标签绑定，不删除已有订单。
                     - 失败：上架记录不存在 -> ResourceError.MARKET_OFFER_NOT_FOUND；目标小组不是集市组 -> ResourceError.MARKET_GROUP_REQUIRED；当前用户无权操作 -> ResourceError.RESOURCE_PERMISSION_DENIED。
                     - 响应：成功时返回空结果。
                     """
@@ -78,7 +78,7 @@ public class MarketController {
                     - 用途：买家购买集市资源的 Fork 权益。
                     - 请求：resourceId 指定已上架资源；marketGroupId 指定集市群；purchaseType 指定 FORK_ONCE 或 FORK_UNLIMITED。
                     - 约束：上架记录必须处于 PUBLISHED；目标小组必须是集市组且资源仍绑定在该集市群；买家不能购买自己上架的资源。
-                    - 处理：按 offerInfo.price 结算，按 resourceId、purchaseType、buyerId 做幂等；创建订单并记录购买权益、购买版本和 Fork 次数，随后调用复制流程执行首次 Fork；不修改原资源权限。
+                    - 处理：按 purchaseType 选中对应 marketOffer 并按其 price 结算，按 resourceId、marketGroupId、purchaseType、buyerId 做幂等；创建订单并记录集市群、购买权益、购买版本和 Fork 次数，随后调用复制流程执行首次 Fork；不修改原资源权限。
                     - 失败：上架记录不存在 -> ResourceError.MARKET_OFFER_NOT_FOUND；资源未上架或已下架 -> ResourceError.MARKET_OFFER_NOT_ACTIVE；不能购买自己上架的资源 -> ResourceError.MARKET_SELF_ORDER_NOT_ALLOWED；目标小组不是集市组 -> ResourceError.MARKET_GROUP_REQUIRED；资源未绑定该集市群 -> ResourceError.RESOURCE_PERMISSION_DENIED；购买权益类型无效 -> ResourceError.MARKET_PURCHASE_TYPE_INVALID。
                     - 响应：返回购买记录信息。
                     """
@@ -95,7 +95,7 @@ public class MarketController {
                     - 用途：买家基于已购买订单复制当前已上架版本到个人空间。
                     - 请求：路径参数 orderId 指定购买记录。
                     - 约束：购买记录必须属于当前用户；对应上架记录必须仍处于 PUBLISHED；FORK_ONCE 订单只能在 forkCount 小于 1 时执行。
-                    - 处理：先读取订单并更新 forkCount，再发布资源复制消息，复制当前 offerInfo.offerVersion；不使用原子条件更新。
+                    - 处理：先读取订单并更新 forkCount，再按订单的 marketGroupId 与 purchaseType 定位当前 marketOffer，发布资源复制消息并复制其 offerVersion；复制消息最终进入 DLQ 时由资源服务补偿 forkCount。
                     - 失败：购买记录不存在 -> ResourceError.MARKET_ORDER_NOT_FOUND；当前用户无权操作 -> ResourceError.RESOURCE_PERMISSION_DENIED；购买权益类型无效 -> ResourceError.MARKET_PURCHASE_TYPE_INVALID；可用 Fork 次数已用完 -> ResourceError.MARKET_FORK_QUOTA_EXHAUSTED；资源不存在 -> ResourceError.RESOURCE_NOT_FOUND；资源未上架或已下架 -> ResourceError.MARKET_OFFER_NOT_ACTIVE。
                     - 响应：成功时返回空结果。
                     """

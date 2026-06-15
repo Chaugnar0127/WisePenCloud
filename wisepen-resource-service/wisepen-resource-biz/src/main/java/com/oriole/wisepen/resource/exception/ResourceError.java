@@ -65,7 +65,7 @@ public enum ResourceError implements IResult {
 
     // 收藏相关异常
     FAVORITE_COLLECTION_NOT_FOUND(5811, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.FAVORITE, ErrorReason.NOT_FOUND), "收藏集合不存在"),
-    DEFAULT_COLLECTION_CANNOT_DELETE(5821, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.FAVORITE, ErrorReason.NOT_ALLOWED), "默认收藏集合不可删除"),
+    DEFAULT_COLLECTION_CANNOT_DELETE(5821, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.FAVORITE, ErrorReason.NOT_ALLOWED), "默认收藏集合不可删除");
 
     private final Integer code;
     private final ResultKey key;

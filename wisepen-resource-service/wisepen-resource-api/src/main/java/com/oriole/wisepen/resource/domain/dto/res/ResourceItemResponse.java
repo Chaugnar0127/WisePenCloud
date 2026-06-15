@@ -1,6 +1,5 @@
 package com.oriole.wisepen.resource.domain.dto.res;
 
-import com.oriole.wisepen.resource.domain.base.ResourceInteractionInfoBase;
 import com.oriole.wisepen.resource.domain.base.ResourceItemInfoBase;
 import com.oriole.wisepen.resource.enums.ResourceAction;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
@@ -22,5 +21,5 @@ public class ResourceItemResponse extends ResourceItemInfoBase {
     private List<ResourceAction> overrideGrantedActions;
     private Map<String, List<ResourceAction>> specifiedUsersGrantedActions;
 
-    private MarketOfferInfoResponse offerInfo;
+    private MarketOfferOptionsResponse marketOffers;
 }

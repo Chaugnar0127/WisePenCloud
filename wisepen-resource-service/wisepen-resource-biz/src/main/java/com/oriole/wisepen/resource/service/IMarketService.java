@@ -22,5 +22,7 @@ public interface IMarketService {
 
     void fork(String orderId, Long buyerId);
 
+    void compensateFork(String orderId, String forkTaskId);
+
     PageR<MarketOrderResponse> listMyOrders(String buyerId, int page, int size);
 }

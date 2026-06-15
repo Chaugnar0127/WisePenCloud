@@ -10,10 +10,13 @@ import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.resource.constant.ResourceConstants;
 import com.oriole.wisepen.resource.domain.ComputedGroupAcl;
 import com.oriole.wisepen.resource.domain.GroupTagBind;
+import com.oriole.wisepen.resource.domain.MarketOfferInfo;
+import com.oriole.wisepen.resource.domain.MarketOfferOptions;
 import com.oriole.wisepen.resource.domain.dto.*;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceRenameRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateActionPermissionRequest;
 import com.oriole.wisepen.resource.domain.dto.res.MarketOfferInfoResponse;
+import com.oriole.wisepen.resource.domain.dto.res.MarketOfferOptionsResponse;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
 import com.oriole.wisepen.resource.domain.entity.FavoriteResourceRef;
 import com.oriole.wisepen.resource.domain.entity.GroupResConfigEntity;
@@ -174,7 +177,7 @@ public class ResourceServiceImpl implements IResourceService {
     }
 
     @Override
-    public void updatePersonalResourceTags (String resourceId, String groupId, List<String> tagIds) {
+    public void updatePersonalResourceTags(String resourceId, String groupId, List<String> tagIds) {
         ResourceItemEntity entity = resourceItemRepository.findById(resourceId)
                 .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
 
@@ -187,11 +190,12 @@ public class ResourceServiceImpl implements IResourceService {
 
         // 查找并检查Tag
         List<TagEntity> validTags = findAndValidateTags(groupId, tagIds);
-        List<TagEntity> pathTags =  validTags.stream().filter(tag -> Boolean.TRUE.equals(tag.getIsPath())).toList();
+        List<TagEntity> pathTags = validTags.stream().filter(tag -> Boolean.TRUE.equals(tag.getIsPath())).toList();
         // 最多只能有一个 isPath 节点
         if (pathTags.size() != 1) throw new ServiceException(ResourceError.CANNOT_BIND_RESOURCE_TO_MULTIPLE_PATH_NODES);
         // 首位 (Index 0) 的节点必须是这个唯一的 isPath 节点
-        if (!tagIds.getFirst().equals(pathTags.getFirst().getTagId())) throw new ServiceException(ResourceError.CANNOT_PLACE_RESOURCE_PATH_TAG_AFTER_TAGS);
+        if (!tagIds.getFirst().equals(pathTags.getFirst().getTagId()))
+            throw new ServiceException(ResourceError.CANNOT_PLACE_RESOURCE_PATH_TAG_AFTER_TAGS);
 
         // 检查目标路径是否属于回收站
         if (tagService.isNodeInTrash(groupId, pathTags.getFirst().getTagId()) != ITagService.TagType.NOT_IN_TRASH) {
@@ -267,7 +271,7 @@ public class ResourceServiceImpl implements IResourceService {
     }
 
     @Override
-    public void updateResourceActionPermission(ResourceUpdateActionPermissionRequest req){
+    public void updateResourceActionPermission(ResourceUpdateActionPermissionRequest req) {
         ResourceItemEntity entity = resourceItemRepository.findById(req.getResourceId())
                 .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
 
@@ -312,7 +316,7 @@ public class ResourceServiceImpl implements IResourceService {
             // 检查资源级的“指定用户特权”
             Integer userSpecifiedMask = entity.getSpecifiedUsersGrantedActionsMask() == null ? null : entity.getSpecifiedUsersGrantedActionsMask().get(currentUserIdStr);
             if (userSpecifiedMask != null) currentActionsMask = userSpecifiedMask;
-            // 如果没有指定用户特权，则遍历预计算的群组 ACL
+                // 如果没有指定用户特权，则遍历预计算的群组 ACL
             else if (dto.getGroupRoles() != null && !dto.getGroupRoles().isEmpty() && entity.getComputedGroupAcls() != null) {
                 for (Map.Entry<String, ComputedGroupAcl> entry : entity.getComputedGroupAcls().entrySet()) {
                     Long groupId = Long.valueOf(entry.getKey());
@@ -370,12 +374,12 @@ public class ResourceServiceImpl implements IResourceService {
         List<String> allTagIds = entity.getGroupBinds() == null
                 ? Collections.emptyList()
                 : entity.getGroupBinds().stream()
-                    .filter(bind -> accessibleGroupIds.contains(bind.getGroupId()))
-                    .map(GroupTagBind::getTagIds)
-                    .filter(Objects::nonNull)
-                    .flatMap(List::stream)
-                    .distinct()
-                    .collect(Collectors.toList());
+                .filter(bind -> accessibleGroupIds.contains(bind.getGroupId()))
+                .map(GroupTagBind::getTagIds)
+                .filter(Objects::nonNull)
+                .flatMap(List::stream)
+                .distinct()
+                .collect(Collectors.toList());
 
         Map<String, String> tagMap = new HashMap<>();
         if (!allTagIds.isEmpty()) {
@@ -442,10 +446,10 @@ public class ResourceServiceImpl implements IResourceService {
             List<String> extractedTagIds = (entity.getGroupBinds() == null)
                     ? Collections.emptyList()
                     : entity.getGroupBinds().stream()
-                        .filter(bind -> bind.getGroupId().equals(groupId))
-                        .findFirst()
-                        .map(GroupTagBind::getTagIds)
-                        .orElse(Collections.emptyList());
+                    .filter(bind -> bind.getGroupId().equals(groupId))
+                    .findFirst()
+                    .map(GroupTagBind::getTagIds)
+                    .orElse(Collections.emptyList());
             resourceTagIdsMap.put(entity.getResourceId(), extractedTagIds);
             allTagIdsToFetch.addAll(extractedTagIds);
         }
@@ -472,15 +476,40 @@ public class ResourceServiceImpl implements IResourceService {
             }
             resp.setCurrentTags(tagMap);
 
-            MarketOfferInfoResponse offerInfo = null;
-            if (entity.getMarketOfferInfo() != null) {
+            MarketOfferOptionsResponse marketOfferOptionsResponse = null;
+            GroupTagBind marketBind = null;
+            if (entity.getGroupBinds() != null && groupId != null) {
+                marketBind = entity.getGroupBinds().stream()
+                        .filter(bind -> groupId.equals(bind.getGroupId()))
+                        .findFirst()
+                        .orElse(null);
+            }
+            if (marketBind != null && marketBind.getMarketOffers() != null) {
                 boolean isOwner = currentUserId.equals(entity.getOwnerId());
                 boolean isGroupAdmin = userGroupRole == GroupRoleType.ADMIN || userGroupRole == GroupRoleType.OWNER;
-                if (isOwner || isGroupAdmin || entity.getMarketOfferInfo().getStatus() == MarketOfferStatus.PUBLISHED) {
-                    offerInfo = BeanUtil.copyProperties(entity.getMarketOfferInfo(), MarketOfferInfoResponse.class);
+                MarketOfferOptions offers = marketBind.getMarketOffers();
+                MarketOfferInfoResponse forkOnce = null;
+                MarketOfferInfo offerOnce = offers.getForkOnce();
+                if (offerOnce != null) {
+                    if (isOwner || isGroupAdmin || offerOnce.getStatus() == MarketOfferStatus.PUBLISHED) {
+                        forkOnce = BeanUtil.copyProperties(offerOnce, MarketOfferInfoResponse.class);
+                    }
+                }
+                MarketOfferInfoResponse forkUnlimited = null;
+                MarketOfferInfo offerUnlimited = offers.getForkUnlimited();
+                if (offerUnlimited != null) {
+                    if (isOwner || isGroupAdmin || offerUnlimited.getStatus() == MarketOfferStatus.PUBLISHED) {
+                        forkUnlimited = BeanUtil.copyProperties(offerUnlimited, MarketOfferInfoResponse.class);
+                    }
+                }
+                if (forkOnce != null || forkUnlimited != null) {
+                    MarketOfferOptionsResponse response = new MarketOfferOptionsResponse();
+                    response.setForkOnce(forkOnce);
+                    response.setForkUnlimited(forkUnlimited);
+                    marketOfferOptionsResponse = response;
                 }
             }
-            resp.setOfferInfo(offerInfo);
+            resp.setMarketOffers(marketOfferOptionsResponse);
 
             return resp;
         }).collect(Collectors.toList());
@@ -556,8 +585,8 @@ public class ResourceServiceImpl implements IResourceService {
         long deletedCount = mongoTemplate.remove(query, RESOURCE_TRASH_COLLECTION).getDeletedCount();
         if (deletedCount > 0) {
             List<String> deletedResourceIds = expiredResources.stream()
-                .map(ResourceItemEntity::getResourceId)
-                .collect(Collectors.toList());
+                    .map(ResourceItemEntity::getResourceId)
+                    .collect(Collectors.toList());
             resourceUserInteractRecordRepository.deleteAllByResourceIdIn(deletedResourceIds);
             // 清理收藏集合中的孤立引用
             List<FavoriteResourceRef> deletedFavoriteRefs = favoriteResourceRefRepository.findByResourceIdIn(deletedResourceIds);
@@ -569,7 +598,7 @@ public class ResourceServiceImpl implements IResourceService {
                         .filter(StringUtils::hasText)
                         .forEach(collectionId -> collectionCountDeltas.merge(collectionId, -1, Integer::sum));
             }
-            for (Map.Entry<String, Integer> entry: collectionCountDeltas.entrySet()) {
+            for (Map.Entry<String, Integer> entry : collectionCountDeltas.entrySet()) {
                 customFavoriteCollectionRepository.updateItemCount(Set.of(entry.getKey()), entry.getValue());
             }
             favoriteResourceRefRepository.deleteByResourceIdIn(deletedResourceIds);
@@ -651,9 +680,21 @@ public class ResourceServiceImpl implements IResourceService {
                             groupBind.getTagIds().removeAll(deletedTagIds);
                         }
 
-                        // 如果移除后，该组下没有任何 Tag 了，清理空组
+                        // 如果移除后该组下没有任何 Tag，普通组清理空组；集市组保留 offer 历史但下架。
                         if (groupBind.getTagIds() == null || groupBind.getTagIds().isEmpty()) {
-                            iterator.remove();
+                            if (groupBind.getMarketOffers() == null) {
+                                iterator.remove();
+                            } else {
+                                MarketOfferOptions offers = groupBind.getMarketOffers();
+                                MarketOfferInfo forkOnce = offers.getForkOnce();
+                                if (forkOnce != null && forkOnce.getStatus() != MarketOfferStatus.BANNED) {
+                                    forkOnce.setStatus(MarketOfferStatus.OFF_SHELF);
+                                }
+                                MarketOfferInfo forkUnlimited = offers.getForkUnlimited();
+                                if (forkUnlimited != null && forkUnlimited.getStatus() != MarketOfferStatus.BANNED) {
+                                    forkUnlimited.setStatus(MarketOfferStatus.OFF_SHELF);
+                                }
+                            }
                         }
                     }
                 }
@@ -670,7 +711,7 @@ public class ResourceServiceImpl implements IResourceService {
         }
     }
 
-    public void stripGroupPermission(List<String> trashedTagIds){
+    public void stripGroupPermission(List<String> trashedTagIds) {
         if (trashedTagIds == null || trashedTagIds.isEmpty()) return;
 
         Query query = new Query(Criteria.where("groupBinds.tagIds").in(trashedTagIds));
@@ -712,7 +753,8 @@ public class ResourceServiceImpl implements IResourceService {
         if (bindEntity.getGroupBinds() != null && !bindEntity.getGroupBinds().isEmpty()) {
             for (GroupTagBind groupBind : bindEntity.getGroupBinds()) {
                 if (groupBind.getTagIds() == null || groupBind.getTagIds().isEmpty()) continue;
-                if (groupBind.getGroupId().startsWith(ResourceConstants.PERSONAL_GROUP_PREFIX)) continue; // 个人Tag不参与计算Acl
+                if (groupBind.getGroupId().startsWith(ResourceConstants.PERSONAL_GROUP_PREFIX))
+                    continue; // 个人Tag不参与计算Acl
 
                 // 查询所有 Tag 详情
                 List<TagEntity> tags = tagRepository.findAllById(groupBind.getTagIds());
@@ -804,13 +846,14 @@ public class ResourceServiceImpl implements IResourceService {
         if (!noGroupContext) {
             // 遍历资源绑定的所有组
             for (GroupTagBind groupBind : entity.getGroupBinds()) {
+                if (groupBind.getTagIds() == null || groupBind.getTagIds().isEmpty()) continue;
                 if (groupBind.getGroupId().startsWith(ResourceConstants.PERSONAL_GROUP_PREFIX)) continue; // 个人Tag不参与计算
                 Long groupId = Long.valueOf(groupBind.getGroupId());
 
-                if (!dto.getGroupRoles() .containsKey(groupId)) { // 用户不在该组，跳过
+                if (!dto.getGroupRoles().containsKey(groupId)) { // 用户不在该组，跳过
                     continue;
                 }
-                GroupRoleType userRoleInThisGroup = dto.getGroupRoles() .get(groupId);
+                GroupRoleType userRoleInThisGroup = dto.getGroupRoles().get(groupId);
 
                 // 用户是组管理员/拥有者，有全部权限
                 if (userRoleInThisGroup == GroupRoleType.ADMIN || userRoleInThisGroup == GroupRoleType.OWNER) {
@@ -832,8 +875,8 @@ public class ResourceServiceImpl implements IResourceService {
 
                 // 使用 TaggedResourceAclGrantScope 判断用户是否能获取当前组的权限掩码
                 boolean isEligibleForMask = (resolved.taggedResourceAclGrantScope == AccessControlScope.ALL ||
-                    (resolved.taggedResourceAclGrantScope == AccessControlScope.WHITELIST && resolved.taggedResourceAclGrantSpecifiedUsers.contains(dto.getUserId().toString())) ||
-                    (resolved.taggedResourceAclGrantScope == AccessControlScope.BLACKLIST && !resolved.taggedResourceAclGrantSpecifiedUsers.contains(dto.getUserId().toString())));
+                        (resolved.taggedResourceAclGrantScope == AccessControlScope.WHITELIST && resolved.taggedResourceAclGrantSpecifiedUsers.contains(dto.getUserId().toString())) ||
+                        (resolved.taggedResourceAclGrantScope == AccessControlScope.BLACKLIST && !resolved.taggedResourceAclGrantSpecifiedUsers.contains(dto.getUserId().toString())));
 
                 if (isEligibleForMask) {
                     // 只要有一个组能下发权限，基础身份就是 Member
@@ -881,9 +924,18 @@ public class ResourceServiceImpl implements IResourceService {
         AccessControlScope tagMountPermissionScope;
         List<String> tagMountSpecifiedUsers = Collections.emptyList();
 
-        boolean isTaggedResourceAclGrantScope() { return taggedResourceAclGrantScope != null; }
-        boolean isTaggedResourceGrantedActionsMaskResolved() { return taggedResourceGrantedActionsMask != null; }
-        boolean isTagMountPermissionScopeResolved() { return tagMountPermissionScope != null; }
+        boolean isTaggedResourceAclGrantScope() {
+            return taggedResourceAclGrantScope != null;
+        }
+
+        boolean isTaggedResourceGrantedActionsMaskResolved() {
+            return taggedResourceGrantedActionsMask != null;
+        }
+
+        boolean isTagMountPermissionScopeResolved() {
+            return tagMountPermissionScope != null;
+        }
+
         boolean isFullyResolved() {
             return isTaggedResourceAclGrantScope() && isTaggedResourceGrantedActionsMaskResolved() && isTagMountPermissionScopeResolved();
         }
@@ -962,8 +1014,8 @@ public class ResourceServiceImpl implements IResourceService {
         }
         if (!result.isTagMountPermissionScopeResolved() && node.getTagMountPermissionScope() != null) {
             result.tagMountPermissionScope = node.getTagMountPermissionScope();
-                result.tagMountSpecifiedUsers = node.getTagMountSpecifiedUsers() != null ?
-                        node.getTagMountSpecifiedUsers() : Collections.emptyList();
+            result.tagMountSpecifiedUsers = node.getTagMountSpecifiedUsers() != null ?
+                    node.getTagMountSpecifiedUsers() : Collections.emptyList();
         }
     }
 }

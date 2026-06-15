@@ -15,6 +15,7 @@ public class MarketOrderBase {
     private String buyerId;
     private String sellerId;
     private String sourceResourceId;
+    private String marketGroupId;
     private MarketPurchaseType purchaseType;
     private Integer paidPrice;
     private Long purchasedOfferVersion;

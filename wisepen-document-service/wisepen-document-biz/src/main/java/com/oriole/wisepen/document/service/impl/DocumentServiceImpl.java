@@ -340,16 +340,14 @@ public class DocumentServiceImpl implements IDocumentService {
                     .scene(StorageSceneEnum.PRIVATE_DOC)
                     .bizTag(targetDocumentId)
                     .build()).getData();
-            String sourceObjectKey = copied.getObjectKey();
-            copiedObjectKeys.add(sourceObjectKey);
+            copiedObjectKeys.add(copied.getObjectKey());
 
             copied = remoteStorageService.copyObject(StorageCopyRequest.builder()
                     .sourceObjectKey(sourceInfo.getPreviewObjectKey())
                     .scene(StorageSceneEnum.PRIVATE_DOC)
                     .bizTag(targetDocumentId)
                     .build()).getData();
-            String previewObjectKey = copied.getObjectKey();
-            copiedObjectKeys.add(previewObjectKey);
+            copiedObjectKeys.add(copied.getObjectKey());
         } catch (Exception e) {
             if (!copiedObjectKeys.isEmpty()) {
                 eventPublisher.publishFileDeleteEvent(copiedObjectKeys);
@@ -360,13 +358,6 @@ public class DocumentServiceImpl implements IDocumentService {
         }
 
         try {
-            DocumentUploadMeta uploadMeta = DocumentUploadMeta.builder()
-                    .documentName(sourceInfo.getUploadMeta().getDocumentName())
-                    .uploaderId(msg.getBuyerId())
-                    .fileType(sourceInfo.getUploadMeta().getFileType())
-                    .size(sourceInfo.getUploadMeta().getSize())
-                    .build();
-
             DocumentContentEntity sourceContent = documentContentRepository.findById(sourceInfo.getDocumentId())
                     .orElseThrow(() -> new ServiceException(DocumentError.DOCUMENT_FORK_FAILED, "source document content missing"));
             String content = sourceContent.getRawText();
@@ -387,7 +378,7 @@ public class DocumentServiceImpl implements IDocumentService {
                     .documentId(targetDocumentId)
                     .sourceObjectKey(copiedObjectKeys.getFirst())
                     .previewObjectKey(copiedObjectKeys.getLast())
-                    .uploadMeta(uploadMeta)
+                    .uploadMeta(null)
                     .documentStatus(new DocumentStatus(DocumentStatusEnum.READY))
                     .maxPreviewPages(sourceInfo.getMaxPreviewPages())
                     .build();
