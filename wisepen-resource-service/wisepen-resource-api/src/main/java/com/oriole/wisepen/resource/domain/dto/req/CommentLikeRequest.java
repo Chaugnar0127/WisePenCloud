@@ -4,8 +4,9 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 @Data
-public class DeleteCommentItemRequest {
-    /** 评论或回复的统一评论 ID */
+public class CommentLikeRequest {
+    @NotBlank
+    private String resourceId;
     @NotBlank
     private String commentId;
 }

@@ -9,8 +9,8 @@ import java.util.Optional;
 
 public interface ResourceCommentRepository extends MongoRepository<ResourceCommentEntity, String> {
 
-    @Query("{ '_id': ?0, 'deletedAt': null }")
-    Optional<ResourceCommentEntity> findByIdAndDeletedAtIsNull(String id);
+    @Query("{ '_id': ?0, 'resourceId': ?1, 'deletedAt': null }")
+    Optional<ResourceCommentEntity> findByIdAndResourceIdAndDeletedAtIsNull(String id, String resourceIds);
 
     void deleteAllByResourceIdIn(List<String> resourceIds);
 }

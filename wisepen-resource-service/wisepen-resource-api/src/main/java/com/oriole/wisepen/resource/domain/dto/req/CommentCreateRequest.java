@@ -7,7 +7,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Data
-public class CreateCommentRequest {
+public class CommentCreateRequest {
     @NotBlank
     private String resourceId;
     @NotBlank

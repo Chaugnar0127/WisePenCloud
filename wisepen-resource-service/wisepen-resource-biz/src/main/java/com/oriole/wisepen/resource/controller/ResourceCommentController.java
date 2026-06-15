@@ -4,12 +4,13 @@ import com.oriole.wisepen.common.core.context.SecurityContextHolder;
 import com.oriole.wisepen.common.core.domain.PageR;
 import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.common.core.domain.enums.BusinessType;
+import com.oriole.wisepen.common.core.domain.enums.IdentityType;
 import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
-import com.oriole.wisepen.resource.domain.dto.req.CreateCommentRequest;
-import com.oriole.wisepen.resource.domain.dto.req.CreateReplyRequest;
-import com.oriole.wisepen.resource.domain.dto.req.DeleteCommentItemRequest;
-import com.oriole.wisepen.resource.domain.dto.req.ToggleCommentLikeRequest;
+import com.oriole.wisepen.resource.domain.dto.req.CommentCreateRequest;
+import com.oriole.wisepen.resource.domain.dto.req.CommentReplyCreateRequest;
+import com.oriole.wisepen.resource.domain.dto.req.CommentDeleteRequest;
+import com.oriole.wisepen.resource.domain.dto.req.CommentLikeRequest;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceCommentItemResponse;
 import com.oriole.wisepen.resource.enums.CommentSortBy;
 import com.oriole.wisepen.resource.service.IResourceCommentService;
@@ -45,7 +46,7 @@ public class ResourceCommentController {
     )
     @PostMapping("/createComment")
     @Log(title = "发布顶级评论", businessType = BusinessType.INSERT)
-    public R<String> createComment(@Validated @RequestBody CreateCommentRequest request) {
+    public R<String> createComment(@Validated @RequestBody CommentCreateRequest request) {
         String operatorUserId = SecurityContextHolder.getUserId().toString();
         return R.ok(commentService.createComment(request, operatorUserId));
     }
@@ -63,7 +64,7 @@ public class ResourceCommentController {
     )
     @PostMapping("/createReply")
     @Log(title = "发布回复", businessType = BusinessType.INSERT)
-    public R<String> createReply(@Validated @RequestBody CreateReplyRequest request) {
+    public R<String> createReply(@Validated @RequestBody CommentReplyCreateRequest request) {
         String operatorUserId = SecurityContextHolder.getUserId().toString();
         return R.ok(commentService.createReply(request, operatorUserId));
     }
@@ -82,9 +83,10 @@ public class ResourceCommentController {
     )
     @PostMapping("/deleteCommentItem")
     @Log(title = "删除评论或回复", businessType = BusinessType.DELETE)
-    public R<Void> deleteCommentItem(@Validated @RequestBody DeleteCommentItemRequest request) {
+    public R<Void> deleteCommentItem(@Validated @RequestBody CommentDeleteRequest request) {
         String operatorUserId = SecurityContextHolder.getUserId().toString();
-        commentService.deleteCommentItem(request, operatorUserId);
+        IdentityType operatorIdentityType = SecurityContextHolder.getIdentityType();
+        commentService.deleteCommentItem(request, operatorUserId, operatorIdentityType);
         return R.ok();
     }
 
@@ -101,7 +103,7 @@ public class ResourceCommentController {
     )
     @PostMapping("/toggleLike")
     @Log(title = "切换评论点赞状态", businessType = BusinessType.UPDATE)
-    public R<Boolean> toggleLike(@Validated @RequestBody ToggleCommentLikeRequest request) {
+    public R<Boolean> toggleLike(@Validated @RequestBody CommentLikeRequest request) {
         String operatorUserId = SecurityContextHolder.getUserId().toString();
         return R.ok(commentService.toggleLike(request, operatorUserId));
     }

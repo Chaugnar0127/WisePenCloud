@@ -28,23 +28,26 @@ public class CustomResourceCommentRepository {
         Criteria criteria = Criteria.where("resourceId").is(resourceId).and("commentType").is(CommentType.COMMENT);
         Query query = Query.query(criteria);
 
-        if (sortBy == CommentSortBy.CREATE_TIME) {
+        if (sortBy == CommentSortBy.LIKE_COUNT) {
             query.with(Sort.by(Sort.Direction.DESC, "likeCount", "createTime"));
         } else {
             query.with(Sort.by(Sort.Direction.DESC, "createTime"));
         }
-        query.with(pageable);
 
         long total = mongoTemplate.count(query, ResourceCommentEntity.class);
+
+        query.with(pageable);
         List<ResourceCommentEntity> list = mongoTemplate.find(query, ResourceCommentEntity.class);
         return new PageImpl<>(list, pageable, total);
     }
 
     public Page<ResourceCommentEntity> listRepliesByRootCommentId(String rootCommentId, Pageable pageable) {
         Criteria criteria = Criteria.where("rootCommentId").is(rootCommentId).and("commentType").ne(CommentType.COMMENT);
-        Query query = Query.query(criteria).with(Sort.by(Sort.Direction.DESC, "createTime")).with(pageable);
+        Query query = Query.query(criteria).with(Sort.by(Sort.Direction.DESC, "createTime"));
 
         long total = mongoTemplate.count(query, ResourceCommentEntity.class);
+
+        query.with(pageable);
         List<ResourceCommentEntity> list = mongoTemplate.find(query, ResourceCommentEntity.class);
         return new PageImpl<>(list, pageable, total);
     }

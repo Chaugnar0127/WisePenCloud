@@ -7,7 +7,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Data
-public class CreateReplyRequest {
+public class CommentReplyCreateRequest {
+    @NotBlank
+    private String resourceId;
     /** 被回复目标评论 ID */
     @NotBlank
     private String replyTo;
