@@ -1,17 +1,18 @@
 package com.oriole.wisepen.resource.controller;
 
 import com.oriole.wisepen.common.core.context.SecurityContextHolder;
+import com.oriole.wisepen.common.core.domain.PageR;
 import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.common.core.domain.enums.BusinessType;
+import com.oriole.wisepen.common.core.domain.enums.IdentityType;
 import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
-import com.oriole.wisepen.resource.domain.dto.req.CreateCommentRequest;
-import com.oriole.wisepen.resource.domain.dto.req.CreateReplyRequest;
-import com.oriole.wisepen.resource.domain.dto.req.DeleteCommentItemRequest;
-import com.oriole.wisepen.resource.domain.dto.req.ToggleCommentLikeRequest;
-import com.oriole.wisepen.resource.domain.dto.res.CursorPageResponse;
-import com.oriole.wisepen.resource.domain.dto.res.ResourceCommentListItemResponse;
-import com.oriole.wisepen.resource.domain.dto.res.ResourceCommentReplyListItemResponse;
+import com.oriole.wisepen.resource.domain.dto.req.CommentCreateRequest;
+import com.oriole.wisepen.resource.domain.dto.req.CommentReplyCreateRequest;
+import com.oriole.wisepen.resource.domain.dto.req.CommentDeleteRequest;
+import com.oriole.wisepen.resource.domain.dto.req.CommentLikeRequest;
+import com.oriole.wisepen.resource.domain.dto.res.ResourceCommentItemResponse;
+import com.oriole.wisepen.resource.enums.CommentSortBy;
 import com.oriole.wisepen.resource.service.IResourceCommentService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -45,7 +46,7 @@ public class ResourceCommentController {
     )
     @PostMapping("/createComment")
     @Log(title = "发布顶级评论", businessType = BusinessType.INSERT)
-    public R<String> createComment(@Validated @RequestBody CreateCommentRequest request) {
+    public R<String> createComment(@Validated @RequestBody CommentCreateRequest request) {
         String operatorUserId = SecurityContextHolder.getUserId().toString();
         return R.ok(commentService.createComment(request, operatorUserId));
     }
@@ -54,16 +55,16 @@ public class ResourceCommentController {
             summary = "发布回复",
             description = """
                     - 用途：用户对某条顶级评论或某条回复进行回复。
-                    - 请求：parentId 为被回复目标的 ID（顶级评论 ID 或回复 ID）；replyToUserId 为被回复人用户 ID；content 不能为空；imageUrls 可选。
-                    - 约束：当前用户必须已登录；parentId 对应目标必须存在且未被软删除。
-                    - 处理：生成回复 ID 为 parentId_newObjectId；所属顶级评论 replyCount +1；资源 commentCount +1。
-                    - 失败：未登录 -> PermissionError.NOT_LOGIN；parentId 对应顶级评论不存在或已删除 -> ResourceError.COMMENT_NOT_FOUND；parentId 为回复 ID 时对应回复不存在或已删除 -> ResourceError.COMMENT_REPLY_PARENT_NOT_FOUND。
-                    - 响应：返回服务端生成的 replyId。
+                    - 请求：resourceId 指定目标资源；replyTo 为同一资源下被回复目标的 commentId；content 不能为空；imageUrls 可选。
+                    - 约束：当前用户必须已登录；目标资源必须存在且未被软删除；replyTo 对应目标必须存在且未被软删除。
+                    - 处理：创建统一评论文档，按父目标类型写入 commentType、rootCommentId、replyTo 和 replyToUserId；所属顶级评论 replyCount +1；资源 commentCount +1。
+                    - 失败：未登录 -> PermissionError.NOT_LOGIN；目标资源不存在或已删除 -> ResourceError.RESOURCE_NOT_FOUND；replyTo 对应目标不存在或已删除 -> ResourceError.COMMENT_NOT_FOUND。
+                    - 响应：返回服务端生成的 commentId。
                     """
     )
     @PostMapping("/createReply")
     @Log(title = "发布回复", businessType = BusinessType.INSERT)
-    public R<String> createReply(@Validated @RequestBody CreateReplyRequest request) {
+    public R<String> createReply(@Validated @RequestBody CommentReplyCreateRequest request) {
         String operatorUserId = SecurityContextHolder.getUserId().toString();
         return R.ok(commentService.createReply(request, operatorUserId));
     }
@@ -72,19 +73,20 @@ public class ResourceCommentController {
             summary = "删除评论或回复",
             description = """
                     - 用途：用户软删除自己发布的顶级评论或回复。
-                    - 请求：targetId 为 commentId（不含 _）或 replyId（含 _），Service 从 ID 格式推导操作目标类型。
-                    - 约束：当前用户必须已登录；目标必须存在且未被软删除；操作人必须是该评论/回复的 authorId。
+                    - 请求：resourceId 指定目标资源；commentId 为目标评论或回复的统一评论 ID。
+                    - 约束：当前用户必须已登录；目标资源必须存在且未被软删除；目标评论必须属于该资源且未被软删除；操作人必须是管理员、资源所有者或该评论的 authorId。
                     - 处理（顶级评论）：软删除评论；资源 commentCount -1；不级联删除回复。
                     - 处理（回复）：软删除回复；所属顶级评论 replyCount -1；资源 commentCount -1。
-                    - 失败：未登录 -> PermissionError.NOT_LOGIN；顶级评论不存在或已删除 -> ResourceError.COMMENT_NOT_FOUND；回复不存在或已删除 -> ResourceError.COMMENT_REPLY_NOT_FOUND；操作人非 authorId -> ResourceError.COMMENT_DELETE_ACCESS_DENIED。
+                    - 失败：未登录 -> PermissionError.NOT_LOGIN；目标资源不存在或已删除 -> ResourceError.RESOURCE_NOT_FOUND；目标评论或回复不存在或已删除 -> ResourceError.COMMENT_NOT_FOUND；操作人无删除权限 -> ResourceError.COMMENT_DELETE_ACCESS_DENIED。
                     - 响应：成功时返回空结果。
                     """
     )
     @PostMapping("/deleteCommentItem")
     @Log(title = "删除评论或回复", businessType = BusinessType.DELETE)
-    public R<Void> deleteCommentItem(@Validated @RequestBody DeleteCommentItemRequest request) {
+    public R<Void> deleteCommentItem(@Validated @RequestBody CommentDeleteRequest request) {
         String operatorUserId = SecurityContextHolder.getUserId().toString();
-        commentService.deleteCommentItem(request, operatorUserId);
+        IdentityType operatorIdentityType = SecurityContextHolder.getIdentityType();
+        commentService.deleteCommentItem(request, operatorUserId, operatorIdentityType);
         return R.ok();
     }
 
@@ -92,61 +94,56 @@ public class ResourceCommentController {
             summary = "切换评论点赞状态",
             description = """
                     - 用途：用户对顶级评论或回复进行点赞或取消点赞（切换语义）。
-                    - 请求：targetId 为目标评论/回复的 ID；无需传 targetType，Service 从 ID 格式推导。
-                    - 约束：当前用户必须已登录；目标评论/回复必须存在且未被软删除。
+                    - 请求：resourceId 指定目标资源；commentId 为目标评论或回复的统一评论 ID。
+                    - 约束：当前用户必须已登录；目标资源必须存在且未被软删除；目标评论/回复必须属于该资源且未被软删除。
                     - 处理：$addToSet/$pull 维护 likedCommentIds；同步 $inc 目标 likeCount。
-                    - 失败：未登录 -> PermissionError.NOT_LOGIN；顶级评论不存在或已删除 -> ResourceError.COMMENT_NOT_FOUND；回复不存在或已删除 -> ResourceError.COMMENT_REPLY_NOT_FOUND。
+                    - 失败：未登录 -> PermissionError.NOT_LOGIN；目标资源不存在或已删除 -> ResourceError.RESOURCE_NOT_FOUND；目标评论或回复不存在或已删除 -> ResourceError.COMMENT_NOT_FOUND。
                     - 响应：返回操作后的点赞状态（true 表示已点赞）。
                     """
     )
     @PostMapping("/toggleLike")
     @Log(title = "切换评论点赞状态", businessType = BusinessType.UPDATE)
-    public R<Boolean> toggleLike(@Validated @RequestBody ToggleCommentLikeRequest request) {
+    public R<Boolean> toggleLike(@Validated @RequestBody CommentLikeRequest request) {
         String operatorUserId = SecurityContextHolder.getUserId().toString();
         return R.ok(commentService.toggleLike(request, operatorUserId));
     }
 
     @Operation(
-            summary = "游标分页查询顶级评论",
+            summary = "分页查询顶级评论",
             description = """
-                    - 用途：加载资源评论区首屏或下一页顶级评论列表。
-                    - 请求：resourceId 必传；sortBy 可选（TIME / HOT，默认 TIME）；首页不传游标参数；热度排序翻页同时传 cursorLikeCount 和 cursorCreateTime；size 默认 10，最大 50。
+                    - 用途：加载资源评论区的顶级评论列表。
+                    - 请求：resourceId 必传；sortBy 按 CommentSortBy 传 CREATE_TIME 或 LIKE_COUNT；page 从 1 开始；size 默认 10，最大 50。
                     - 约束：当前用户必须已登录。
-                    - 处理：游标分页查询顶级评论（含已软删除），批量补 authorInfo，批量补点赞状态；不内嵌回复列表。
+                    - 处理：按页码分页查询顶级评论（含已软删除），批量补 authorInfo；不内嵌回复列表。
                     - 失败：未登录 -> PermissionError.NOT_LOGIN。
-                    - 响应：CursorPageResponse 含顶级评论列表、hasMore、nextCursorCreateTime、nextCursorLikeCount（热度排序时有值）。
+                    - 响应：PageR 含顶级评论列表、total、page 和 size。
                     """
     )
     @GetMapping("/listComments")
-    public R<CursorPageResponse<ResourceCommentListItemResponse>> listComments(
+    public R<PageR<ResourceCommentItemResponse>> listComments(
             @NotBlank @RequestParam String resourceId,
-            @RequestParam(defaultValue = "TIME") String sortBy,
-            @RequestParam(required = false) Long cursorCreateTime,
-            @RequestParam(required = false) Integer cursorLikeCount,
+            @RequestParam CommentSortBy sortBy,
             @Min(1) @Max(50) @RequestParam(defaultValue = "10") int size,
             @Min(1) @RequestParam(defaultValue = "1") int page) {
-        String operatorUserId = SecurityContextHolder.getUserId().toString();
-        return R.ok(commentService.listComments(resourceId, sortBy, cursorCreateTime, cursorLikeCount, size, page, operatorUserId));
+        return R.ok(commentService.listComments(resourceId, sortBy, size, page));
     }
 
     @Operation(
-            summary = "游标分页查询回复列表",
+            summary = "分页查询回复列表",
             description = """
                     - 用途：展开某顶级评论的回复弹窗，加载该评论下全部回复。
-                    - 请求：rootCommentId 必传；首页不传 cursorCreateTime；翻页传上一页最后一条的 cursorCreateTime（毫秒时间戳）；size 默认 10，最大 50。
+                    - 请求：rootCommentId 必传；page 从 1 开始；size 默认 10，最大 50。
                     - 约束：当前用户必须已登录。
-                    - 处理：按时间从新到旧游标分页，批量补 authorInfo 和 replyToUserInfo，批量补点赞状态；回复列表平铺返回。
+                    - 处理：按时间从新到旧页码分页查询回复，批量补 authorInfo 和 replyToUserInfo；回复列表平铺返回。
                     - 失败：未登录 -> PermissionError.NOT_LOGIN。
-                    - 响应：CursorPageResponse 含回复列表、hasMore、nextCursorCreateTime。
+                    - 响应：PageR 含回复列表、total、page 和 size。
                     """
     )
     @GetMapping("/listReplies")
-    public R<CursorPageResponse<ResourceCommentReplyListItemResponse>> listReplies(
+    public R<PageR<ResourceCommentItemResponse>> listReplies(
             @NotBlank @RequestParam String rootCommentId,
-            @RequestParam(required = false) Long cursorCreateTime,
             @Min(1) @Max(50) @RequestParam(defaultValue = "10") int size,
             @Min(1) @RequestParam(defaultValue = "1") int page) {
-        String operatorUserId = SecurityContextHolder.getUserId().toString();
-        return R.ok(commentService.listReplies(rootCommentId, cursorCreateTime, size, page, operatorUserId));
+        return R.ok(commentService.listReplies(rootCommentId, size, page));
     }
 }

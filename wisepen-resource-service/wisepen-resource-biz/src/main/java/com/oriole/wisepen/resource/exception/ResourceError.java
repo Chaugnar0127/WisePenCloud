@@ -69,9 +69,7 @@ public enum ResourceError implements IResult {
 
     // 评论相关异常
     COMMENT_NOT_FOUND(5911, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.COMMENT, ErrorReason.NOT_FOUND), "评论不存在或已删除"),
-    COMMENT_REPLY_NOT_FOUND(5921, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.COMMENT, ErrorReason.NOT_FOUND), "回复不存在或已删除"),
-    COMMENT_DELETE_ACCESS_DENIED(5931, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.COMMENT, ErrorReason.PERMISSION_DENIED), "无权删除他人的评论或回复"),
-    COMMENT_REPLY_PARENT_NOT_FOUND(5941, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.COMMENT, ErrorReason.NOT_FOUND), "指定的父评论/回复不存在或已删除");
+    COMMENT_DELETE_ACCESS_DENIED(5921, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.COMMENT, ErrorReason.PERMISSION_DENIED), "无权删除他人的评论或回复");
 
     private final Integer code;
     private final ResultKey key;

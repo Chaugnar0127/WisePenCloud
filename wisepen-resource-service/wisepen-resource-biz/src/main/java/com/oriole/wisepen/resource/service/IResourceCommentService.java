@@ -1,27 +1,25 @@
 package com.oriole.wisepen.resource.service;
 
-import com.oriole.wisepen.resource.domain.dto.req.CreateCommentRequest;
-import com.oriole.wisepen.resource.domain.dto.req.CreateReplyRequest;
-import com.oriole.wisepen.resource.domain.dto.req.DeleteCommentItemRequest;
-import com.oriole.wisepen.resource.domain.dto.req.ToggleCommentLikeRequest;
-import com.oriole.wisepen.resource.domain.dto.res.CursorPageResponse;
-import com.oriole.wisepen.resource.domain.dto.res.ResourceCommentListItemResponse;
-import com.oriole.wisepen.resource.domain.dto.res.ResourceCommentReplyListItemResponse;
+import com.oriole.wisepen.common.core.domain.PageR;
+import com.oriole.wisepen.common.core.domain.enums.IdentityType;
+import com.oriole.wisepen.resource.domain.dto.req.CommentCreateRequest;
+import com.oriole.wisepen.resource.domain.dto.req.CommentReplyCreateRequest;
+import com.oriole.wisepen.resource.domain.dto.req.CommentDeleteRequest;
+import com.oriole.wisepen.resource.domain.dto.req.CommentLikeRequest;
+import com.oriole.wisepen.resource.domain.dto.res.ResourceCommentItemResponse;
+import com.oriole.wisepen.resource.enums.CommentSortBy;
 
 public interface IResourceCommentService {
 
-    String createComment(CreateCommentRequest request, String operatorUserId);
+    String createComment(CommentCreateRequest request, String operatorUserId);
 
-    String createReply(CreateReplyRequest request, String operatorUserId);
+    String createReply(CommentReplyCreateRequest request, String operatorUserId);
 
-    void deleteCommentItem(DeleteCommentItemRequest request, String operatorUserId);
+    void deleteCommentItem(CommentDeleteRequest request, String operatorUserId, IdentityType operatorIdentityType);
 
-    boolean toggleLike(ToggleCommentLikeRequest request, String operatorUserId);
+    boolean toggleLike(CommentLikeRequest request, String operatorUserId);
 
-    CursorPageResponse<ResourceCommentListItemResponse> listComments(
-            String resourceId, String sortBy, Long cursorCreateTime, Integer cursorLikeCount,
-            int size, int page, String operatorUserId);
+    PageR<ResourceCommentItemResponse> listComments(String resourceId, CommentSortBy sortBy, int size, int page);
 
-    CursorPageResponse<ResourceCommentReplyListItemResponse> listReplies(
-            String rootCommentId, Long cursorCreateTime, int size, int page, String operatorUserId);
+    PageR<ResourceCommentItemResponse> listReplies(String rootCommentId, int size, int page);
 }

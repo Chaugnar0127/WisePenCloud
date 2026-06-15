@@ -7,12 +7,12 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Data
-public class CreateReplyRequest {
-    /** 被回复目标 ID：顶级评论 ID（纯 ObjectId）或回复 ID（含 _） */
+public class CommentReplyCreateRequest {
     @NotBlank
-    private String parentId;
+    private String resourceId;
+    /** 被回复目标评论 ID */
     @NotBlank
-    private String replyToUserId;
+    private String replyTo;
     @NotBlank
     private String content;
     private List<String> imageUrls = new ArrayList<>();

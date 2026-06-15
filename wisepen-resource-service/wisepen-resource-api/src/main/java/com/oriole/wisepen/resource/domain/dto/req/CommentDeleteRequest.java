@@ -4,8 +4,10 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 @Data
-public class ToggleCommentLikeRequest {
-    /** 顶级评论 ID（纯 ObjectId）或回复 ID（含 _） */
+public class CommentDeleteRequest {
     @NotBlank
-    private String targetId;
+    private String resourceId;
+
+    @NotBlank
+    private String commentId;
 }
