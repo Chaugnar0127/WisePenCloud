@@ -221,9 +221,7 @@ public class FavoriteServiceImpl implements IFavoriteService {
         List<String> collectionIds = favoriteResourceRefRepository.findFirstByUserIdAndResourceId(userId, resourceId)
                 .map(ref -> ref.getCollectionIds() != null ? ref.getCollectionIds() : Collections.<String>emptyList())
                 .orElse(Collections.emptyList());
-        ResourceFavoriteStatusResponse resp = new ResourceFavoriteStatusResponse();
-        resp.setCollectionIds(collectionIds);
-        return resp;
+        return new ResourceFavoriteStatusResponse(collectionIds);
     }
 
     @Override
