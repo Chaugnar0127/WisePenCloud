@@ -1,8 +1,6 @@
 package com.oriole.wisepen.ai.asset.domain.entity;
 
 import com.oriole.wisepen.ai.asset.domain.base.AgentSpecInfoBase;
-import com.oriole.wisepen.ai.asset.domain.base.AssetInfoBase;
-import com.oriole.wisepen.ai.asset.enums.AssetUploadStatus;
 import com.oriole.wisepen.ai.asset.exception.AIResourceError;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import lombok.*;
