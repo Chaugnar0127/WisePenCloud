@@ -19,7 +19,9 @@ public class MarketPublishOfferRequest {
     public static class MarketOfferInfo {
         @NotEmpty
         private List<ResourceAction> grantedActions; // 购买资源的用户可以获得的权限掩码
-        @Min(value = 0)
+
+        @NotNull(message = ResourceValidationMsg.MARKET_PRICE_NOT_NULL)
+        @Min(value = 0, message = ResourceValidationMsg.MARKET_PRICE_INVALID)
         private Integer price; // 售卖价格
     }
 

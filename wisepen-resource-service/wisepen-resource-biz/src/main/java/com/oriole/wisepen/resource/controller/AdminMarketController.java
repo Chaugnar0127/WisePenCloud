@@ -7,7 +7,6 @@ import com.oriole.wisepen.common.core.domain.enums.IdentityType;
 import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.common.security.annotation.CheckRole;
 import com.oriole.wisepen.resource.domain.dto.req.MarketAuditOfferRequest;
-import com.oriole.wisepen.resource.domain.dto.req.MarketOffShelfOfferRequest;
 import com.oriole.wisepen.resource.service.IMarketService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -30,11 +29,11 @@ public class AdminMarketController {
     @Operation(
             summary = "审核资源",
             description = """
-                    - 用途：集市管理员处理资源上架申请。
-                    - 请求：resourceId 指定待审核资源；marketGroupId 指定集市群；status 只能为 PUBLISHED、REJECTED 或 BANNED；auditMessage 是审核说明。
-                    - 约束：当前用户必须是平台管理员；上架记录必须处于 PENDING；目标小组必须是集市组；驳回或封禁时必须填写审核说明。
-                    - 处理：对该集市群下处于 PENDING 的整组 marketOffers 写入审核状态、审核说明、审核时间和审核人；审核通过后移除 override，驳回或封禁保持 override=0。
-                    - 失败：上架记录不存在 -> ResourceError.MARKET_OFFER_NOT_FOUND；驳回或封禁未填写审核说明 -> ResourceError.MARKET_AUDIT_MESSAGE_REQUIRED；目标小组不是集市组 -> ResourceError.MARKET_GROUP_REQUIRED。
+                    - 用途：集市管理员审核资源。
+                    - 请求：resourceId 指定待审核资源；marketGroupId 指定集市群；offerVersion 必须匹配当前上架版本；status 只能为 PUBLISHED、REJECTED 或 BANNED；auditMessage 是审核说明。
+                    - 约束：当前用户必须是平台管理员；驳回或封禁时必须填写审核说明。
+                    - 处理：对该集市群整组 marketOffers 写入审核状态、审核说明、审核时间和审核人；审核通过后移除 override，驳回或封禁保持 override=0。
+                    - 失败：上架记录不存在 -> ResourceError.MARKET_OFFER_NOT_FOUND；驳回或封禁未填写审核说明 -> ResourceError.MARKET_AUDIT_MESSAGE_REQUIRED；审核版本不匹配 -> ResourceError.MARKET_AUDIT_VERSION_MISMATCH；审核目标状态非法 -> ResourceError.MARKET_AUDIT_STATUS_INVALID。
                     - 响应：成功时返回空结果。
                     """
     )

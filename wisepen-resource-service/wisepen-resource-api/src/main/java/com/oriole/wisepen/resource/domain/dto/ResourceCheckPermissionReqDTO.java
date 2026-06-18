@@ -22,7 +22,7 @@ public class ResourceCheckPermissionReqDTO {
     private Long userId;
     @NotNull(message = ResourceValidationMsg.USER_GROUP_ROLES_NOT_NULL)
     private Map<Long, GroupRoleType> groupRoles;
-    private Integer version;
+    private Integer targetVersion;
 
     public ResourceCheckPermissionReqDTO(String resourceId, Long userId, Map<Long, GroupRoleType> groupRoles) {
         this.resourceId = resourceId;

@@ -38,13 +38,25 @@ public class ResourceItemResponseAssembler {
     private final TagRepository tagRepository;
     private final RemoteUserService remoteUserService;
 
-    public ResourceItemResponse assembleOne(ResourceItemEntity entity, String currentUserId, Map<Long, GroupRoleType> groupRoles, List<ResourceAction> requiredResourceActions) {
+    public ResourceItemResponse assembleOne(
+            ResourceItemEntity entity,
+            String currentUserId,
+            Map<Long, GroupRoleType> groupRoles,
+            List<ResourceAction> requiredResourceActions,
+            Integer targetVersion,
+            boolean checkMarketTargetVersion) {
         if (entity == null) return null;
-        List<ResourceItemResponse> responses = assembleMany(List.of(entity), currentUserId, groupRoles, requiredResourceActions);
+        List<ResourceItemResponse> responses = assembleMany(List.of(entity), currentUserId, groupRoles, requiredResourceActions, targetVersion, checkMarketTargetVersion);
         return (responses != null && !responses.isEmpty()) ? responses.getFirst() : null;
     }
 
-    public List<ResourceItemResponse> assembleMany(List<ResourceItemEntity> entities, String currentUserId, Map<Long, GroupRoleType> groupRoles, List<ResourceAction> requiredResourceActions) {
+    public List<ResourceItemResponse> assembleMany(
+            List<ResourceItemEntity> entities,
+            String currentUserId,
+            Map<Long, GroupRoleType> groupRoles,
+            List<ResourceAction> requiredResourceActions,
+            Integer targetVersion,
+            boolean checkMarketTargetVersion) {
         if (entities == null || entities.isEmpty()) {
             return Collections.emptyList();
         }
@@ -52,7 +64,7 @@ public class ResourceItemResponseAssembler {
         // 先处理权限过滤问题
         Map<String, List<ResourceAction>> actionsMap = new HashMap<>();
         entities = entities.stream().filter(entity->{
-            List<ResourceAction> actions = ResourceAction.permissionCodeToActions(resolveAccess(entity, currentUserId, groupRoles).getActionsMask());
+            List<ResourceAction> actions = ResourceAction.permissionCodeToActions(resolveAccess(entity, currentUserId, groupRoles, targetVersion, checkMarketTargetVersion).getActionsMask());
             actionsMap.put(entity.getResourceId(), actions);
             return new HashSet<>(actions).containsAll(requiredResourceActions);
         }).toList();
@@ -67,6 +79,7 @@ public class ResourceItemResponseAssembler {
 
         return entities.stream().map(entity->{
             ResourceItemResponse response = BeanUtil.copyProperties(entity, ResourceItemResponse.class);
+            if (response.getMarketOfferOptions() == null) response.setMarketOfferOptions(new HashMap<>());
 
             // 获取已解析的 CurrentActions
             response.setCurrentActions(actionsMap.get(entity.getResourceId()));
@@ -92,20 +105,21 @@ public class ResourceItemResponseAssembler {
                     response.setSpecifiedUsersGrantedActions(specifiedUsersGrantedActions);
                 }
                 // 提供全部 MarketOffer 信息
-                marketOfferOptions.getFirst().entrySet().stream().peek(entry -> response.getMarketOfferOptions().put(entry.getKey(), entry.getValue()));
-                marketOfferOptions.getLast().entrySet().stream().peek(entry -> response.getMarketOfferOptions().put(entry.getKey(), entry.getValue()));
+                marketOfferOptions.getFirst().forEach((groupId, offer) -> response.getMarketOfferOptions().put(groupId, offer));
+                marketOfferOptions.getLast().forEach((groupId, offer) -> response.getMarketOfferOptions().put(groupId, offer));
             } else {
                 // 提供 MarketOffer 信息
                 // 仅提供用户所在集市组的已上架的 MarketOffer 信息
-                marketOfferOptions.getFirst().entrySet().stream().peek(entry -> {
-                    if (groupRoles.keySet().contains(entry.getKey())) {
-                        response.getMarketOfferOptions().put(entry.getKey(), entry.getValue());
+                marketOfferOptions.getFirst().forEach((groupId, offer) -> {
+                    if (groupRoles.get(Long.valueOf(groupId)) != null) {
+                        response.getMarketOfferOptions().put(groupId, offer);
                     }
                 });
                 // 提供用户所在集市组的未上架的 MarketOffer 信息（当用户是集市组的管理员时）
-                marketOfferOptions.getLast().entrySet().stream().peek(entry -> {
-                    if (groupRoles.get(entry.getKey()).equals(GroupRoleType.ADMIN) || groupRoles.get(entry.getKey()).equals(GroupRoleType.OWNER)) {
-                        response.getMarketOfferOptions().put(entry.getKey(), entry.getValue());
+                marketOfferOptions.getLast().forEach((groupId, offer) -> {
+                    GroupRoleType groupRole = groupRoles.get(Long.valueOf(groupId));
+                    if (groupRole == GroupRoleType.ADMIN || groupRole == GroupRoleType.OWNER) {
+                        response.getMarketOfferOptions().put(groupId, offer);
                     }
                 });
             }
@@ -170,9 +184,12 @@ public class ResourceItemResponseAssembler {
     }
 
     // 预计算 ACL 快速鉴权 (拦截非法越权访问)
-    public ResolvedResourceAccess resolveAccess(ResourceItemEntity entity,
-                                                String currentUserId,
-                                                Map<Long, GroupRoleType> groupRoles) {
+    private ResolvedResourceAccess resolveAccess(
+            ResourceItemEntity entity,
+            String currentUserId,
+            Map<Long, GroupRoleType> groupRoles,
+            Integer targetVersion,
+            boolean checkMarketTargetVersion) {
         // 资源所有者有全部权限
         if (currentUserId.equals(entity.getOwnerId())) {
             return new ResolvedResourceAccess(ResourceAccessRole.OWNER, Collections.emptySet(), ResourceAction.ALL_ACTIONS);
@@ -196,26 +213,35 @@ public class ResourceItemResponseAssembler {
         // 计算群组权限
         if (entity.getGroupBinds() != null && entity.getComputedGroupAcls() != null && groupRoles != null) {
             for (Map.Entry<String, ComputedGroupAcl> entry : entity.getComputedGroupAcls().entrySet()) { // 遍历预计算的群组 ACL
-                Long groupId = Long.valueOf(entry.getKey());
-                if (!groupRoles.containsKey(groupId)) continue; // 用户不在该组，跳过
+                String groupId = entry.getKey();
+                GroupRoleType groupRole = groupRoles.get(Long.valueOf(groupId));
 
-                GroupRoleType groupRole = groupRoles.get(groupId);
+                if (groupRole == null) continue; // 用户不在该组，跳过
+
+                MarketOfferOption marketOffer = entity.getGroupBinds().stream()
+                        .filter(bind -> Objects.equals(bind.getGroupId(), groupId))
+                        .map(GroupTagBind::getMarketOffer)
+                        .filter(Objects::nonNull).findFirst().orElse(null);
 
                 // 用户是组管理员/拥有者，有全部权限
                 if (groupRole == GroupRoleType.ADMIN || groupRole == GroupRoleType.OWNER) {
-                    boolean isMarketGroup = entity.getGroupBinds().stream().anyMatch(groupTagBind ->
-                            groupTagBind.getGroupId().equals(groupId.toString()) && groupTagBind.getMarketOffer() != null);
-                    if (isMarketGroup) {
+                    if (marketOffer != null) {
                         // 不能存在 MARKET_FORBIDDEN_ACTIONS_MASK 中的权限
-                        permissionSources.add(groupId.toString());
+                        permissionSources.add(groupId);
                         groupActionsMask = ResourceAction.ALL_ACTIONS & ~MARKET_FORBIDDEN_ACTIONS_MASK;
                         groupResourceAccessRole = ResourceAccessRole.GROUP_ADMIN;
                     } else {
-                        permissionSources.add(groupId.toString());
+                        permissionSources.add(groupId);
                         groupActionsMask = ResourceAction.ALL_ACTIONS;
                         groupResourceAccessRole = ResourceAccessRole.GROUP_ADMIN;
                     }
                     break;
+                }
+                // 在当前组是市场组时，检查目标版本是否适用
+                if (marketOffer != null && checkMarketTargetVersion) {
+                    if (targetVersion == null || !Objects.equals(targetVersion, marketOffer.getOfferVersion())) {
+                        continue;
+                    }
                 }
 
                 // 提取预计算ACL
@@ -224,7 +250,7 @@ public class ResourceItemResponseAssembler {
 
                 // 只要有一个组能下发权限（无权限(0)不在此列），基础身份就是 GROUP_MEMBER
                 if (resolvedGroupMask != 0) {
-                    permissionSources.add(groupId.toString());
+                    permissionSources.add(groupId);
                     // 累加普通成员在不同小组下获得的权限 (按位或)
                     groupActionsMask |= resolvedGroupMask;
                     groupResourceAccessRole = ResourceAccessRole.GROUP_MEMBER;
@@ -253,18 +279,24 @@ public class ResourceItemResponseAssembler {
         Map<String, MarketOfferOptionResponse> onShelf = new HashMap<>();
         Map<String, MarketOfferOptionResponse> notOnShelf = new HashMap<>();
 
-        groupBinds.stream().peek(bind -> {
+        if (groupBinds == null) return List.of(onShelf, notOnShelf);
+
+        groupBinds.forEach(bind -> {
             if (bind.getMarketOffer() != null) {
                 MarketOfferOption offer = bind.getMarketOffer();
                 // MarketOfferOption 转换为 MarketOfferOptionResponse
                 MarketOfferOptionResponse marketOfferOptionResponse = BeanUtil.copyProperties(offer, MarketOfferOptionResponse.class);
-                marketOfferOptionResponse.setMarketOfferList(offer.getMarketOfferList().stream().map(marketOfferInfoBase -> {
+                if (offer.getReviewActionsMask() != null) { // 若未设置应保持为空
+                    marketOfferOptionResponse.setReviewActions(ResourceAction.permissionCodeToActions(offer.getReviewActionsMask()));
+                }
+                List<MarketOfferInfoResponse> offerList = offer.getMarketOfferList() == null ? Collections.emptyList() : offer.getMarketOfferList().stream().map(marketOfferInfoBase -> {
                     MarketOfferInfoResponse marketOfferInfoResponse = BeanUtil.copyProperties(marketOfferInfoBase, MarketOfferInfoResponse.class);
                     marketOfferInfoResponse.setGrantedActions(ResourceAction.permissionCodeToActions(marketOfferInfoBase.getGrantedActionsMask()));
                     return marketOfferInfoResponse;
-                }).toList());
+                }).toList();
+                marketOfferOptionResponse.setMarketOfferList(offerList);
                 // 拆分是否已经上架
-                if (offer.getStatus().equals(MarketOfferStatus.PUBLISHED)) {
+                if (offer.getStatus() == MarketOfferStatus.PUBLISHED) {
                     onShelf.put(bind.getGroupId(), marketOfferOptionResponse);
                 } else {
                     notOnShelf.put(bind.getGroupId(), marketOfferOptionResponse);

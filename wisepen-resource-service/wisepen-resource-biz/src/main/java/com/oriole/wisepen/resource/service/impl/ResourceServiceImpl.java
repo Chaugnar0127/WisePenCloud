@@ -316,7 +316,7 @@ public class ResourceServiceImpl implements IResourceService {
                 .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
 
         // 组装 ResourceItemResponse（过滤无 ResourceAction.VIEW 权限的）
-        ResourceItemResponse resourceItemResponse = resourceItemResponseAssembler.assembleOne(entity, dto.getUserId().toString(), dto.getGroupRoles(), List.of(ResourceAction.VIEW));
+        ResourceItemResponse resourceItemResponse = resourceItemResponseAssembler.assembleOne(entity, dto.getUserId().toString(), dto.getGroupRoles(), List.of(ResourceAction.VIEW), dto.getTargetVersion(), true);
         if (resourceItemResponse == null) {
             log.warn("resource permission denied. resourceId={} userId={}", entity.getResourceId(), dto.getUserId());
             throw new ServiceException(ResourceError.RESOURCE_PERMISSION_DENIED);
@@ -356,12 +356,14 @@ public class ResourceServiceImpl implements IResourceService {
                 currentUserId, groupId, userGroupRole, tagIds, excludeTrashIds, tagQueryLogicMode, resourceType, pageable);
 
         // 批量组装 ResourceItemResponse（不需要再权限过滤）
-        List<ResourceItemResponse> responses = resourceItemResponseAssembler.assembleMany(entityPage.getContent(), currentUserId, groupRoles, List.of());
+        // 不检查 Market 版本
+        List<ResourceItemResponse> responses = resourceItemResponseAssembler.assembleMany(entityPage.getContent(), currentUserId, groupRoles, List.of(), null, false);
 
         if (groupId != null) {
             // 过滤非检索groupId的标签
             responses.forEach(response ->
-                    response.getCurrentTags().entrySet().removeIf(entry -> !Objects.equals(entry.getValue().getGroupId(), groupId))
+                    response.getCurrentTags().entrySet().removeIf(entry ->
+                            !Objects.equals(entry.getValue().getGroupId(), groupId) && !Objects.equals(entry.getValue().getGroupId(), ResourceConstants.MARKET_GROUP_PREFIX + groupId))
             );
         }
 
@@ -754,12 +756,12 @@ public class ResourceServiceImpl implements IResourceService {
         for (GroupTagBind groupBind : entity.getGroupBinds()) {         // 遍历资源绑定的所有组
             if (groupBind.getTagIds() == null || groupBind.getTagIds().isEmpty()) continue;
             if (groupBind.getGroupId().startsWith(ResourceConstants.PERSONAL_GROUP_PREFIX)) continue; // 个人Tag不参与计算
-            Long groupId = Long.valueOf(groupBind.getGroupId());
+            String groupId = groupBind.getGroupId();
 
-            if (!dto.getGroupRoles().containsKey(groupId)) { // 用户不在该组，跳过
+            if (!dto.getGroupRoles().containsKey(Long.valueOf(groupId))) { // 用户不在该组，跳过
                 continue;
             }
-            GroupRoleType userRoleInThisGroup = dto.getGroupRoles().get(groupId);
+            GroupRoleType userRoleInThisGroup = dto.getGroupRoles().get(Long.valueOf(groupId));
 
             // 用户是组管理员/拥有者，有全部权限
             if (userRoleInThisGroup == GroupRoleType.ADMIN || userRoleInThisGroup == GroupRoleType.OWNER) {
@@ -780,8 +782,8 @@ public class ResourceServiceImpl implements IResourceService {
             if (groupBind.getMarketOffer() != null) { // 当前组是 MARKET 组
                 MarketOfferOption offers = groupBind.getMarketOffer();
 
-                // 未携带资源 Version 时不能使用 MARKET 组鉴权，跳过
-                if (dto.getVersion() == null || !dto.getVersion().equals(offers.getOfferVersion())){
+                // 未携带资源 targetVersion 时不能使用 MARKET 组鉴权，跳过
+                if (dto.getTargetVersion() == null || !dto.getTargetVersion().equals(offers.getOfferVersion())){
                     continue;
                 }
 
@@ -790,16 +792,15 @@ public class ResourceServiceImpl implements IResourceService {
                     continue;
                 }
 
-                int resolvedMarketMask = 0;
+                int resolvedMarketMask;
                 if (overrideMask != null) { // 优先资源级组权限覆盖
                     resolvedMarketMask = overrideMask;
-                } else if (offers != null && offers.getStatus() == MarketOfferStatus.PUBLISHED) {
+                } else {
                     // 如果不存在 ReviewActionsMask，以 MARKET_BASE_ACTIONS 为准
-                    resolvedMarketMask = (offers.getReviewActionsMask() != null ? offers.getReviewActionsMask() : MARKET_BASE_ACTIONS);
-                }
-
-                if (offers.getMarketSpecifiedUsersGrantedActionsMask() != null) {
-                    resolvedMarketMask |= offers.getMarketSpecifiedUsersGrantedActionsMask().getOrDefault(dto.getUserId().toString(), 0);
+                    resolvedMarketMask = offers.getReviewActionsMask() != null ? offers.getReviewActionsMask() : MARKET_BASE_ACTIONS;
+                    if (offers.getMarketSpecifiedUsersGrantedActionsMask() != null) {
+                        resolvedMarketMask |= offers.getMarketSpecifiedUsersGrantedActionsMask().getOrDefault(dto.getUserId().toString(), 0);
+                    }
                 }
                 // 不能存在 MARKET_FORBIDDEN_ACTIONS_MASK 中的权限
                 resolvedMarketMask = resolvedMarketMask & ~MARKET_FORBIDDEN_ACTIONS_MASK;

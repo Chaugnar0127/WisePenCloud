@@ -17,5 +17,8 @@ public class MarketAuditOfferRequest {
     @NotNull(message = ResourceValidationMsg.MARKET_OFFER_STATUS_NOT_NULL)
     private MarketOfferStatus status;
 
+    @NotNull(message = ResourceValidationMsg.MARKET_VERSION_NOT_NULL)
+    private Integer offerVersion;
+
     private String auditMessage;
 }

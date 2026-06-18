@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class MarketOfferInfoBase {
+    @Builder.Default
     private String offerId = IdUtil.fastSimpleUUID();
     // 售卖详情
     private Integer grantedActionsMask; // 购买资源的用户可以获得的权限掩码

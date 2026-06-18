@@ -155,8 +155,8 @@ public class ResourceItemController {
             summary = "复制资源",
             description = """
                     - 用途：当前用户复制任意自己拥有 FORK 动作的资源。
-                    - 请求：resourceId 指定源资源；targetVersion 可选，用于版本敏感资源的权限裁决和复制目标版本。
-                    - 约束：当前用户必须拥有源资源 FORK 动作；Market 来源授权只在 targetVersion 等于当前上架 offerVersion 时生效。
+                    - 请求：resourceId 指定源资源；forkedResourceVersion 可选，用于版本敏感资源的权限裁决和复制目标版本。
+                    - 约束：当前用户必须拥有源资源 FORK 动作；forkedResourceVersion 会作为权限检查 targetVersion，Market 来源授权只在其等于当前上架 offerVersion 时生效。
                     - 处理：通过资源权限接口实时校验 FORK 动作，校验通过后发布资源复制消息；不依赖 Market 订单或复制次数。
                     - 响应：成功时返回空结果。
                     """
@@ -169,7 +169,7 @@ public class ResourceItemController {
                 .resourceId(req.getResourceId())
                 .userId(SecurityContextHolder.getUserId())
                 .groupRoles(SecurityContextHolder.getGroupRoleMap())
-                .version(req.getForkedResourceVersion())
+                .targetVersion(req.getForkedResourceVersion())
                 .build());
 
         if (permission.getAllowedActions() == null || !permission.getAllowedActions().contains(ResourceAction.FORK)) {
@@ -212,10 +212,7 @@ public class ResourceItemController {
         if (!StringUtils.hasText(groupId)) {
             groupId = ResourceConstants.PERSONAL_GROUP_PREFIX + userId;
         } else {
-            String rawGroupId = groupId.startsWith(ResourceConstants.MARKET_GROUP_PREFIX)
-                    ? groupId.substring(ResourceConstants.MARKET_GROUP_PREFIX.length())
-                    : groupId;
-            userGroupRole = SecurityContextHolder.assertInGroup(Long.valueOf(rawGroupId));
+            userGroupRole = SecurityContextHolder.assertInGroup(Long.valueOf(groupId));
         }
 
         PageR<ResourceItemResponse> result = resourceService.listResources(

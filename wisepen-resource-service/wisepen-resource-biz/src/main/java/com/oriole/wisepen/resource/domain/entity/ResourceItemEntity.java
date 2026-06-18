@@ -12,6 +12,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -47,9 +48,10 @@ public class ResourceItemEntity extends ResourceItemInfoBase {
         // 如果绑定了 Market 组
         groupBinds.stream().filter(groupTagBind->groupTagBind.getGroupId().equals(groupID)).findFirst().ifPresent(groupTagBind -> {
             // 设置该 Market 组权限掩码为 0
+            if (overrideGrantedActionsMask == null) overrideGrantedActionsMask = new HashMap<>();
             overrideGrantedActionsMask.put(groupID, 0);
             // 该 Market 组 Offer 状态不是 BANNED 时，转为 OFF_SHELF
-            if (groupTagBind.getMarketOffer().getStatus() != MarketOfferStatus.BANNED) {
+            if (groupTagBind.getMarketOffer() != null && groupTagBind.getMarketOffer().getStatus() != MarketOfferStatus.BANNED) {
                 groupTagBind.getMarketOffer().setStatus(MarketOfferStatus.OFF_SHELF);
             }
         });

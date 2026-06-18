@@ -34,7 +34,7 @@ public interface ResourceValidationMsg {
     String MARKET_OFFER_OPTION_REQUIRED = "至少需要提供一个售卖档位";
     String MARKET_VERSION_NOT_NULL = "上架版本不能为空";
     String MARKET_VERSION_INVALID = "上架版本必须大于0";
-    String MARKET_OFFER_ID_NOT_NULL = "售卖ID不能为空";
+    String MARKET_OFFER_ID_NOT_BLANK = "售卖档位ID不能为空";
     String MARKET_REVIEW_CONTENT_PERCENTAGE_INVALID = "预览内容比例必须在0到100之间";
 
     String MARKET_OFFER_STATUS_NOT_NULL = "目标状态不能为空";

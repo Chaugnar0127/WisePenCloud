@@ -51,8 +51,6 @@ public enum ResourceError implements IResult {
 
     // Market 相关异常
     MARKET_OFFER_NOT_FOUND(5711, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.NOT_FOUND), "上架记录不存在"),
-    MARKET_ORDER_NOT_FOUND(5712, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.NOT_FOUND), "购买记录不存在"),
-    MARKET_OFFER_ALREADY_EXISTS(5713, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.ALREADY_EXISTS), "该资源已在该集市上架"),
     MARKET_ORDER_ALREADY_EXISTS(5714,new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.ALREADY_EXISTS), "该资源已购买"),
     MARKET_GROUP_REQUIRED(5721, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.INVALID), "目标小组不是集市组"),
     MARKET_OFFER_NOT_ACTIVE(5722, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.NOT_ALLOWED), "资源未上架或已下架"),
@@ -60,8 +58,10 @@ public enum ResourceError implements IResult {
     CANNOT_BIND_MARKET_RESOURCE_DIRECTLY(5724, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_TAG, ErrorReason.NOT_ALLOWED), "集市资源挂载必须通过上架接口完成"),
     MARKET_AUDIT_MESSAGE_REQUIRED(5730, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.INVALID), "驳回或封禁时必须填写审核说明"),
     MARKET_OFFER_BANNED(5731, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.NOT_ALLOWED), "该上架记录已被封禁，不可再次上架"),
-    MARKET_PURCHASE_TYPE_INVALID(5732, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.INVALID), "购买权益类型无效"),
-    MARKET_FORK_QUOTA_EXHAUSTED(5733, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.NOT_ALLOWED), "购买记录可用 Fork 次数已用完"),
+    MARKET_OFFER_ID_INVALID(5732, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.INVALID), "售卖档位不存在或已失效"),
+    MARKET_FORBIDDEN_ACTION_INCLUDED(5734, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.INVALID), "集市权限不能包含禁用动作"),
+    MARKET_OFFER_ACTIONS_DUPLICATED(5735, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.CONFLICT), "售卖档位权限不能重复"),
+    MARKET_AUDIT_VERSION_MISMATCH(5736, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.CONFLICT), "审核版本与当前上架版本不一致"),
 
     // 收藏相关异常
     FAVORITE_COLLECTION_NOT_FOUND(5811, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.FAVORITE, ErrorReason.NOT_FOUND), "收藏集合不存在"),

@@ -11,7 +11,7 @@ import java.util.Optional;
 @Repository
 public interface MarketOrderRepository extends MongoRepository<MarketOrderEntity, String> {
 
-    Optional<MarketOrderEntity> findByTradeTraceId(String tradeTraceId);
+    Optional<MarketOrderEntity> findByTraceId(String traceId);
 
     Page<MarketOrderEntity> findByBuyerId(String buyerId, Pageable pageable);
 }

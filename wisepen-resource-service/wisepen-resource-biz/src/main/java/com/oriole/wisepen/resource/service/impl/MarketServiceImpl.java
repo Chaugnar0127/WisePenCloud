@@ -21,7 +21,6 @@ import com.oriole.wisepen.resource.exception.ResourceError;
 import com.oriole.wisepen.resource.mq.IResourceEventPublisher;
 import com.oriole.wisepen.resource.repository.MarketOrderRepository;
 import com.oriole.wisepen.resource.repository.ResourceItemRepository;
-import com.oriole.wisepen.resource.repository.TagRepository;
 import com.oriole.wisepen.resource.service.IMarketService;
 import com.oriole.wisepen.resource.service.IResourceService;
 import com.oriole.wisepen.user.api.domain.base.GroupDisplayBase;
@@ -40,7 +39,6 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 import static com.oriole.wisepen.resource.constant.ResourceConstants.MARKET_GROUP_PREFIX;
-import static com.oriole.wisepen.resource.enums.ResourceAction.MARKET_FORBIDDEN_ACTIONS_MASK;
 
 @Slf4j
 @Service
@@ -51,7 +49,6 @@ public class MarketServiceImpl implements IMarketService {
 
     private final MarketOrderRepository marketOrderRepository;
     private final ResourceItemRepository resourceItemRepository;
-    private final TagRepository tagRepository;
     private final IResourceEventPublisher resourceEventPublisher;
     private final RemoteUserService remoteUserService;
     private final RemoteWalletService remoteWalletService;
@@ -76,8 +73,12 @@ public class MarketServiceImpl implements IMarketService {
 
         List<GroupTagBind> groupBinds = resource.getGroupBinds() == null ? new ArrayList<>() : resource.getGroupBinds();
         // 寻找该实体中是否已经存在当前 groupId 的绑定记录
-        GroupTagBind groupBind = groupBinds.stream().filter(groupTagBind -> groupTagBind.getGroupId().equals(marketGroupId)).findFirst()
-                .orElse(GroupTagBind.builder().groupId(marketGroupId).tagIds(request.getTagIds()).build());
+        GroupTagBind groupBind = groupBinds.stream().filter(groupTagBind -> groupTagBind.getGroupId().equals(marketGroupId)).findFirst().orElse(null);
+        if (groupBind == null) {
+            groupBind = GroupTagBind.builder().groupId(marketGroupId).tagIds(request.getTagIds()).build();
+            groupBinds.add(groupBind);
+        }
+        groupBind.setTagIds(request.getTagIds());
 
         MarketOfferOption marketOfferOption = groupBind.getMarketOffer() == null ? new MarketOfferOption() : groupBind.getMarketOffer();
 
@@ -86,20 +87,41 @@ public class MarketServiceImpl implements IMarketService {
         }
 
         marketOfferOption.setReviewContentPercentage(request.getReviewContentPercentage());
-        marketOfferOption.setReviewActionsMask(ResourceAction.actionsToPermissionCode(request.getReviewActions()) & ~MARKET_FORBIDDEN_ACTIONS_MASK);
-        marketOfferOption.setMarketOfferList(request.getMarketOfferList().stream().map(
-                (marketOfferInfo) -> {
-                    int grantedActionsMask = ResourceAction.actionsToPermissionCode(marketOfferInfo.getGrantedActions()) & ~MARKET_FORBIDDEN_ACTIONS_MASK;
-                    return MarketOfferInfoBase.builder().price(marketOfferInfo.getPrice()).grantedActionsMask(grantedActionsMask).createAt(LocalDateTime.now()).build();
-                }).toList());
+        // 拒绝带有 EDIT 权限的 ReviewAction
+        if (request.getReviewActions() != null && request.getReviewActions().contains(ResourceAction.EDIT)) {
+            throw new ServiceException(ResourceError.MARKET_FORBIDDEN_ACTION_INCLUDED);
+        }
+        marketOfferOption.setReviewActionsMask(request.getReviewActions() == null ? null : ResourceAction.actionsToPermissionCode(request.getReviewActions()));
+
+        Set<Integer> grantedActionMasks = new HashSet<>();
+        List<MarketOfferInfoBase> offerList = new ArrayList<>();
+        for (MarketPublishOfferRequest.MarketOfferInfo marketOfferInfo : request.getMarketOfferList()) {
+            // 拒绝带有 EDIT 权限的 Action
+            if (marketOfferInfo.getGrantedActions().contains(ResourceAction.EDIT)) {
+                throw new ServiceException(ResourceError.MARKET_FORBIDDEN_ACTION_INCLUDED);
+            }
+            int grantedActionsMask = ResourceAction.actionsToPermissionCode(marketOfferInfo.getGrantedActions());
+            if (!grantedActionMasks.add(grantedActionsMask)) {
+                // 禁止相同权限码分售不同价格
+                throw new ServiceException(ResourceError.MARKET_OFFER_ACTIONS_DUPLICATED);
+            }
+            offerList.add(MarketOfferInfoBase.builder().price(marketOfferInfo.getPrice()).grantedActionsMask(grantedActionsMask).createAt(LocalDateTime.now()).build());
+        }
+        marketOfferOption.setMarketOfferList(offerList);
 
         if ((marketOfferOption.getStatus() == MarketOfferStatus.PUBLISHED || marketOfferOption.getStatus() == MarketOfferStatus.OFF_SHELF)
-                && marketOfferOption.getOfferVersion().equals(request.getOfferVersion())) {
+                && Objects.equals(marketOfferOption.getOfferVersion(), request.getOfferVersion())) {
             marketOfferOption.setStatus(MarketOfferStatus.PUBLISHED); // 如果此前是已发布或下架状态，且没有改变上架的版本，则直接上架
+            // 解除限制
+            if (resource.getOverrideGrantedActionsMask() != null) resource.getOverrideGrantedActionsMask().remove(marketGroupId);
         } else {
             // 否则需要审核
             marketOfferOption.setOfferVersion(request.getOfferVersion());
             marketOfferOption.setStatus(MarketOfferStatus.PENDING);
+            // 清空上次审核信息
+            marketOfferOption.setAuditorId(null);
+            marketOfferOption.setAuditMessage(null);
+            marketOfferOption.setAuditAt(null);
             // 在审核前，该资源不能从 MARKET 组获得任何权限
             if (resource.getOverrideGrantedActionsMask() == null) resource.setOverrideGrantedActionsMask(new HashMap<>());
             resource.getOverrideGrantedActionsMask().put(marketGroupId, 0);
@@ -131,6 +153,7 @@ public class MarketServiceImpl implements IMarketService {
         }
 
         marketOfferOption.setStatus(MarketOfferStatus.OFF_SHELF);
+        if (resource.getOverrideGrantedActionsMask() == null) resource.setOverrideGrantedActionsMask(new HashMap<>());
         resource.getOverrideGrantedActionsMask().put(marketGroupId, 0); // 在上架前，该资源不能从 MARKET 组获得任何权限
 
         resourceItemRepository.save(resource);
@@ -154,11 +177,17 @@ public class MarketServiceImpl implements IMarketService {
 
         MarketOfferStatus oldMarketOfferStatus = marketOfferOption.getStatus(); // 旧状态
 
+        // 审计的版本号必须与当前版本号对应（防止在审查时用户更新导致漏检）
+        if (!Objects.equals(marketOfferOption.getOfferVersion(), request.getOfferVersion())) {
+            throw new ServiceException(ResourceError.MARKET_AUDIT_VERSION_MISMATCH);
+        }
+
         marketOfferOption.setStatus(request.getStatus());
         marketOfferOption.setAuditMessage(request.getAuditMessage());
         marketOfferOption.setAuditAt(LocalDateTime.now());
         marketOfferOption.setAuditorId(operatorId);
 
+        if (resource.getOverrideGrantedActionsMask() == null) resource.setOverrideGrantedActionsMask(new HashMap<>());
         if (request.getStatus() == MarketOfferStatus.PUBLISHED) {
             resource.getOverrideGrantedActionsMask().remove(marketGroupId); // 上架，该资源可从 MARKET 组获得权限
         } else {
@@ -198,21 +227,22 @@ public class MarketServiceImpl implements IMarketService {
 
         // 检查购买的 OfferID 是否存在
         MarketOfferInfoBase offer = marketOfferOption.getMarketOfferList().stream()
-                .filter(item->item.getOfferId().equals(request.getOfferId()))
+                .filter(item -> request.getOfferId().equals(item.getOfferId()))
                 .findFirst()
-                .orElseThrow(() -> new ServiceException(ResourceError.MARKET_PURCHASE_TYPE_INVALID));
+                .orElseThrow(() -> new ServiceException(ResourceError.MARKET_OFFER_ID_INVALID));
 
         // 不能重复购买，检查要购买的权限该用户是否本身就完全拥有
+        Map<String, Integer> userMasks = marketOfferOption.getMarketSpecifiedUsersGrantedActionsMask() == null ? new HashMap<>() : marketOfferOption.getMarketSpecifiedUsersGrantedActionsMask();
+        int existingMask = userMasks.getOrDefault(buyerId, 0);
 
-        List<ResourceAction> buyerHasActions = ResourceAction.permissionCodeToActions(marketOfferOption.getMarketSpecifiedUsersGrantedActionsMask().get(buyerId));
-        List<ResourceAction> offerGrantedActions= ResourceAction.permissionCodeToActions(offer.getGrantedActionsMask());
-
-        if (new HashSet<>(buyerHasActions).containsAll(offerGrantedActions)){
+        if ((existingMask & offer.getGrantedActionsMask()) == offer.getGrantedActionsMask()){
             throw new ServiceException(ResourceError.MARKET_ORDER_ALREADY_EXISTS);
         }
 
         String traceId = IdUtil.fastSimpleUUID();
         Integer paidPrice = offer.getPrice();
+
+        List<ResourceAction> offerGrantedActions = ResourceAction.permissionCodeToActions(offer.getGrantedActionsMask());
         String billMeta = "%s (%s)".formatted(resource.getResourceId(), offerGrantedActions.stream().map(Enum::name).toList().toString());
 
         // 请求交易
@@ -233,8 +263,6 @@ public class MarketServiceImpl implements IMarketService {
         MarketOrderEntity saved = marketOrderRepository.save(order);
 
         // 添加权限
-        Map<String, Integer> userMasks = marketOfferOption.getMarketSpecifiedUsersGrantedActionsMask() == null ? new HashMap<>() : marketOfferOption.getMarketSpecifiedUsersGrantedActionsMask();
-        int existingMask = userMasks.getOrDefault(buyerId, 0);
         userMasks.put(buyerId, existingMask | offer.getGrantedActionsMask());
         marketOfferOption.setMarketSpecifiedUsersGrantedActionsMask(userMasks);
 

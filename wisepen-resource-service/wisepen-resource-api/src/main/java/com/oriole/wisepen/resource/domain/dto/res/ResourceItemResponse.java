@@ -7,6 +7,7 @@ import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 
@@ -22,5 +23,5 @@ public class ResourceItemResponse extends ResourceItemInfoBase {
     private Map<String, List<ResourceAction>> overrideGrantedActions;
     private Map<String, List<ResourceAction>> specifiedUsersGrantedActions;
 
-    private Map<String, MarketOfferOptionResponse> marketOfferOptions;
+    private Map<String, MarketOfferOptionResponse> marketOfferOptions = new HashMap<>();
 }

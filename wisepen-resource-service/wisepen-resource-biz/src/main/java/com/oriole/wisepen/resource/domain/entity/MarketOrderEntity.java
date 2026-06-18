@@ -20,7 +20,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Document(collection = "wisepen_market_orders")
-@CompoundIndex(name = "idx_market_order_trace", def = "{'tradeTraceId': 1}", unique = true)
+@CompoundIndex(name = "idx_market_order_trace", def = "{'traceId': 1}", unique = true)
 public class MarketOrderEntity extends MarketOrderBase {
     @Id
     private String orderId;
