@@ -17,6 +17,8 @@ public class DocumentUploadInitRequest implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
+    private String resourceId;
+
     @NotBlank(message = DocumentValidationMsg.FILENAME_EMPTY)
     private String filename;
 

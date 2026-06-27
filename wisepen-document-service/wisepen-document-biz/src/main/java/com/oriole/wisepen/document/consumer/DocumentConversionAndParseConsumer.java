@@ -1,7 +1,6 @@
 package com.oriole.wisepen.document.consumer;
 
 import cn.hutool.core.util.StrUtil;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.document.api.constant.DocumentConstants;
 import com.oriole.wisepen.document.api.domain.base.DocumentStatus;
@@ -70,7 +69,12 @@ public class DocumentConversionAndParseConsumer {
     private void process(DocumentParseTaskMessage msg) throws IOException, InterruptedException {
 
         DocumentStatus status = documentService.getDocumentStatus(msg.getDocumentId()).orElse(null);
-        if (status != null && status.getStatus() != DocumentStatusEnum.UPLOADED) {
+        if (status == null) {
+            log.info("document parse skipped because version is missing. documentId={}", msg.getDocumentId());
+            return;
+        }
+
+        if (status.getStatus() != DocumentStatusEnum.UPLOADED) {
             log.info("document parse skipped because status mismatched. documentId={} status={}",
                     msg.getDocumentId(), status.getStatus());
             return;

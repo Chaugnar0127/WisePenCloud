@@ -4,9 +4,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oriole.wisepen.document.api.domain.base.DocumentStatus;
 import com.oriole.wisepen.document.api.domain.mq.DocumentParseTaskMessage;
 import com.oriole.wisepen.document.api.enums.DocumentStatusEnum;
-import com.oriole.wisepen.document.domain.entity.DocumentInfoEntity;
+import com.oriole.wisepen.document.domain.entity.DocumentVersionEntity;
 import com.oriole.wisepen.document.mq.KafkaDocumentEventPublisher;
-import com.oriole.wisepen.document.repository.DocumentInfoRepository;
+import com.oriole.wisepen.document.repository.DocumentVersionRepository;
 import com.oriole.wisepen.document.service.IDocumentService;
 import com.oriole.wisepen.file.storage.api.domain.mq.FileUploadedMessage;
 import com.oriole.wisepen.file.storage.api.enums.StorageSceneEnum;
@@ -24,7 +24,7 @@ import static com.oriole.wisepen.file.storage.api.constant.MqTopicConstants.TOPI
 @RequiredArgsConstructor
 public class FileUploadedConsumer {
 
-    private final DocumentInfoRepository documentInfoRepository;
+    private final DocumentVersionRepository documentVersionRepository;
     private final IDocumentService documentService;
     private final KafkaDocumentEventPublisher eventPublisher;
     private final ObjectMapper objectMapper;
@@ -53,7 +53,7 @@ public class FileUploadedConsumer {
             return; // 不处理非PRIVATE_DOC的上传通知，也不处理秒传的
         }
 
-        DocumentInfoEntity entity = documentInfoRepository.findBySourceObjectKeyOrPreviewObjectKey(msg.getObjectKey()).orElse(null);
+        DocumentVersionEntity entity = documentVersionRepository.findBySourceObjectKeyOrPreviewObjectKey(msg.getObjectKey()).orElse(null);
         if (entity == null) {
             // 用户已经取消文件处理，删除文档
             eventPublisher.publishFileDeleteEvent(List.of(msg.getObjectKey()));
@@ -63,14 +63,14 @@ public class FileUploadedConsumer {
         }
 
         if (DocumentStatusEnum.UPLOADING != entity.getDocumentStatus().getStatus()) {
-            log.debug("document file upload event skipped. documentId={} objectKey={} reason=\"status mismatch\" status={}",
-                    entity.getDocumentId(), msg.getObjectKey(), entity.getDocumentStatus().getStatus());
+            log.debug("document file upload event skipped. documentId={} resourceId={} version={} objectKey={} reason=\"status mismatch\" status={}",
+                    entity.getDocumentId(), entity.getResourceId(), entity.getVersion(), msg.getObjectKey(), entity.getDocumentStatus().getStatus());
             return;
         }
 
         // 用 OSS 回传的真实 size 覆盖
         entity.getUploadMeta().setSize(msg.getSize());
-        documentInfoRepository.save(entity);
+        documentVersionRepository.save(entity);
 
         // 推进状态机
         documentService.updateStatus(entity.getDocumentId(), new DocumentStatus(DocumentStatusEnum.UPLOADED));
@@ -81,7 +81,7 @@ public class FileUploadedConsumer {
                         .fileType(entity.getUploadMeta().getFileType())
                         .build()
         );
-        log.info("document file upload finished. documentId={} objectKey={} size={}",
-                entity.getDocumentId(), msg.getObjectKey(), msg.getSize());
+        log.info("document file upload finished. documentId={} resourceId={} version={} objectKey={} size={}",
+                entity.getDocumentId(), entity.getResourceId(), entity.getVersion(), msg.getObjectKey(), msg.getSize());
     }
 }

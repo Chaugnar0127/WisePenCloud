@@ -6,6 +6,7 @@ package com.oriole.wisepen.document.api.constant;
 public class DocumentValidationMsg {
 
     public static final String FILENAME_EMPTY      = "文件名不能为空";
+    public static final String DOCUMENT_TITLE_NOT_BLANK = "文档标题不能为空";
     public static final String EXTENSION_EMPTY     = "文件扩展名不能为空";
     public static final String MD5_EMPTY           = "MD5不能为空";
     public static final String FILE_SIZE_NULL      = "文件大小不能为空";

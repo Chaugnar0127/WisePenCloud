@@ -21,7 +21,7 @@ public class DocumentParseTaskMessage implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    /** 文档唯一 ID（即 resource 服务的 resourceId） */
+    /** 文档版本 ID，用于定位一次上传与解析任务 */
     private String documentId;
 
     /** 源文件在 OSS 中的 ObjectKey */

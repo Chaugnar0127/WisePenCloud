@@ -21,5 +21,6 @@ public class DocumentReadyMessage implements Serializable {
     private static final long serialVersionUID = 1L;
 
     private String resourceId;
+    private Integer version;
     private String content;
 }

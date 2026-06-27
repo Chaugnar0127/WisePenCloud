@@ -7,6 +7,7 @@ public interface IDocumentPreviewService {
     // 处理预览请求
     void handlePreviewRequest(HttpServletRequest request,
                               HttpServletResponse response,
-                              String documentId,
+                              String resourceId,
+                              Integer targetVersion,
                               String userId);
 }

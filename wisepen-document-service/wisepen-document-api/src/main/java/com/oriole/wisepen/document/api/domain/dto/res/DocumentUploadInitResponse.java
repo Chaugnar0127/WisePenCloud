@@ -14,7 +14,7 @@ public class DocumentUploadInitResponse implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    /** 文档唯一 ID */
+    /** 文档版本 ID，用于后续刷新、重试或取消本次处理任务 */
     private String documentId;
 
     /** OSS 预签名直传 PUT URL（flashUploaded=true 时为 null） */

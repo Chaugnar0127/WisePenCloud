@@ -26,23 +26,23 @@ public class ResourceDeletedConsumer {
     @KafkaListener(topics = TOPIC_RESOURCE_PHYSICAL_DESTROY, groupId = "wisepen-document-physical-destroy-group")
     public void onResourceDeleted(ResourceDeletedMessage message) {
         Map<ResourceType, List<String>> typedMap = message.getTypedResourceIds();
-        List<String> documentIds = new ArrayList<>();
+        List<String> resourceIds = new ArrayList<>();
         for (ResourceType allowedType : DocumentConstants.ALLOWED_TYPES) {
             List<String> idsForType = typedMap.get(allowedType);
             if (idsForType != null && !idsForType.isEmpty()) {
-                documentIds.addAll(idsForType);
+                resourceIds.addAll(idsForType);
             }
         }
-        log.info("document resource delete event received. topic={} count={} documentIds={}",
-                TOPIC_RESOURCE_PHYSICAL_DESTROY, documentIds.size(), summarizeIds(documentIds));
-        if (!documentIds.isEmpty()) {
+        log.info("document resource delete event received. topic={} count={} resourceIds={}",
+                TOPIC_RESOURCE_PHYSICAL_DESTROY, resourceIds.size(), summarizeIds(resourceIds));
+        if (!resourceIds.isEmpty()) {
             try {
-                documentService.deleteDocuments(documentIds);
-                log.debug("document resource delete event consumed. topic={} count={} documentIds={}",
-                        TOPIC_RESOURCE_PHYSICAL_DESTROY, documentIds.size(), summarizeIds(documentIds));
+                documentService.deleteDocuments(resourceIds);
+                log.debug("document resource delete event consumed. topic={} count={} resourceIds={}",
+                        TOPIC_RESOURCE_PHYSICAL_DESTROY, resourceIds.size(), summarizeIds(resourceIds));
             } catch (Exception e) {
-                log.error("document resource delete event consumption failed. topic={} count={} documentIds={}",
-                        TOPIC_RESOURCE_PHYSICAL_DESTROY, documentIds.size(), summarizeIds(documentIds), e);
+                log.error("document resource delete event consumption failed. topic={} count={} resourceIds={}",
+                        TOPIC_RESOURCE_PHYSICAL_DESTROY, resourceIds.size(), summarizeIds(resourceIds), e);
                 throw e;
             }
         } else {

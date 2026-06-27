@@ -24,6 +24,8 @@ public class DocumentPdfMetaEntity {
     @Id
     private String documentId;
 
+    private Integer version;
+
     /** 原始（无水印）预览 PDF 的字节大小。*/
     private long originalSize;
 

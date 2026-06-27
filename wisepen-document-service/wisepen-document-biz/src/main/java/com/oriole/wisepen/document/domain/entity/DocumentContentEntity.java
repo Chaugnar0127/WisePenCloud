@@ -6,9 +6,7 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
-import org.springframework.data.annotation.LastModifiedDate;
 import org.springframework.data.mongodb.core.mapping.Document;
-import org.springframework.data.mongodb.core.mapping.Field;
 
 import java.time.LocalDateTime;
 
@@ -20,6 +18,8 @@ import java.time.LocalDateTime;
 public class DocumentContentEntity {
     @Id
     private String documentId;
+
+    private Integer version;
 
     private String rawText;
 

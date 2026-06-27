@@ -1,28 +1,31 @@
 package com.oriole.wisepen.document.controller;
 
+import cn.hutool.core.bean.BeanUtil;
 import com.oriole.wisepen.common.core.context.SecurityContextHolder;
+import com.oriole.wisepen.common.core.domain.PageR;
 import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.common.core.domain.enums.BusinessType;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
-import com.oriole.wisepen.document.api.constant.DocumentConstants;
-import com.oriole.wisepen.document.api.domain.base.DocumentInfoBase;
+import com.oriole.wisepen.document.api.domain.base.DocumentVersionBase;
 import com.oriole.wisepen.document.api.domain.base.DocumentStatus;
+import com.oriole.wisepen.document.api.domain.dto.req.DocumentCreateRequest;
 import com.oriole.wisepen.document.api.domain.dto.req.DocumentForkRequest;
 import com.oriole.wisepen.document.api.domain.dto.req.DocumentUploadInitRequest;
 import com.oriole.wisepen.document.api.domain.dto.res.DocumentInfoResponse;
 import com.oriole.wisepen.document.api.domain.dto.res.DocumentUploadInitResponse;
+import com.oriole.wisepen.document.api.domain.dto.res.DocumentVersionInfoResponse;
+import com.oriole.wisepen.document.domain.entity.DocumentInfoEntity;
+import com.oriole.wisepen.document.domain.entity.DocumentVersionEntity;
 import com.oriole.wisepen.document.service.IDocumentPreviewService;
 import com.oriole.wisepen.document.service.IDocumentService;
 import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionReqDTO;
 import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionResDTO;
 import com.oriole.wisepen.resource.domain.dto.ResourceInfoGetReqDTO;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
-import com.oriole.wisepen.resource.enums.ResourceAccessRole;
 import com.oriole.wisepen.resource.enums.ResourceAction;
-import com.oriole.wisepen.resource.enums.ResourceType;
 import com.oriole.wisepen.resource.feign.RemoteResourceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -31,12 +34,13 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
 
-import static com.oriole.wisepen.document.exception.DocumentError.DOCUMENT_NOT_FOUND;
+import static com.oriole.wisepen.document.exception.DocumentError.DOCUMENT_HAS_NO_VERSION;
 import static com.oriole.wisepen.document.exception.DocumentError.DOCUMENT_PERMISSION_DENIED;
 
 
@@ -53,21 +57,48 @@ public class DocumentController {
     private final RemoteResourceService remoteResourceService;
 
     @Operation(
+            summary = "创建文档",
+            description = """
+                    - 用途：为当前用户创建一份新的文档资源。
+                    - 请求：title 为文档标题。
+                    - 约束：当前用户必须已登录；title 必须是可用于展示的文档标题。
+                    - 处理：调用资源服务注册选定的文档类型资源，以当前用户作为所有者；随后创建文档信息记录并将当前用户写入作者列表。
+                    - 失败：未登录 -> PermissionError.NOT_LOGIN；资源注册失败或文档信息落库失败 -> DocumentError.DOCUMENT_REGISTER_RESOURCE_FAILED。
+                    - 响应：返回新文档的资源 ID。
+                    """
+    )
+    @Log(title = "创建文档", businessType = BusinessType.INSERT)
+    @PostMapping("/addDocument")
+    public R<String> createDocument(@Validated @RequestBody DocumentCreateRequest request) {
+        String userId = SecurityContextHolder.getUserId().toString();
+        String resourceId = documentService.createDocument(request, userId);
+        return R.ok(resourceId);
+    }
+
+    @Operation(
             summary = "初始化文档上传",
             description = """
                     - 用途：为当前用户创建文档上传任务，并申请对象存储直传凭证。
                     - 请求：filename 为展示文件名；extension 为文件扩展名；md5 用于秒传判定；expectedSize 为预期文件大小。
                     - 约束：当前用户必须已登录；扩展名必须属于文档服务支持的文件类型；请求字段必须通过校验。
-                    - 处理：生成 documentId，向文件存储服务申请上传 URL 或触发秒传；保存文档上传元信息。命中秒传时立即发布文档解析任务；未命中秒传时不直接接收文件内容。
-                    - 失败：未登录 -> PermissionError.NOT_LOGIN；文件类型不支持 -> DocumentError.CANNOT_SUPPORT_FILE_TYPE；存储服务申请上传凭证失败 -> DocumentError.DOCUMENT_UPLOAD_URL_APPLY_FAILED。
+                    - 处理：创建首个待处理版本，向文件存储服务申请上传 URL 或触发秒传；命中秒传时立即发布文档解析任务；版本解析完成后注册资源并发布为当前版本。
+                    - 失败：未登录 -> PermissionError.NOT_LOGIN；文件类型不支持 -> DocumentError.CANNOT_SUPPORT_FILE_TYPE；存储服务申请上传凭证失败 -> DocumentError.DOCUMENT_UPLOAD_URL_APPLY_FAILED；资源注册失败 -> DocumentError.DOCUMENT_REGISTER_RESOURCE_FAILED。
                     - 响应：返回 documentId、objectKey、上传凭证信息和是否秒传。
                     """
     )
     @Log(title = "初始化文档上传", businessType = BusinessType.INSERT)
     @PostMapping("/uploadDoc")
     public R<DocumentUploadInitResponse> uploadDoc(@Valid @RequestBody DocumentUploadInitRequest request) {
-        Long uploaderId = SecurityContextHolder.getUserId();
-        return R.ok(documentService.initUploadDocument(request, uploaderId));
+        Long userId = SecurityContextHolder.getUserId();
+        if (request.getResourceId() != null) { // 更新现有版本
+            Map<Long, GroupRoleType> groupRoles = SecurityContextHolder.getGroupRoleMap();
+            ResourceCheckPermissionResDTO permission = remoteResourceService.checkResPermission(ResourceCheckPermissionReqDTO.builder()
+                    .resourceId(request.getResourceId()).userId(userId).groupRoles(groupRoles).build()).getData();
+            if (permission == null || permission.getAllowedActions() == null || !permission.getAllowedActions().contains(ResourceAction.EDIT)) {
+                throw new ServiceException(DOCUMENT_PERMISSION_DENIED);
+            }
+        }
+        return R.ok(documentService.initUploadDocument(request, userId));
     }
 
     @Operation(
@@ -77,7 +108,7 @@ public class DocumentController {
                     - 请求：resourceId 指定源文档资源；forkedResourceVersion 可选，作为权限检查 targetVersion；forkedResourceName 指定新文档资源名。
                     - 约束：当前用户必须拥有源资源 FORK 动作；Market 来源授权必须传当前上架 offerVersion；源资源类型必须是文档服务支持的文档类型；源文档必须已处理完成。
                     - 处理：先调用资源服务实时校验 FORK 权限；复制源文件、预览文件、正文内容、PDF 元信息和文档元信息，注册新的文档资源并发布文档就绪事件。
-                    - 失败：未登录 -> PermissionError.NOT_LOGIN；源资源不是文档或文档不存在 -> DocumentError.DOCUMENT_NOT_FOUND；无 FORK 权限 -> DocumentError.DOCUMENT_PERMISSION_DENIED；源文档未就绪 -> DocumentError.DOCUMENT_PREVIEW_NOT_READY；资源注册失败 -> DocumentError.DOCUMENT_REGISTER_RESOURCE_FAILED；复制失败 -> DocumentError.DOCUMENT_FORK_FAILED。
+                    - 失败：未登录 -> PermissionError.NOT_LOGIN；源资源不是文档或文档不存在 -> DocumentError.DOCUMENT_NOT_FOUND；源文档尚无可用版本 -> DocumentError.DOCUMENT_HAS_NO_VERSION；无 FORK 权限 -> DocumentError.DOCUMENT_PERMISSION_DENIED；源文档未就绪 -> DocumentError.DOCUMENT_PREVIEW_NOT_READY；资源注册失败 -> DocumentError.DOCUMENT_REGISTER_RESOURCE_FAILED；复制失败 -> DocumentError.DOCUMENT_FORK_FAILED。
                     - 响应：返回新文档资源 ID。
                     """
     )
@@ -106,7 +137,7 @@ public class DocumentController {
                     """
     )
     @GetMapping("/listPendingDocs")
-    public R<List<DocumentInfoBase>> listPendingDocs() {
+    public R<List<DocumentVersionBase>> listPendingDocs() {
         Long uploaderId = SecurityContextHolder.getUserId();
         return R.ok(documentService.listPendingDocs(uploaderId));
     }
@@ -160,7 +191,7 @@ public class DocumentController {
     @PostMapping("/cancelDocProcess")
     public R<Void> cancelDocProcess(@RequestParam String documentId) {
         documentService.assertDocumentUploader(documentId, SecurityContextHolder.getUserId());
-        documentService.deletedDocument(documentId);
+        documentService.deletedDocumentVersion(documentId);
         return R.ok();
     }
 
@@ -171,7 +202,7 @@ public class DocumentController {
                     - 请求：resourceId 指定文档资源；targetVersion 可选，用于 Market 版本限定权限裁决；Range 请求头可用于分段读取。
                     - 约束：当前用户必须已登录，且必须是资源所有者或拥有 VIEW 动作；Market 来源预览必须传当前上架 offerVersion；文档必须已经处理完成并具备预览文件。
                     - 处理：先通过资源服务校验权限，再读取文档预览元数据和对象存储下载地址；支持全量或 Range 响应，并在预览流尾部追加水印附录；不修改文档内容或资源权限。
-                    - 失败：未登录 -> PermissionError.NOT_LOGIN；资源无查看权限 -> DocumentError.DOCUMENT_PERMISSION_DENIED；文档不存在 -> DocumentError.DOCUMENT_NOT_FOUND；预览未就绪 -> DocumentError.DOCUMENT_PREVIEW_NOT_READY；预览元数据缺失或响应流写入失败 -> DocumentError.DOCUMENT_PREVIEW_FAILED。
+                    - 失败：未登录 -> PermissionError.NOT_LOGIN；资源无查看权限 -> DocumentError.DOCUMENT_PERMISSION_DENIED；文档不存在 -> DocumentError.DOCUMENT_NOT_FOUND；文档尚无可用版本 -> DocumentError.DOCUMENT_HAS_NO_VERSION；预览未就绪 -> DocumentError.DOCUMENT_PREVIEW_NOT_READY；预览元数据缺失 -> DocumentError.DOCUMENT_PREVIEW_META_NOT_FOUND；响应流写入失败 -> DocumentError.DOCUMENT_PREVIEW_FAILED。
                     - 响应：直接写出 application/pdf 预览流。
                     """
     )
@@ -182,11 +213,11 @@ public class DocumentController {
                                 HttpServletResponse response) {
         String userId = String.valueOf(SecurityContextHolder.getUserId());
         ResourceCheckPermissionResDTO permission = remoteResourceService.checkResPermission(ResourceCheckPermissionReqDTO.builder()
-                .resourceId(resourceId).userId(SecurityContextHolder.getUserId()).groupRoles(SecurityContextHolder.getGroupRoleMap()).build()).getData();
+                .resourceId(resourceId).userId(SecurityContextHolder.getUserId()).groupRoles(SecurityContextHolder.getGroupRoleMap()).targetVersion(targetVersion).build()).getData();
         if (permission == null || permission.getAllowedActions() == null || !permission.getAllowedActions().contains(ResourceAction.VIEW)) {
             throw new ServiceException(DOCUMENT_PERMISSION_DENIED);
         }
-        documentPreviewService.handlePreviewRequest(request, response, resourceId, userId);
+        documentPreviewService.handlePreviewRequest(request, response, resourceId, targetVersion, userId);
     }
 
     @Operation(
@@ -207,8 +238,43 @@ public class DocumentController {
         ResourceItemResponse resourceInfo = remoteResourceService.getResourceInfo(new ResourceInfoGetReqDTO(
                 resourceId, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap(), targetVersion
         )).getData();
-        DocumentInfoBase documentInfo = documentService.getDocumentInfo(resourceId);
-        DocumentInfoResponse documentInfoResponse = DocumentInfoResponse.builder().resourceInfo(resourceInfo).documentInfo(documentInfo).build();
+        DocumentInfoEntity documentInfo = documentService.getDocumentInfo(resourceId);
+
+        Integer effectiveVersion = targetVersion != null ? targetVersion : documentInfo.getVersion();
+        DocumentVersionInfoResponse documentVersionInfo = null;
+        // 版本号不为 0 时，额外查询
+        if (!Integer.valueOf(0).equals(effectiveVersion)) {
+            DocumentVersionEntity documentVersionEntity = documentService.getDocumentVersion(resourceId, effectiveVersion);
+            documentVersionInfo = BeanUtil.copyProperties(documentVersionEntity, DocumentVersionInfoResponse.class);
+        }
+
+        DocumentInfoResponse documentInfoResponse = DocumentInfoResponse.builder()
+                .resourceInfo(resourceInfo)
+                .documentVersionInfo(documentVersionInfo)
+                .authors(documentInfo.getAuthors())
+                .build();
         return R.ok(documentInfoResponse);
+    }
+
+    @Operation(
+            summary = "分页查询文档版本",
+            description = """
+                    - 用途：查看一个文档资源的版本轨迹，用于版本选择、复制指定版本和后续回退能力。
+                    - 请求：resourceId 指定文档资源；page、size 控制分页。
+                    - 约束：当前用户必须通过资源服务的资源详情权限校验；目标文档资源必须存在。
+                    - 处理：通过资源服务校验详情访问权限后，按版本号倒序分页读取已发布版本摘要；不返回 objectKey、正文或 PDF 元数据。
+                    - 失败：资源无访问权限 -> ResourceError.RESOURCE_PERMISSION_DENIED；文档不存在 -> DocumentError.DOCUMENT_NOT_FOUND。
+                    - 响应：返回版本摘要分页列表。
+                    """
+    )
+    @GetMapping("/listDocVersions")
+    public R<PageR<DocumentVersionInfoResponse>> listDocumentVersions(
+            @RequestParam String resourceId,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "20") int size) {
+        remoteResourceService.getResourceInfo(new ResourceInfoGetReqDTO(
+                resourceId, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap(), null
+        )).getData();
+        return R.ok(documentService.listVersions(resourceId, page, size));
     }
 }

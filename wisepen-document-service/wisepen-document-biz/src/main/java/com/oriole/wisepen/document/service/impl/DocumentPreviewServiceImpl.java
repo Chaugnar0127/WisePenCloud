@@ -5,10 +5,10 @@ import com.oriole.wisepen.document.api.enums.DocumentStatusEnum;
 import com.oriole.wisepen.document.config.DocumentProperties;
 import com.oriole.wisepen.document.domain.entity.DocumentInfoEntity;
 import com.oriole.wisepen.document.domain.entity.DocumentPdfMetaEntity;
+import com.oriole.wisepen.document.domain.entity.DocumentVersionEntity;
 import com.oriole.wisepen.document.exception.DocumentError;
-import com.oriole.wisepen.document.repository.DocumentContentRepository;
-import com.oriole.wisepen.document.repository.DocumentInfoRepository;
 import com.oriole.wisepen.document.repository.DocumentPdfMetaRepository;
+import com.oriole.wisepen.document.service.IDocumentService;
 import com.oriole.wisepen.document.service.IDocumentPreviewService;
 import com.oriole.wisepen.document.util.WatermarkAppendixBuilder;
 import com.oriole.wisepen.file.storage.api.feign.RemoteStorageService;
@@ -66,8 +66,8 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
 
     private static final int PIPE_BUF = 64 * 1024; // 64 KB 管道缓冲区
 
-    private final DocumentInfoRepository documentInfoRepository;
     private final DocumentPdfMetaRepository documentPdfMetaRepository;
+    private final IDocumentService documentService;
 
     private final RemoteStorageService remoteStorageService;
     private final DocumentProperties documentProperties;
@@ -76,21 +76,27 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
     public void handlePreviewRequest(HttpServletRequest request,
                                      HttpServletResponse response,
                                      String resourceId,
+                                     Integer targetVersion,
                                      String userId) {
-        DocumentInfoEntity doc = documentInfoRepository.findByResourceId(resourceId)
-                .orElseThrow(() -> new ServiceException(DocumentError.DOCUMENT_NOT_FOUND));
+        DocumentInfoEntity infoEntity = documentService.getDocumentInfo(resourceId);
+        targetVersion = targetVersion != null ? targetVersion : infoEntity.getVersion();
+        if (Integer.valueOf(0).equals(targetVersion)) {
+            throw new ServiceException(DocumentError.DOCUMENT_HAS_NO_VERSION);
+        }
 
-        if (doc.getDocumentStatus().getStatus() != DocumentStatusEnum.READY){
+        DocumentVersionEntity versionEntity = documentService.getDocumentVersion(resourceId, targetVersion);
+
+        if (versionEntity.getDocumentStatus() == null || versionEntity.getDocumentStatus().getStatus() != DocumentStatusEnum.READY) {
             throw new ServiceException(DocumentError.DOCUMENT_PREVIEW_NOT_READY);
         }
 
-        DocumentPdfMetaEntity meta = documentPdfMetaRepository.findById(doc.getDocumentId())
-                .orElseThrow(() -> new ServiceException(DocumentError.DOCUMENT_PREVIEW_FAILED));
+        DocumentPdfMetaEntity meta = documentPdfMetaRepository.findById(versionEntity.getDocumentId())
+                .orElseThrow(() -> new ServiceException(DocumentError.DOCUMENT_PREVIEW_META_NOT_FOUND));
 
         long originalSize = meta.getOriginalSize();
         long totalSize = originalSize + meta.getAppendixSize();
 
-        String ossUrl = remoteStorageService.getDownloadUrl(doc.getPreviewObjectKey(), null).getData();
+        String ossUrl = remoteStorageService.getDownloadUrl(versionEntity.getPreviewObjectKey(), null).getData();
 
         // 在时间戳确定之前生成附录，保证同一请求内明/暗水印时间一致
         LocalDateTime previewTime = LocalDateTime.now();
@@ -99,15 +105,15 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
         response.setHeader("Accept-Ranges", "bytes");
         response.setHeader("Cache-Control", "no-cache");
 
-        if (doc.getCreateTime() != null) {
-            ZonedDateTime updateZdt = doc.getCreateTime()
+        if (versionEntity.getUpdateTime() != null) {
+            ZonedDateTime updateZdt = versionEntity.getUpdateTime()
                     .atZone(ZoneId.systemDefault())
                     .withZoneSameInstant(ZoneOffset.UTC);
             String lastModifiedStr = DateTimeFormatter.RFC_1123_DATE_TIME.format(updateZdt);
             response.setHeader("Last-Modified", lastModifiedStr);
 
             long updateTimeMillis = updateZdt.toInstant().toEpochMilli();
-            String eTag = DigestUtils.md5Hex(resourceId + "_" + updateTimeMillis);
+            String eTag = DigestUtils.md5Hex(resourceId + "_" + versionEntity.getVersion() + "_" + updateTimeMillis);
             response.setHeader("ETag", "\"" + eTag + "\"");
         }
 

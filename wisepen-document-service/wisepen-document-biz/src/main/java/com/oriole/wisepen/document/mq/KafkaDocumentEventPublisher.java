@@ -46,8 +46,8 @@ public class KafkaDocumentEventPublisher {
         try {
             String resourceId = msg.getResourceId();
             reliablePublisher.publish(TOPIC_DOCUMENT_READY, resourceId, msg, resourceId);
-            log.debug("document ready event publish requested. topic={} resourceId={}",
-                    TOPIC_DOCUMENT_READY, resourceId);
+            log.debug("document ready event publish requested. topic={} resourceId={} version={}",
+                    TOPIC_DOCUMENT_READY, resourceId, msg.getVersion());
         } catch (Exception e) {
             log.error("document ready event publish request failed. topic={} resourceId={}",
                     TOPIC_DOCUMENT_READY, msg.getResourceId(), e);

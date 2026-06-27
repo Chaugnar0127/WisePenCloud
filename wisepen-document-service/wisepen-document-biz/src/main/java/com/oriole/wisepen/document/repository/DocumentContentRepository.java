@@ -9,6 +9,4 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface DocumentContentRepository extends MongoRepository<DocumentContentEntity, String> {
-
-    void deleteByDocumentId(String documentId);
 }

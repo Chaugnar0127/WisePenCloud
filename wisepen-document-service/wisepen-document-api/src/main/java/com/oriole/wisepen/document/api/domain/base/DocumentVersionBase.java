@@ -1,6 +1,5 @@
 package com.oriole.wisepen.document.api.domain.base;
 
-import com.oriole.wisepen.document.api.enums.DocumentStatusEnum;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -10,7 +9,7 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class DocumentInfoBase {
+public class DocumentVersionBase {
     private DocumentUploadMeta uploadMeta;
     private DocumentStatus documentStatus;
     private Integer maxPreviewPages;

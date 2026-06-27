@@ -1,6 +1,5 @@
 package com.oriole.wisepen.resource.consumer;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oriole.wisepen.document.api.domain.mq.DocumentReadyMessage;
 import com.oriole.wisepen.note.api.domain.mq.NoteSnapshotMessage;
@@ -23,14 +22,15 @@ public class ResourceContentConsumer {
 
     @KafkaListener(topics = TOPIC_DOCUMENT_READY, groupId = "wisepen-document-ready-group")
     public void onDocumentReady(DocumentReadyMessage message) throws Exception {
-        log.info("document ready event received. topic={} resourceId={} contentLength={}",
-                TOPIC_DOCUMENT_READY, message.getResourceId(), message.getContent()!=null ? message.getContent().length() : 0);
+        log.info("document ready event received. topic={} resourceId={} version={} contentLength={}",
+                TOPIC_DOCUMENT_READY, message.getResourceId(), message.getVersion(), message.getContent()!=null ? message.getContent().length() : 0);
         try {
             searchSyncService.syncResourceContent(message.getResourceId(), message.getContent());
-            log.debug("document ready event consumed. topic={} resourceId={}",
-                    TOPIC_DOCUMENT_READY, message.getResourceId());
+            log.debug("document ready event consumed. topic={} resourceId={} version={}",
+                    TOPIC_DOCUMENT_READY, message.getResourceId(), message.getVersion());
         } catch (Exception e) {
-            log.error("document ready event consumption failed. topic={} resourceId={}", TOPIC_DOCUMENT_READY, message.getResourceId(), e);
+            log.error("document ready event consumption failed. topic={} resourceId={} version={}",
+                    TOPIC_DOCUMENT_READY, message.getResourceId(), message.getVersion(), e);
             throw e;
         }
     }

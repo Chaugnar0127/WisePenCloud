@@ -3,8 +3,8 @@ package com.oriole.wisepen.document.task;
 import com.oriole.wisepen.document.api.domain.base.DocumentStatus;
 import com.oriole.wisepen.document.api.enums.DocumentStatusEnum;
 import com.oriole.wisepen.document.config.DocumentProperties;
-import com.oriole.wisepen.document.domain.entity.DocumentInfoEntity;
-import com.oriole.wisepen.document.repository.DocumentInfoRepository;
+import com.oriole.wisepen.document.domain.entity.DocumentVersionEntity;
+import com.oriole.wisepen.document.repository.DocumentVersionRepository;
 import com.oriole.wisepen.document.service.IDocumentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,7 +22,7 @@ import java.util.List;
 @RequiredArgsConstructor
 public class DocumentGcTask {
 
-    private final DocumentInfoRepository documentInfoRepository;
+    private final DocumentVersionRepository documentVersionRepository;
     private final IDocumentService documentService;
     private final DocumentProperties documentProperties;
 
@@ -31,17 +31,17 @@ public class DocumentGcTask {
         long start = System.currentTimeMillis();
         log.info("document gc started. task=staleUpload");
         try {
-        // 查找所有正在上传的文档
-            List<DocumentInfoEntity> uploadingDocumentInfoEntities = documentInfoRepository.findByStatus(DocumentStatusEnum.UPLOADING);
-            if (uploadingDocumentInfoEntities == null || uploadingDocumentInfoEntities.isEmpty()) {
+            // 查找所有正在上传的文档版本
+            List<DocumentVersionEntity> uploadingDocumentVersionEntities = documentVersionRepository.findByStatus(DocumentStatusEnum.UPLOADING);
+            if (uploadingDocumentVersionEntities == null || uploadingDocumentVersionEntities.isEmpty()) {
                 log.info("document gc finished. task=staleUpload processed=0 timedOut=0 failed=0 costMs={}",
                         System.currentTimeMillis() - start);
                 return;
             }
-            log.debug("document gc candidates found. task=staleUpload pending={}", uploadingDocumentInfoEntities.size());
+            log.debug("document gc candidates found. task=staleUpload pending={}", uploadingDocumentVersionEntities.size());
             LocalDateTime now = LocalDateTime.now();
             int timedOut = 0;
-            for (DocumentInfoEntity entity : uploadingDocumentInfoEntities) {
+            for (DocumentVersionEntity entity : uploadingDocumentVersionEntities) {
                 Long size = entity.getUploadMeta() != null ? entity.getUploadMeta().getSize() : null;
                 long timeoutMs = calculateTimeoutMs(size);
                 LocalDateTime deadline = entity.getCreateTime().plusNanos(timeoutMs * 1_000_000L);
@@ -51,7 +51,7 @@ public class DocumentGcTask {
                 }
             }
             log.info("document gc finished. task=staleUpload processed={} timedOut={} failed=0 costMs={}",
-                    uploadingDocumentInfoEntities.size(), timedOut, System.currentTimeMillis() - start);
+                    uploadingDocumentVersionEntities.size(), timedOut, System.currentTimeMillis() - start);
         } catch (Exception e) {
             log.error("document gc failed. task=staleUpload costMs={}", System.currentTimeMillis() - start, e);
             if (e instanceof RuntimeException) {
@@ -61,7 +61,7 @@ public class DocumentGcTask {
         }
     }
 
-    private void handleStaleDocument(DocumentInfoEntity doc) {
+    private void handleStaleDocument(DocumentVersionEntity doc) {
         // 主动查询 Storage 并流转状态
         DocumentStatus currentStatus = documentService.refreshDocumentStatus(doc.getDocumentId());
         // 状态依然是 UPLOADING，说明 OSS 真的没有收到文件，此时标记为超时

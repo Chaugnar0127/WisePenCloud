@@ -17,6 +17,7 @@ public enum DocumentError implements IResult {
 
     // 文档相关异常
     DOCUMENT_NOT_FOUND(6111, new ResultKey(BusinessDomain.DOCUMENT, DocumentSubject.DOCUMENT, ErrorReason.NOT_FOUND),"文档不存在"),
+    DOCUMENT_HAS_NO_VERSION(6112, new ResultKey(BusinessDomain.DOCUMENT, DocumentSubject.DOCUMENT, ErrorReason.STATE_INVALID),"文档尚无可用版本"),
     DOCUMENT_PERMISSION_DENIED(6121, new ResultKey(BusinessDomain.DOCUMENT, DocumentSubject.DOCUMENT, ErrorReason.PERMISSION_DENIED),"无权访问或操作该文档"),
     CANNOT_SUPPORT_FILE_TYPE(6131, new ResultKey(BusinessDomain.DOCUMENT, DocumentSubject.DOCUMENT, ErrorReason.UNSUPPORTED),"不能处理该文件，文件类型不受支持"),
     DOCUMENT_UPLOAD_URL_APPLY_FAILED(6141, new ResultKey(BusinessDomain.DOCUMENT, DocumentSubject.DOCUMENT, ErrorReason.FAILED),"申请文档上传 URL 失败"),
