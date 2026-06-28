@@ -9,6 +9,7 @@ import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
+import com.oriole.wisepen.document.api.constant.DocumentConstants;
 import com.oriole.wisepen.document.api.domain.base.DocumentVersionBase;
 import com.oriole.wisepen.document.api.domain.base.DocumentStatus;
 import com.oriole.wisepen.document.api.domain.dto.req.DocumentCreateRequest;
@@ -25,8 +26,11 @@ import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionReqDTO;
 import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionResDTO;
 import com.oriole.wisepen.resource.domain.dto.ResourceInfoGetReqDTO;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
+import com.oriole.wisepen.resource.enums.ResourceAccessRole;
 import com.oriole.wisepen.resource.enums.ResourceAction;
 import com.oriole.wisepen.resource.feign.RemoteResourceService;
+import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
+import com.oriole.wisepen.user.api.feign.RemoteUserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -40,7 +44,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 import java.util.Map;
 
-import static com.oriole.wisepen.document.exception.DocumentError.DOCUMENT_HAS_NO_VERSION;
+import static com.oriole.wisepen.document.exception.DocumentError.CANNOT_SUPPORT_FILE_TYPE;
 import static com.oriole.wisepen.document.exception.DocumentError.DOCUMENT_PERMISSION_DENIED;
 
 
@@ -55,21 +59,26 @@ public class DocumentController {
     private final IDocumentService documentService;
     private final IDocumentPreviewService documentPreviewService;
     private final RemoteResourceService remoteResourceService;
+    private final RemoteUserService remoteUserService;
+
 
     @Operation(
             summary = "创建文档",
             description = """
                     - 用途：为当前用户创建一份新的文档资源。
                     - 请求：title 为文档标题。
-                    - 约束：当前用户必须已登录；title 必须是可用于展示的文档标题。
+                    - 约束：当前用户必须已登录；title 必须是可用于展示的文档标题；resourceType 必须属于文档服务支持的文件型文档类型。
                     - 处理：调用资源服务注册选定的文档类型资源，以当前用户作为所有者；随后创建文档信息记录并将当前用户写入作者列表。
-                    - 失败：未登录 -> PermissionError.NOT_LOGIN；资源注册失败或文档信息落库失败 -> DocumentError.DOCUMENT_REGISTER_RESOURCE_FAILED。
+                    - 失败：文件类型不支持 -> DocumentError.CANNOT_SUPPORT_FILE_TYPE；资源注册失败或文档信息落库失败 -> DocumentError.DOCUMENT_REGISTER_RESOURCE_FAILED。
                     - 响应：返回新文档的资源 ID。
                     """
     )
     @Log(title = "创建文档", businessType = BusinessType.INSERT)
     @PostMapping("/addDocument")
     public R<String> createDocument(@Validated @RequestBody DocumentCreateRequest request) {
+        if (!DocumentConstants.ALLOWED_TYPES.contains(request.getResourceType())) {
+            throw new ServiceException(CANNOT_SUPPORT_FILE_TYPE);
+        }
         String userId = SecurityContextHolder.getUserId().toString();
         String resourceId = documentService.createDocument(request, userId);
         return R.ok(resourceId);
@@ -248,10 +257,16 @@ public class DocumentController {
             documentVersionInfo = BeanUtil.copyProperties(documentVersionEntity, DocumentVersionInfoResponse.class);
         }
 
+        Map<Long, UserDisplayBase> authorsDisplay = null;
+        try {
+            authorsDisplay = remoteUserService.getUserDisplayInfo(documentInfo.getAuthors()).getData();
+        } catch (Exception ignored){
+        }
+
         DocumentInfoResponse documentInfoResponse = DocumentInfoResponse.builder()
                 .resourceInfo(resourceInfo)
                 .documentVersionInfo(documentVersionInfo)
-                .authors(documentInfo.getAuthors())
+                .authorsDisplay(authorsDisplay)
                 .build();
         return R.ok(documentInfoResponse);
     }
@@ -272,9 +287,11 @@ public class DocumentController {
             @RequestParam String resourceId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
-        remoteResourceService.getResourceInfo(new ResourceInfoGetReqDTO(
-                resourceId, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap(), null
-        )).getData();
+        ResourceCheckPermissionResDTO permission = remoteResourceService.checkResPermission(ResourceCheckPermissionReqDTO.builder()
+                .resourceId(resourceId).userId(SecurityContextHolder.getUserId()).groupRoles(SecurityContextHolder.getGroupRoleMap()).build()).getData();
+        if (permission == null || permission.getResourceAccessRole() != ResourceAccessRole.OWNER) {
+            throw new ServiceException(DOCUMENT_PERMISSION_DENIED);
+        }
         return R.ok(documentService.listVersions(resourceId, page, size));
     }
 }
