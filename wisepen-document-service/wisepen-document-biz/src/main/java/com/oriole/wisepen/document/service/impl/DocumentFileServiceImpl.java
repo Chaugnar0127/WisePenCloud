@@ -47,7 +47,7 @@ public class DocumentFileServiceImpl implements IDocumentFileService {
         try {
             onlyOfficeConversionClient.convert(sourceUrl, sourceType, targetType, target);
             log.info("onlyoffice conversion finished. costMs={}", System.currentTimeMillis() - start);
-        } catch (ServiceException e) {
+        } catch (Exception e) {
             log.error("onlyoffice office  conversion failed. costMs={} sourceName={}", System.currentTimeMillis() - start, sourceName, e);
             throw new ServiceException(DocumentError.DOCUMENT_PROCESS_CONVERT_FAILED);
         }

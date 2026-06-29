@@ -28,6 +28,7 @@ import com.oriole.wisepen.document.repository.DocumentPdfMetaRepository;
 import com.oriole.wisepen.document.repository.DocumentInfoRepository;
 import com.oriole.wisepen.document.repository.DocumentVersionRepository;
 import com.oriole.wisepen.document.service.IDocumentService;
+import com.oriole.wisepen.document.service.IOnlyOfficeEditService;
 import com.oriole.wisepen.file.storage.api.domain.dto.CopyReqDTO;
 import com.oriole.wisepen.file.storage.api.domain.dto.StorageRecordDTO;
 import com.oriole.wisepen.file.storage.api.domain.dto.UploadInitReqDTO;
@@ -39,6 +40,7 @@ import com.oriole.wisepen.resource.enums.ResourceType;
 import com.oriole.wisepen.resource.feign.RemoteResourceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -57,10 +59,9 @@ import static com.oriole.wisepen.document.exception.DocumentError.DOCUMENT_HAS_N
  */
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class DocumentServiceImpl implements IDocumentService {
 
-    private final OnlyOfficeEditServiceImpl onlyOfficeEditService ;
+    private final IOnlyOfficeEditService onlyOfficeEditService;
     private final DocumentInfoRepository documentInfoRepository;
     private final DocumentVersionRepository documentVersionRepository;
     private final DocumentContentRepository documentContentRepository;
@@ -69,6 +70,24 @@ public class DocumentServiceImpl implements IDocumentService {
 
     private final RemoteStorageService remoteStorageService;
     private final RemoteResourceService remoteResourceService;
+
+    public DocumentServiceImpl(@Lazy IOnlyOfficeEditService onlyOfficeEditService,
+                               DocumentInfoRepository documentInfoRepository,
+                               DocumentVersionRepository documentVersionRepository,
+                               DocumentContentRepository documentContentRepository,
+                               DocumentPdfMetaRepository documentPdfMetaRepository,
+                               KafkaDocumentEventPublisher eventPublisher,
+                               RemoteStorageService remoteStorageService,
+                               RemoteResourceService remoteResourceService) {
+        this.onlyOfficeEditService = onlyOfficeEditService;
+        this.documentInfoRepository = documentInfoRepository;
+        this.documentVersionRepository = documentVersionRepository;
+        this.documentContentRepository = documentContentRepository;
+        this.documentPdfMetaRepository = documentPdfMetaRepository;
+        this.eventPublisher = eventPublisher;
+        this.remoteStorageService = remoteStorageService;
+        this.remoteResourceService = remoteResourceService;
+    }
 
     @Override
     public String createDocument(DocumentCreateRequest request, String userId) {
