@@ -107,7 +107,7 @@ public class DocumentController {
                 throw new ServiceException(DOCUMENT_PERMISSION_DENIED);
             }
         }
-        return R.ok(documentService.initUploadDocument(request, userId));
+        return R.ok(documentService.initUploadDocument(request, userId, true));
     }
 
     @Operation(

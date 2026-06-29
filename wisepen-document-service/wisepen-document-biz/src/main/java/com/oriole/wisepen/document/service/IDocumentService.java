@@ -12,6 +12,7 @@ import com.oriole.wisepen.document.domain.entity.DocumentInfoEntity;
 import com.oriole.wisepen.document.domain.entity.DocumentPdfMetaEntity;
 import com.oriole.wisepen.document.domain.entity.DocumentVersionEntity;
 import com.oriole.wisepen.common.core.domain.PageR;
+import com.oriole.wisepen.resource.enums.ResourceType;
 
 import java.util.List;
 import java.util.Optional;
@@ -25,7 +26,7 @@ public interface IDocumentService {
     String createDocument(DocumentCreateRequest request, String userId);
 
     // 初始化上传
-    DocumentUploadInitResponse initUploadDocument(DocumentUploadInitRequest request, Long uploaderId);
+    DocumentUploadInitResponse initUploadDocument(DocumentUploadInitRequest request, Long uploaderId, Boolean isVersioned);
 
     // 获取未就绪文档列表
     List<DocumentVersionBase> listPendingDocs(Long uploaderId);

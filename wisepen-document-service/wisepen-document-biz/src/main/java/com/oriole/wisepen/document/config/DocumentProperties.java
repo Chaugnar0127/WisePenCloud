@@ -13,6 +13,65 @@ import org.springframework.stereotype.Component;
 public class DocumentProperties {
 
     /**
+     * 文档转换 provider：onlyoffice 或 legacy。
+     * legacy 保留原 JODConverter + PDFTextStripper 路径，用于灰度回滚。
+     */
+    private String conversionProvider = "onlyoffice";
+
+    /**
+     * ONLYOFFICE Document Server 内网地址，供后端调用转换 API
+     */
+    private String onlyofficeInternalUrl = "http://localhost:8101/";
+
+    /**
+     * 文档服务可被 ONLYOFFICE 容器访问的回调基址
+     */
+    private String onlyofficeCallbackBaseUrl = "http://host.docker.internal:19906";
+
+    public String getOnlyofficeInternalUrl() {
+        return onlyofficeInternalUrl.endsWith("/") ? onlyofficeInternalUrl.substring(0, onlyofficeInternalUrl.length() - 1) : onlyofficeInternalUrl;
+    }
+
+    public String getOnlyofficeCallbackBaseUrl() {
+        return onlyofficeCallbackBaseUrl.endsWith("/") ? onlyofficeCallbackBaseUrl.substring(0, onlyofficeCallbackBaseUrl.length() - 1) : onlyofficeCallbackBaseUrl;
+    }
+
+    /**
+     * ONLYOFFICE JWT 密钥。生产环境必须通过配置中心覆盖
+     */
+    private String onlyofficeJwtSecret = "wisepen-onlyoffice-dev-secret";
+
+    /**
+     * ONLYOFFICE JWT 请求头
+     */
+    private String onlyofficeJwtHeader = "Authorization";
+
+    /**
+     * ONLYOFFICE JWT 请求头前缀
+     */
+    private String onlyofficeJwtPrefix = "Bearer ";
+
+    /**
+     * ONLYOFFICE 转换超时时间
+     */
+    private long onlyofficeConversionTimeoutMs = 120_000L;
+
+    /**
+     * ONLYOFFICE 异步转换轮询间隔
+     */
+    private long onlyofficeConversionPollIntervalMs = 1_000L;
+
+    /**
+     * 给 ONLYOFFICE 读取源文件的预签名 URL 有效期
+     */
+    private long onlyofficeSourceUrlDurationSeconds = 3_600L;
+
+    /**
+     * ONLYOFFICE 编辑会话过期时间
+     */
+    private long onlyofficeEditSessionTtlSeconds = 86_400L;
+
+    /**
      * 本地临时缓存目录（Stage 3 下载源文件 / 存储转换产物时使用）
      * e.g. /tmp/wisepen/document/cache/
      */

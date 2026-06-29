@@ -23,6 +23,8 @@ public class DocumentContentEntity {
 
     private String rawText;
 
+    private String markdown;
+
     @CreatedDate
     private LocalDateTime createTime;
 }

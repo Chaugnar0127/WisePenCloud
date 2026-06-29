@@ -3,6 +3,7 @@ package com.oriole.wisepen.document.api.domain.dto.req;
 import com.oriole.wisepen.document.api.constant.DocumentValidationMsg;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import lombok.Builder;
 import lombok.Data;
 
 import java.io.Serial;
@@ -12,6 +13,7 @@ import java.io.Serializable;
  * 文档上传初始化请求
  */
 @Data
+@Builder
 public class DocumentUploadInitRequest implements Serializable {
 
     @Serial

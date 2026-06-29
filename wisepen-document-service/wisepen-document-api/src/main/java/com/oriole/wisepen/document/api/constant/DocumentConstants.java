@@ -38,4 +38,6 @@ public class DocumentConstants {
     );
 
     public static final int WATERMARK_SIZE = 64 * 1024; // 此值不可修改（除非全部重新预处理所有文件）
+
+    public static final String ONLY_OFFICE_CALLBACK_PATH = "/internal/document/onlyoffice/callback/";
 }

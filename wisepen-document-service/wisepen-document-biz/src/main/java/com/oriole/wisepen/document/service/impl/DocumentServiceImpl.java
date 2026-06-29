@@ -60,6 +60,7 @@ import static com.oriole.wisepen.document.exception.DocumentError.DOCUMENT_HAS_N
 @RequiredArgsConstructor
 public class DocumentServiceImpl implements IDocumentService {
 
+    private final OnlyOfficeEditServiceImpl onlyOfficeEditService ;
     private final DocumentInfoRepository documentInfoRepository;
     private final DocumentVersionRepository documentVersionRepository;
     private final DocumentContentRepository documentContentRepository;
@@ -99,7 +100,7 @@ public class DocumentServiceImpl implements IDocumentService {
         return resourceId;
     }
 
-    public DocumentUploadInitResponse initUploadDocument(DocumentUploadInitRequest request, Long uploaderId) {
+    public DocumentUploadInitResponse initUploadDocument(DocumentUploadInitRequest request, Long uploaderId, Boolean isVersioned) {
         ResourceType fileType = ResourceType.fromExtension(request.getExtension());
         if (fileType == null || !DocumentConstants.ALLOWED_TYPES.contains(fileType)) {
             throw new ServiceException(DocumentError.CANNOT_SUPPORT_FILE_TYPE);
@@ -107,6 +108,8 @@ public class DocumentServiceImpl implements IDocumentService {
 
         DocumentInfoEntity infoEntity = null;
         if (request.getResourceId() != null) { // 如果 ResourceId 不为空，则说明不是首次上传
+            // 未处于在编辑状态
+            onlyOfficeEditService.assertNoActiveEditSession(request.getResourceId());
             infoEntity = documentInfoRepository.findByResourceId(request.getResourceId())
                     .orElseThrow(() -> new ServiceException(DocumentError.DOCUMENT_NOT_FOUND));
         }
@@ -128,27 +131,29 @@ public class DocumentServiceImpl implements IDocumentService {
             throw new ServiceException(DocumentError.DOCUMENT_UPLOAD_URL_APPLY_FAILED, e.getMessage());
         }
 
-        DocumentUploadMeta meta = DocumentUploadMeta.builder().fileType(fileType)
-                .documentName(request.getFilename())
-                .size(request.getExpectedSize())
-                .uploaderId(uploaderId).build();
+        if (isVersioned) {
+            DocumentUploadMeta meta = DocumentUploadMeta.builder().fileType(fileType)
+                    .documentName(request.getFilename())
+                    .size(request.getExpectedSize())
+                    .uploaderId(uploaderId).build();
 
-        DocumentVersionEntity versionEntity = DocumentVersionEntity.builder()
-                .documentId(documentId)
-                .version(1)
-                .uploadMeta(meta)
-                .sourceObjectKey(uploadInitRespDTO.getObjectKey())
-                .documentStatus(new DocumentStatus(
-                        uploadInitRespDTO.getFlashUploaded() ?
-                                DocumentStatusEnum.UPLOADED : DocumentStatusEnum.UPLOADING
-                )).build();
+            DocumentVersionEntity versionEntity = DocumentVersionEntity.builder()
+                    .documentId(documentId)
+                    .version(1)
+                    .uploadMeta(meta)
+                    .sourceObjectKey(uploadInitRespDTO.getObjectKey())
+                    .documentStatus(new DocumentStatus(
+                            uploadInitRespDTO.getFlashUploaded() ?
+                                    DocumentStatusEnum.UPLOADED : DocumentStatusEnum.UPLOADING
+                    )).build();
 
-        if (infoEntity != null){ // 如果不是第一次上传文档
-            versionEntity.setVersion(infoEntity.getVersion() + 1);
-            versionEntity.setResourceId(infoEntity.getResourceId());
+            if (infoEntity != null) { // 如果不是第一次上传文档
+                versionEntity.setVersion(infoEntity.getVersion() + 1);
+                versionEntity.setResourceId(infoEntity.getResourceId());
+            }
+
+            documentVersionRepository.save(versionEntity);
         }
-
-        documentVersionRepository.save(versionEntity);
 
         log.info("document upload initialized. documentId={} objectKey={} flashUploaded={}",
                 documentId, uploadInitRespDTO.getObjectKey(), uploadInitRespDTO.getFlashUploaded());
@@ -160,9 +165,9 @@ public class DocumentServiceImpl implements IDocumentService {
             // 如果触发秒传
             eventPublisher.publishParseTask(
                     DocumentParseTaskMessage.builder()
-                            .documentId(versionEntity.getDocumentId())
-                            .sourceObjectKey(versionEntity.getSourceObjectKey())
-                            .fileType(versionEntity.getUploadMeta().getFileType())
+                            .documentId(documentId)
+                            .sourceObjectKey(uploadInitRespDTO.getObjectKey())
+                            .fileType(fileType)
                             .build()
             );
         }
@@ -422,7 +427,8 @@ public class DocumentServiceImpl implements IDocumentService {
 
         eventPublisher.publishReadyEvent(DocumentReadyMessage.builder()
                 .resourceId(resourceId)
-                .content(documentContentRepository.findById(documentId).map(DocumentContentEntity::getRawText).orElse(null))
+                .version(versionEntity.getVersion())
+                .content(documentContentRepository.findById(documentId).map(DocumentContentEntity::getMarkdown).orElse(null))
                 .build());
 
         log.debug("document ready finalized. documentId={} resourceId={}", documentId, resourceId);
@@ -516,7 +522,7 @@ public class DocumentServiceImpl implements IDocumentService {
             eventPublisher.publishReadyEvent(DocumentReadyMessage.builder()
                     .resourceId(resourceId)
                     .version(1)
-                    .content(targetContent.getRawText())
+                    .content(targetContent.getMarkdown())
                     .build());
             log.info("document fork finished. sourceResourceId={} sourceVersion={} resourceId={} documentId={}",
                     request.getResourceId(), sourceVersion.getVersion(), resourceId, targetDocumentId);

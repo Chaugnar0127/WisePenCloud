@@ -34,6 +34,13 @@
             <artifactId>spring-web</artifactId>
         </dependency>
 
+        <!-- ONLYOFFICE Docs Integration SDK -->
+        <dependency>
+            <groupId>com.onlyoffice</groupId>
+            <artifactId>docs-integration-sdk</artifactId>
+            <version>1.9.0</version>
+        </dependency>
+
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>

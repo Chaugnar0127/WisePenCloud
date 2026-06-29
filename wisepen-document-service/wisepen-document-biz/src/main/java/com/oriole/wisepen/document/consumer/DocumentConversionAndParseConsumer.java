@@ -12,11 +12,13 @@ import com.oriole.wisepen.document.domain.entity.DocumentPdfMetaEntity;
 import com.oriole.wisepen.document.exception.DocumentError;
 import com.oriole.wisepen.document.service.IDocumentFileService;
 import com.oriole.wisepen.document.service.IDocumentService;
+import com.oriole.wisepen.document.util.OnlyOfficeConversionClient;
 import com.oriole.wisepen.document.util.WatermarkPreProcessor;
 import com.oriole.wisepen.file.storage.api.domain.dto.UploadInitReqDTO;
 import com.oriole.wisepen.file.storage.api.domain.dto.UploadInitRespDTO;
 import com.oriole.wisepen.file.storage.api.enums.StorageSceneEnum;
 import com.oriole.wisepen.file.storage.api.feign.RemoteStorageService;
+import com.oriole.wisepen.resource.enums.ResourceType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -28,9 +30,11 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Set;
 
 import static com.oriole.wisepen.document.api.constant.MqTopicConstants.TOPIC_DOCUMENT_PARSE;
 
@@ -92,14 +96,46 @@ public class DocumentConversionAndParseConsumer {
         boolean isOffice = DocumentConstants.OFFICE_TYPES.contains(msg.getFileType());
         File pdfFile = isOffice ? createCacheFile(msg.getDocumentId(), ".pdf") : sourceFile;
         File hookedPdf = createCacheFile(msg.getDocumentId(), "_hook.pdf");
+        File mdFile = createCacheFile(msg.getDocumentId(), ".md");
+
+        boolean isOnlyOfficeAvailable = "onlyoffice".equalsIgnoreCase(documentProperties.getConversionProvider());
         try {
             // Office → PDF 格式转换
             if (isOffice) {
-                documentFileService.convertToPdf(sourceFile, pdfFile);
+                if (isOnlyOfficeAvailable) {
+                    // 基于 OnlyOffice 转换为 PDF
+                    documentFileService.convertTo(downloadUrl, sourceFile.getName(), msg.getFileType(), pdfFile, OnlyOfficeConversionClient.ConversionTargetType.PDF);
+                } else {
+                    // 基于 Jodconverter 转换为 PDF
+                    documentFileService.convertTo(sourceFile, pdfFile);
+                }
             }
-            // 基于 PDF 文件提取纯文本，用于后续全文检索
-            String rawText = documentFileService.extractText(pdfFile);
-            DocumentContentEntity content = DocumentContentEntity.builder().rawText(rawText).build();
+
+            DocumentContentEntity content;
+            // 如果文件是 PDF
+            if (ResourceType.PDF == msg.getFileType()) {
+                if (isOnlyOfficeAvailable) { // 如果 OnlyOffice 可用，使用 OnlyOffice 转为 MD
+                    documentFileService.convertTo(downloadUrl, sourceFile.getName(), msg.getFileType(), mdFile, OnlyOfficeConversionClient.ConversionTargetType.MD);
+                    byte[] bytes = Files.readAllBytes(mdFile.toPath());
+                    content = DocumentContentEntity.builder().markdown(new String(bytes, StandardCharsets.UTF_8)).build();
+                } else { // 使用 PDFBox 转为 Text
+                    String rawText = documentFileService.extractPDFText(pdfFile);
+                    content = DocumentContentEntity.builder().rawText(rawText).build();
+                }
+            } else if (Set.of(ResourceType.DOC, ResourceType.DOCX).contains(msg.getFileType())) {
+                // 如果文件是 DOC/DOCX
+                if (isOnlyOfficeAvailable) { // 如果 OnlyOffice 可用，使用 OnlyOffice 转为 MD
+                    documentFileService.convertTo(downloadUrl, sourceFile.getName(), msg.getFileType(), mdFile, OnlyOfficeConversionClient.ConversionTargetType.MD);
+                    byte[] bytes = Files.readAllBytes(mdFile.toPath());
+                    content = DocumentContentEntity.builder().markdown(new String(bytes, StandardCharsets.UTF_8)).build();
+                } else { // 如果 OnlyOffice 不可用，使用 POI 转为 MD
+                    String markdown = documentFileService.extractMarkdown(sourceFile, msg.getFileType());
+                    content = DocumentContentEntity.builder().markdown(markdown).build();
+                }
+            } else { // 如果文件是 PPT/PPTX/XLS/XLSX，使用 POI 转为 MD
+                String markdown = documentFileService.extractMarkdown(sourceFile, msg.getFileType());
+                content = DocumentContentEntity.builder().markdown(markdown).build();
+            }
 
             // 预埋空水印占位 Form XObject（/WisepenWM），生成 hooked PDF（预览PDF）
             // 上传至 OSS 的是 hooked PDF，而非原始 pdfFile
@@ -114,10 +150,9 @@ public class DocumentConversionAndParseConsumer {
 
         } finally {
             deleteSilently(sourceFile);
-            if (isOffice) {
-                deleteSilently(pdfFile);
-            }
+            if (isOffice) deleteSilently(pdfFile);
             deleteSilently(hookedPdf);
+            deleteSilently(mdFile);
         }
     }
 
