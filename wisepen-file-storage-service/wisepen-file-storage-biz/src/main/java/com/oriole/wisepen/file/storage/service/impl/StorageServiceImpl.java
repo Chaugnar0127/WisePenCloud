@@ -79,7 +79,7 @@ public class StorageServiceImpl implements IStorageService {
                 provider.copyObject(existRecord.getObjectKey(), newObjectKey);
             }  catch (Exception e) {
                 // 秒传异常，获取直传 PUT URL
-                return this.getPutUrl(req.getScene(), newObjectKey, provider);
+                return this.getPutUrl(req.getScene(), newObjectKey, provider, req.getIsNeedCallback());
             }
 
             StorageRecordEntity newRecord = BeanUtil.copyProperties(existRecord, StorageRecordEntity.class,
@@ -102,7 +102,7 @@ public class StorageServiceImpl implements IStorageService {
         }
 
         // 没命中秒传，获取直传 PUT URL
-        return this.getPutUrl(req.getScene(), newObjectKey, provider);
+        return this.getPutUrl(req.getScene(), newObjectKey, provider, req.getIsNeedCallback());
     }
 
     private StorageRecordEntity getStorageRecordWithCompensateStatus(String ObjectKey){
@@ -159,12 +159,12 @@ public class StorageServiceImpl implements IStorageService {
         }
     }
 
-    private UploadInitRespDTO getPutUrl(StorageSceneEnum scene, String newObjectKey, StorageProvider provider) {
+    private UploadInitRespDTO getPutUrl(StorageSceneEnum scene, String newObjectKey, StorageProvider provider, Boolean isNeedCallback) {
         StorageRecordEntity newRecord = StorageRecordEntity.builder()
                 .scene(scene).objectKey(newObjectKey).status(StorageStatusEnum.UPLOADING).configId(provider.getConfigId())
                 .build();
         storageRecordMapper.insert(newRecord);
-        UploadUrlBase uploadUrl = provider.generateUploadTicket(newObjectKey, storageProperties.getDefaultTicketDuration(), storageProperties.getApiDomain());
+        UploadUrlBase uploadUrl = provider.generateUploadTicket(newObjectKey, storageProperties.getDefaultTicketDuration(), storageProperties.getApiDomain(), isNeedCallback);
 
         log.info("storage upload ticket created. objectKey={} status={}", newObjectKey, StorageStatusEnum.UPLOADING);
 

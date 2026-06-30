@@ -6,6 +6,8 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.Transient;
+import org.springframework.data.domain.Persistable;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
@@ -15,7 +17,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Document(collection = "document_content")
-public class DocumentContentEntity {
+public class DocumentContentEntity implements Persistable<String> {
     @Id
     private String documentId;
 
@@ -27,4 +29,15 @@ public class DocumentContentEntity {
 
     @CreatedDate
     private LocalDateTime createTime;
+
+    @Override
+    public String getId() {
+        return documentId;
+    }
+
+    @Override
+    @Transient
+    public boolean isNew() {
+        return createTime == null;
+    }
 }

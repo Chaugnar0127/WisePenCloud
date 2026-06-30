@@ -69,27 +69,29 @@ public class AliyunOssProvider implements StorageProvider {
     }
 
     @Override
-    public UploadUrlBase generateUploadTicket(String objectKey, long durationSeconds, String apiDomain) {
+    public UploadUrlBase generateUploadTicket(String objectKey, long durationSeconds, String apiDomain, Boolean isNeedCallback) {
         Date expirationDate = Date.from(Instant.now().plusSeconds(durationSeconds));
         String callbackUrl = apiDomain.replaceAll("/+$", "") + "/external/storage/callback/upload";
 
         try {
-            String callbackBody = "objectKey=${object}&size=${size}&md5=${etag}";
-            Map<String, String> outerPolicyMap = Map.of(
-                    "callbackUrl", callbackUrl,
-                    "callbackBody", callbackBody,
-                    "callbackBodyType", "application/x-www-form-urlencoded"
-            );
-            String callbackJson = OBJECT_MAPPER.writeValueAsString(outerPolicyMap);
-            String callbackBase64 = BinaryUtil.toBase64String(callbackJson.getBytes(StandardCharsets.UTF_8));
-
+            String callbackBase64 = null;
+            if (isNeedCallback) { // 如果需要回调
+                String callbackBody = "objectKey=${object}&size=${size}&md5=${etag}";
+                Map<String, String> outerPolicyMap = Map.of(
+                        "callbackUrl", callbackUrl,
+                        "callbackBody", callbackBody,
+                        "callbackBodyType", "application/x-www-form-urlencoded"
+                );
+                String callbackJson = OBJECT_MAPPER.writeValueAsString(outerPolicyMap);
+                callbackBase64 = BinaryUtil.toBase64String(callbackJson.getBytes(StandardCharsets.UTF_8));
+            }
             // 生成 PUT 方法的预签名 URL，供前端直传
             GeneratePresignedUrlRequest request =
                     new com.aliyun.oss.model.GeneratePresignedUrlRequest(config.getBucketName(), objectKey, HttpMethod.PUT);
             request.setExpiration(expirationDate);
             request.setContentType("application/octet-stream");
             java.util.Map<String, String> headers = new java.util.HashMap<>();
-            headers.put("x-oss-callback", callbackBase64);
+            if (isNeedCallback) headers.put("x-oss-callback", callbackBase64);
             request.setHeaders(headers);
 
             URL url = ossClient.generatePresignedUrl(request);

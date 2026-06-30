@@ -25,7 +25,7 @@ public interface StorageProvider {
      * @param durationSeconds 凭证有效时长（秒）
      * @return 上传凭证URL
      */
-    UploadUrlBase generateUploadTicket(String objectKey, long durationSeconds, String apiDomain);
+    UploadUrlBase generateUploadTicket(String objectKey, long durationSeconds, String apiDomain, Boolean isNeedCallback);
 
     /**
      * 生成私有文件下载链接（预签名 GET URL）

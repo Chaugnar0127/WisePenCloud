@@ -175,6 +175,7 @@ public class DocumentConversionAndParseConsumer {
                     .extension("pdf")
                     .scene(StorageSceneEnum.PRIVATE_DOC)
                     .bizTag(documentId)
+                    .isNeedCallback(false)
                     .build()).getData();
         }
         catch (Exception e) {

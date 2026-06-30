@@ -119,7 +119,17 @@ public class DocumentServiceImpl implements IDocumentService {
         return resourceId;
     }
 
-    public DocumentUploadInitResponse initUploadDocument(DocumentUploadInitRequest request, Long uploaderId, Boolean isVersioned) {
+    public DocumentUploadInitResponse initUploadDocument(DocumentUploadInitRequest request, Long uploaderId)  {
+        // 普通上传新增版本，检查编辑状态
+        return initUploadDocument(request, uploaderId, true, true);
+    }
+
+    public DocumentUploadInitResponse initUploadDocumentByOnlyOffice(DocumentUploadInitRequest request, Long uploaderId, Boolean isVersioned)  {
+        // OnlyOffice 回调上传不检查编辑状态，是否新增版本由调用方决定
+        return initUploadDocument(request, uploaderId, isVersioned, false);
+    }
+
+    private DocumentUploadInitResponse initUploadDocument(DocumentUploadInitRequest request, Long uploaderId, Boolean isVersioned, Boolean isCheckEditStatus) {
         ResourceType fileType = ResourceType.fromExtension(request.getExtension());
         if (fileType == null || !DocumentConstants.ALLOWED_TYPES.contains(fileType)) {
             throw new ServiceException(DocumentError.CANNOT_SUPPORT_FILE_TYPE);
@@ -127,8 +137,10 @@ public class DocumentServiceImpl implements IDocumentService {
 
         DocumentInfoEntity infoEntity = null;
         if (request.getResourceId() != null) { // 如果 ResourceId 不为空，则说明不是首次上传
-            // 未处于在编辑状态
-            onlyOfficeEditService.assertNoActiveEditSession(request.getResourceId());
+            if (isCheckEditStatus) {
+                // 未处于在编辑状态
+                onlyOfficeEditService.assertNoActiveEditSession(request.getResourceId());
+            }
             infoEntity = documentInfoRepository.findByResourceId(request.getResourceId())
                     .orElseThrow(() -> new ServiceException(DocumentError.DOCUMENT_NOT_FOUND));
         }
@@ -144,6 +156,7 @@ public class DocumentServiceImpl implements IDocumentService {
                     .scene(StorageSceneEnum.PRIVATE_DOC)
                     .bizTag(documentId)
                     .expectedSize(request.getExpectedSize())
+                    .isNeedCallback(isVersioned) // 如果要版本化，则需要回调，否则则无需回调
                     .build()).getData();
         } catch (Exception e) {
             log.warn("document upload init failed. documentId={} dependency=storageService", documentId, e);
@@ -167,7 +180,17 @@ public class DocumentServiceImpl implements IDocumentService {
                     )).build();
 
             if (infoEntity != null) { // 如果不是第一次上传文档
-                versionEntity.setVersion(infoEntity.getVersion() + 1);
+                Integer nextVersion = infoEntity.getVersion() + 1;
+                // 检查版本冲突（未成功的版本）
+                documentVersionRepository.findByResourceIdAndVersion(infoEntity.getResourceId(), nextVersion)
+                        .ifPresent(existing -> {
+                            if (existing.getDocumentStatus() != null && existing.getDocumentStatus().getStatus() == DocumentStatusEnum.READY) {
+                                throw new ServiceException(DocumentError.DOCUMENT_VERSION_DUPLICATED);
+                            }
+                            deletedDocumentVersions(List.of(existing));
+                        });
+
+                versionEntity.setVersion(nextVersion);
                 versionEntity.setResourceId(infoEntity.getResourceId());
             }
 

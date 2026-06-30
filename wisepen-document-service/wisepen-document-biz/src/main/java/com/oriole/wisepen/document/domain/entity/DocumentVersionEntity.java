@@ -9,6 +9,8 @@ import lombok.experimental.SuperBuilder;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.annotation.Transient;
+import org.springframework.data.domain.Persistable;
 import org.springframework.data.mongodb.core.index.CompoundIndex;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -26,7 +28,7 @@ import java.time.LocalDateTime;
         unique = true,
         partialFilter = "{'resourceId': {'$exists': true, '$ne': null}}"
 )
-public class DocumentVersionEntity extends DocumentVersionBase {
+public class DocumentVersionEntity extends DocumentVersionBase implements Persistable<String> {
 
     @Id
     private String documentId;
@@ -47,4 +49,15 @@ public class DocumentVersionEntity extends DocumentVersionBase {
 
     @LastModifiedDate
     private LocalDateTime updateTime;
+
+    @Override
+    public String getId() {
+        return documentId;
+    }
+
+    @Override
+    @Transient
+    public boolean isNew() {
+        return createTime == null;
+    }
 }

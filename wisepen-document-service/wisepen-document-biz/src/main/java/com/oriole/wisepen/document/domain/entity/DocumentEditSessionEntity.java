@@ -9,6 +9,8 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.annotation.Transient;
+import org.springframework.data.domain.Persistable;
 import org.springframework.data.mongodb.core.index.Indexed;
 import org.springframework.data.mongodb.core.mapping.Document;
 
@@ -19,7 +21,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @Document(collection = "wisepen_document_edit_sessions")
-public class DocumentEditSessionEntity {
+public class DocumentEditSessionEntity implements Persistable<String> {
 
     @Id
     private String sessionId;
@@ -55,4 +57,15 @@ public class DocumentEditSessionEntity {
     private LocalDateTime updateTime;
 
     private LocalDateTime expiresAt;
+
+    @Override
+    public String getId() {
+        return sessionId;
+    }
+
+    @Override
+    @Transient
+    public boolean isNew() {
+        return createTime == null;
+    }
 }

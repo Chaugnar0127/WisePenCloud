@@ -19,4 +19,5 @@ public class UploadInitReqDTO implements Serializable {
     private String bizTag;
     private Long configId;
     private Long expectedSize;
+    private Boolean isNeedCallback = true;
 }

@@ -26,7 +26,10 @@ public interface IDocumentService {
     String createDocument(DocumentCreateRequest request, String userId);
 
     // 初始化上传
-    DocumentUploadInitResponse initUploadDocument(DocumentUploadInitRequest request, Long uploaderId, Boolean isVersioned);
+    DocumentUploadInitResponse initUploadDocument(DocumentUploadInitRequest request, Long uploaderId);
+
+    // 初始化上传（OnlyOffice）
+    DocumentUploadInitResponse initUploadDocumentByOnlyOffice(DocumentUploadInitRequest request, Long uploaderId, Boolean isVersioned);
 
     // 获取未就绪文档列表
     List<DocumentVersionBase> listPendingDocs(Long uploaderId);

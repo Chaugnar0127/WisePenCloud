@@ -1,6 +1,7 @@
 package com.oriole.wisepen.document.service.impl;
 
 import cn.hutool.core.util.IdUtil;
+import cn.hutool.core.util.StrUtil;
 import com.onlyoffice.client.ApacheHttpclientDocumentServerClient;
 import com.onlyoffice.client.DocumentServerClient;
 import com.onlyoffice.client.DocumentServerClientSettings;
@@ -12,14 +13,15 @@ import com.onlyoffice.model.documenteditor.config.Document;
 import com.onlyoffice.model.documenteditor.config.EditorConfig;
 import com.onlyoffice.model.documenteditor.config.document.DocumentType;
 import com.onlyoffice.model.documenteditor.config.document.Permissions;
+import com.onlyoffice.model.documenteditor.config.editorconfig.Customization;
 import com.onlyoffice.model.documenteditor.config.editorconfig.Mode;
+import com.onlyoffice.model.documenteditor.config.editorconfig.customization.Customer;
 import com.onlyoffice.model.settings.security.Security;
 import com.onlyoffice.utils.SecurityUtils;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.document.api.domain.dto.req.DocumentUploadInitRequest;
 import com.oriole.wisepen.document.api.domain.dto.res.DocumentUploadInitResponse;
 import com.oriole.wisepen.document.api.domain.dto.res.OnlyOfficeEditorConfigResponse;
-import com.oriole.wisepen.document.api.domain.mq.DocumentParseTaskMessage;
 import com.oriole.wisepen.document.api.enums.DocumentStatusEnum;
 import com.oriole.wisepen.document.config.DocumentProperties;
 import com.oriole.wisepen.document.domain.entity.DocumentEditSessionEntity;
@@ -149,11 +151,12 @@ public class OnlyOfficeEditServiceImpl implements IOnlyOfficeEditService {
 
         // 构建权限
         Permissions permissions = Permissions.builder()
+                .chat(false)
+                .copy(allowedActions.contains(ResourceAction.VIEW))
                 .edit(allowedActions.contains(ResourceAction.EDIT))
                 .comment(allowedActions.contains(ResourceAction.INLINE_COMMENT))
                 .download(allowedActions.contains(ResourceAction.DOWNLOAD_ORIGINAL))
                 .print(allowedActions.contains(ResourceAction.DOWNLOAD_ORIGINAL))
-                .copy(false)
                 .build();
 
         // 构建文档
@@ -171,6 +174,18 @@ public class OnlyOfficeEditServiceImpl implements IOnlyOfficeEditService {
                 .name(userDisplayInfo != null ? userDisplayInfo.getNickname() : "User")
                 .build();
 
+        // 构建定制化
+        Customization customization = Customization.builder()
+                .plugins(false)
+                .help(false)
+                .feedback(false)
+                .forcesave(true)
+                .compactHeader(true)
+                .compactToolbar(false)
+                .toolbarHideFileName(false)
+                .customer(Customer.builder().name("WisePen").build())
+                .build();
+
         // 构建回调 URL
         String callbackUrl = documentProperties.getOnlyofficeCallbackBaseUrl() + ONLY_OFFICE_CALLBACK_PATH  + session.getSessionId();
 
@@ -180,6 +195,7 @@ public class OnlyOfficeEditServiceImpl implements IOnlyOfficeEditService {
                 .lang("zh-CN")
                 .callbackUrl(callbackUrl)
                 .user(user)
+                .customization(customization)
                 .build();
 
         DocumentType documentType = switch (session.getFileType()) {
@@ -268,26 +284,21 @@ public class OnlyOfficeEditServiceImpl implements IOnlyOfficeEditService {
                     .resourceId(session.getResourceId()).filename(session.getDocumentName())
                     .extension(session.getFileType().getExtension()).md5(null)
                     .expectedSize(file.length()).build();
-            DocumentUploadInitResponse uploadInitRes = documentService.initUploadDocument(uploadRequest, Long.parseLong(saveUser), isVersioned);
+            DocumentUploadInitResponse uploadInitRespDTO = documentService.initUploadDocumentByOnlyOffice(uploadRequest, Long.parseLong(saveUser), isVersioned);
 
-            HttpRequest.Builder builder = HttpRequest.newBuilder()
-                    .uri(URI.create(uploadInitRes.getPutUrl()))
+            HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
+                    .uri(URI.create(uploadInitRespDTO.getPutUrl()))
                     .header("Content-Type", "application/octet-stream")
                     .PUT(HttpRequest.BodyPublishers.ofFile(file.toPath()));
-            HttpResponse<Void> uploadRes = HTTP_CLIENT.send(builder.build(), HttpResponse.BodyHandlers.discarding());
+            if (StrUtil.isNotBlank(uploadInitRespDTO.getCallbackHeader())) {
+                reqBuilder.header("x-oss-callback", uploadInitRespDTO.getCallbackHeader());
+            }
+            HttpResponse<Void> uploadRes = HTTP_CLIENT.send(reqBuilder.build(), HttpResponse.BodyHandlers.discarding());
             if (uploadRes.statusCode() / 100 != 2) {
                 throw new ServiceException(DocumentError.DOCUMENT_EDIT_SAVE_FAILED, "edited file upload failed. status=" + uploadRes.statusCode());
             }
 
-            if (isVersioned) {
-                eventPublisher.publishParseTask(DocumentParseTaskMessage.builder()
-                        .documentId(uploadInitRes.getDocumentId())
-                        .sourceObjectKey(uploadInitRes.getObjectKey())
-                        .fileType(session.getFileType())
-                        .build());
-            }
-
-            return uploadInitRes.getObjectKey();
+            return uploadInitRespDTO.getObjectKey();
         } finally {
             if (file != null && file.exists()) {
                 try {
