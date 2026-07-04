@@ -57,8 +57,7 @@ public class MarketServiceImpl implements IMarketService {
     @Override
     // 上架
     public void publishSaleInfo(MarketSalePublishRequest request) {
-        ResourceItemEntity resource = resourceItemRepository.findById(request.getResourceId())
-                .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
+        ResourceItemEntity resource = resourceService.getResourceEntity(request.getResourceId());
 
         String marketGroupId = request.getMarketGroupId();
         // 检查 groupID对应的小组是否是 MARKET_GROUP
@@ -140,8 +139,7 @@ public class MarketServiceImpl implements IMarketService {
 
     @Override
     public void offShelfSaleInfo(MarketSaleOffShelfRequest request) {
-        ResourceItemEntity resource = resourceItemRepository.findById(request.getResourceId())
-                .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
+        ResourceItemEntity resource = resourceService.getResourceEntity(request.getResourceId());
         String marketGroupId = request.getMarketGroupId();
 
         MarketSaleInfo marketSaleInfo = getmarketSaleInfo(resource, marketGroupId);
@@ -169,8 +167,7 @@ public class MarketServiceImpl implements IMarketService {
             throw new ServiceException(ResourceError.MARKET_AUDIT_MESSAGE_INVALID);
         }
 
-        ResourceItemEntity resource = resourceItemRepository.findById(request.getResourceId())
-                .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
+        ResourceItemEntity resource = resourceService.getResourceEntity(request.getResourceId());
         String marketGroupId = request.getMarketGroupId();
 
         MarketSaleInfo marketSaleInfo = getmarketSaleInfo(resource, marketGroupId);
@@ -209,8 +206,7 @@ public class MarketServiceImpl implements IMarketService {
 
     @Override
     public MarketOrderResponse purchaseResource(MarketPurchaseRequest request, String buyerId) {
-        ResourceItemEntity resource = resourceItemRepository.findById(request.getResourceId())
-                .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
+        ResourceItemEntity resource = resourceService.getResourceEntity(request.getResourceId());
         String marketGroupId = request.getMarketGroupId();
 
         MarketSaleInfo marketSaleInfo = getmarketSaleInfo(resource, marketGroupId);

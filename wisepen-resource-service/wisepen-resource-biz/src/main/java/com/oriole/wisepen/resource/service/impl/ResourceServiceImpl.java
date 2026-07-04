@@ -120,8 +120,7 @@ public class ResourceServiceImpl implements IResourceService {
 
     @Override
     public void assertResourceOwner(String resourceId, String userId) {
-        ResourceItemEntity entity = resourceItemRepository.findById(resourceId)
-                .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
+        ResourceItemEntity entity = getResourceEntity(resourceId);
         if (!userId.equals(entity.getOwnerId())) {
             log.warn("resource permission denied. resourceId={} userId={} ownerId={}",
                     resourceId, userId, entity.getOwnerId());
@@ -129,10 +128,18 @@ public class ResourceServiceImpl implements IResourceService {
         }
     }
 
+    public ResourceItemEntity getResourceEntity(String resourceId) {
+        ResourceItemEntity resource = resourceItemRepository.findById(resourceId)
+                .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
+        if (resource.getDeletedAt() != null) {
+            throw new ServiceException(ResourceError.RESOURCE_NOT_FOUND);
+        }
+        return resource;
+    }
+
     @Override
     public void renameResource(ResourceRenameRequest req) {
-        ResourceItemEntity entity = resourceItemRepository.findById(req.getResourceId())
-                .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
+        ResourceItemEntity entity = getResourceEntity(req.getResourceId());
 
         String oldName = entity.getResourceName();
         entity.setResourceName(req.getNewName());
@@ -171,8 +178,7 @@ public class ResourceServiceImpl implements IResourceService {
 
     @Override
     public void updatePersonalResourceTags (String resourceId, String groupId, List<String> tagIds) {
-        ResourceItemEntity entity = resourceItemRepository.findById(resourceId)
-                .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
+        ResourceItemEntity entity = getResourceEntity(resourceId);
 
         boolean isTrashed = false;
 
@@ -209,8 +215,7 @@ public class ResourceServiceImpl implements IResourceService {
 
     @Override
     public void updateGroupResourceTags(String resourceId, String groupId, String userId, GroupRoleType groupRole, List<String> tagIds) {
-        ResourceItemEntity entity = resourceItemRepository.findById(resourceId)
-                .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
+        ResourceItemEntity entity = getResourceEntity(resourceId);
         updateGroupResourceTags(entity, groupId, userId, groupRole, tagIds);
     }
 
@@ -265,8 +270,7 @@ public class ResourceServiceImpl implements IResourceService {
 
     @Override
     public void updateResourceActionPermission(ResourceUpdateActionPermissionRequest req){
-        ResourceItemEntity entity = resourceItemRepository.findById(req.getResourceId())
-                .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
+        ResourceItemEntity entity = getResourceEntity(req.getResourceId());
 
         // 设置小组权限覆盖
         if (req.getOverrideGrantedActions() != null) {
@@ -309,8 +313,7 @@ public class ResourceServiceImpl implements IResourceService {
 
     @Override
     public ResourceItemResponse getResourceInfo(ResourceInfoGetReqDTO dto) {
-        ResourceItemEntity entity = resourceItemRepository.findById(dto.getResourceId())
-                .orElseThrow(() -> new ServiceException(ResourceError.RESOURCE_NOT_FOUND));
+        ResourceItemEntity entity = getResourceEntity(dto.getResourceId());
 
         // 组装 ResourceItemResponse（过滤无 ResourceAction.VIEW 权限的）
         ResourceItemResponse resourceItemResponse = resourceItemResponseAssembler.assembleOne(entity, dto.getUserId().toString(), dto.getGroupRoles(), List.of(ResourceAction.VIEW), dto.getTargetVersion(), true);
