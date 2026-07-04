@@ -2,6 +2,7 @@ package com.oriole.wisepen.resource.consumer;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oriole.wisepen.document.api.domain.mq.DocumentReadyMessage;
+import com.oriole.wisepen.note.api.domain.enums.VersionType;
 import com.oriole.wisepen.note.api.domain.mq.NoteSnapshotMessage;
 import com.oriole.wisepen.resource.service.ISearchSyncService;
 import lombok.RequiredArgsConstructor;
@@ -48,7 +49,7 @@ public class ResourceContentConsumer {
         log.info("note snapshot event received. topic={} resourceId={} contentLength={}",
                 TOPIC_NOTE_SNAPSHOT, msg.getResourceId(), msg.getPlainText()!=null ? msg.getPlainText().length() : 0);
         try {
-            if ("FULL".equals(msg.getType())) {
+            if (VersionType.FULL == msg.getType()) {
                 searchSyncService.syncResourceContent(msg.getResourceId(), msg.getPlainText());
                 log.debug("note snapshot event consumed. topic={} resourceId={}",
                         TOPIC_NOTE_SNAPSHOT, msg.getResourceId());
