@@ -1,6 +1,7 @@
 package com.oriole.wisepen.resource.domain.entity;
 
 import com.oriole.wisepen.resource.domain.base.ResourceInlineCommentBase;
+import com.oriole.wisepen.resource.domain.base.ResourceInlineCommentItemBase;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 import org.springframework.data.annotation.CreatedDate;
@@ -11,6 +12,8 @@ import org.springframework.data.mongodb.core.index.CompoundIndexes;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
@@ -26,6 +29,9 @@ import java.time.LocalDateTime;
 public class ResourceInlineCommentEntity extends ResourceInlineCommentBase {
     @Id
     private String inlineCommentId; // 行内 CommentId
+
+    @Builder.Default
+    private List<ResourceInlineCommentItemBase> items = new ArrayList<>();
 
     @CreatedDate
     private LocalDateTime createTime;

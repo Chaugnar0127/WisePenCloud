@@ -27,9 +27,6 @@ public class ResourceInlineCommentBase {
     private AnchorRef anchorRef; // 锚点
 
     @Builder.Default
-    private List<ResourceInlineCommentItemBase> items = new ArrayList<>();
-
-    @Builder.Default
     private Boolean resolved = false;
 
     private String resolvedBy;

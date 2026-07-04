@@ -3,6 +3,7 @@ package com.oriole.wisepen.resource.domain.dto.res;
 import com.oriole.wisepen.resource.domain.base.ResourceInlineCommentBase;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
 import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -10,7 +11,7 @@ import java.util.List;
 
 @EqualsAndHashCode(callSuper = true)
 @Data
-@Builder
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
 public class ResourceInlineCommentResponse extends ResourceInlineCommentBase {
