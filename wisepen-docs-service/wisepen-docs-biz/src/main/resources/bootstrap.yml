@@ -61,6 +61,9 @@ scalar:
     - title: AI 资产服务
       slug: ai-asset
       url: /docs/api/ai-asset
+    - title: AI 服务
+      slug: chat
+      url: /docs/api/chat
 
 wisepen:
   openapi:
@@ -77,3 +80,6 @@ wisepen:
       fudan-extension: wisepen-fudan-extension-service
       note: wisepen-note-service
       ai-asset: wisepen-ai-asset-service
+      chat: wisepen-chat-service
+    api-docs-paths:
+      chat: /openapi.json
