@@ -9,7 +9,7 @@ public interface SearchConstants {
     String ANALYZER_IK_SMART = "ik_smart";
 
     String[] BOOSTED_SEARCH_FIELDS = {"resourceName^2", "content"};
-    String[] MARKET_BOOSTED_SEARCH_FIELDS = {"resourceName^2", "previewContent"};
+    String[] MARKET_BOOSTED_SEARCH_FIELDS = {"resourceName^2", "previewContent", "searchContent^0.4"};
 
     String HIGHLIGHT_PRE_TAG = "<em class=\"wp-highlight\">";
     String HIGHLIGHT_POST_TAG = "</em>";

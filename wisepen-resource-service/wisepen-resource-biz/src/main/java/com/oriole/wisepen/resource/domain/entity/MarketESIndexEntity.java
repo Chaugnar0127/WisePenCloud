@@ -58,6 +58,11 @@ public class MarketESIndexEntity {
             searchAnalyzer = SearchConstants.ANALYZER_IK_SMART)
     private String previewContent;
 
+    @Field(type = FieldType.Text,
+            analyzer = SearchConstants.ANALYZER_IK_MAX_WORD,
+            searchAnalyzer = SearchConstants.ANALYZER_IK_SMART)
+    private String searchContent;
+
     @Field(type = FieldType.Date,
             format = {},
             pattern = SearchConstants.ES_DATE_FORMAT_PATTERN)
@@ -71,7 +76,11 @@ public class MarketESIndexEntity {
         this.previewContent = previewContent == null ? null : HtmlUtils.htmlEscape(previewContent);
     }
 
-    public MarketESIndexEntity(ResourceItemEntity entity, String marketGroupId, String previewContent) {
+    public void setSearchContent(String searchContent) {
+        this.searchContent = searchContent == null ? null : HtmlUtils.htmlEscape(searchContent);
+    }
+
+    public MarketESIndexEntity(ResourceItemEntity entity, String marketGroupId, String previewContent, String searchContent) {
         GroupTagBind marketGroupBind = entity.getGroupBinds().stream()
                 .filter(bind -> marketGroupId.equals(bind.getGroupId()))
                 .findFirst()
@@ -90,5 +99,6 @@ public class MarketESIndexEntity {
 
         this.setResourceName(entity.getResourceName());
         this.setPreviewContent(previewContent);
+        this.setSearchContent(searchContent);
     }
 }

@@ -129,7 +129,7 @@ public class SearchSyncServiceImpl implements ISearchSyncService {
 
         String fullText = getVersionSearchText(entity.getResourceId(), entity.getResourceType(), marketSaleInfo.getOfferVersion());
         String previewContent = truncatePreviewContent(fullText, marketSaleInfo.getReviewContentPercentage());
-        executeMarketESUpsert(new MarketESIndexEntity(entity, marketGroupId, previewContent));
+        executeMarketESUpsert(new MarketESIndexEntity(entity, marketGroupId, previewContent, fullText));
     }
 
     // 获取对应版本的搜索文本
