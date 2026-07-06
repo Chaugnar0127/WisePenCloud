@@ -14,7 +14,9 @@ public class DocsServiceProperties {
 
     private Map<String, String> services = new LinkedHashMap<>();
     private Map<String, String> apiDocsPaths = new LinkedHashMap<>();
+    private Map<String, String> asyncapiDocsPaths = new LinkedHashMap<>();
     private String defaultApiDocsPath = "/v3/api-docs";
+    private String defaultAsyncapiDocsPath = "/springwolf/docs";
     private String proxyBasePath = "/docs/proxy";
 
 }
