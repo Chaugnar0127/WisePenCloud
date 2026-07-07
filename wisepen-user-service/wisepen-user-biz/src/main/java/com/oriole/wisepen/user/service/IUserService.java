@@ -5,10 +5,12 @@ import com.oriole.wisepen.common.core.domain.enums.IdentityType;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
 import com.oriole.wisepen.user.api.domain.dto.req.*;
 import com.oriole.wisepen.user.api.domain.dto.res.UserDetailInfoResponse;
+import com.oriole.wisepen.user.api.domain.dto.res.UserSearchUserResponse;
 import com.oriole.wisepen.user.api.enums.Status;
 import com.oriole.wisepen.user.domain.entity.UserEntity;
 import com.oriole.wisepen.user.domain.entity.UserProfileEntity;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -20,6 +22,10 @@ public interface IUserService {
     UserDetailInfoResponse getUserInfoById(Long userId);
     // 根据 userId 列表获取用户展示信息
     Map<Long, UserDisplayBase> getUserDisplayInfoByIds(Set<Long> userIds);
+    // 按完整用户名或邮箱搜索用户
+    List<UserSearchUserResponse> searchUser(String keyword);
+    // 查询当前用户小组范围内的用户搜索补全
+    List<UserSearchUserResponse> listUserSearchSuggestions(Set<Long> groupIds, String keyword, Integer size);
 
     // 注册
     void register(AuthRegisterRequest req);

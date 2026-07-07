@@ -7,6 +7,7 @@ import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
 import com.oriole.wisepen.user.api.domain.dto.req.UserInfoUpdateRequest;
 import com.oriole.wisepen.user.api.domain.dto.res.UserDetailInfoResponse;
+import com.oriole.wisepen.user.api.domain.dto.res.UserSearchUserResponse;
 import com.oriole.wisepen.user.api.domain.dto.VerificationResultDTO;
 import com.oriole.wisepen.user.api.domain.dto.req.UserProfileUpdateRequest;
 import com.oriole.wisepen.user.api.enums.UserVerificationMode;
@@ -14,16 +15,23 @@ import com.oriole.wisepen.user.service.IUserService;
 import com.oriole.wisepen.user.strategy.VerificationStrategyFactory;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import lombok.RequiredArgsConstructor;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 @Tag(name = "用户资料", description = "用户资料查询、更新与身份验证")
 @RestController
 @RequestMapping("/user")
 @RequiredArgsConstructor
+@Validated
 public class UserController {
 
     private final IUserService userService;
@@ -47,6 +55,45 @@ public class UserController {
         Long userId = SecurityContextHolder.getUserId();
         UserDetailInfoResponse userInfo = userService.getUserInfoById(userId);
         return R.ok(userInfo);
+    }
+
+    @Operation(
+            summary = "搜索用户",
+            description = """
+                    - 用途：在站内消息等需要选择接收人的场景中，根据完整用户名或邮箱查找可见用户。
+                    - 请求：keyword 为完整用户名或完整邮箱；不接受学工号搜索，也不做模糊匹配。
+                    - 约束：当前用户必须已登录；可见用户必须账号正常且完成身份认证。
+                    - 处理：精确查询 sys_user 的 username 或 email，并过滤未认证或非正常状态用户；不返回邮箱、手机号或学工号。
+                    - 失败：未登录 -> PermissionError.NOT_LOGIN。
+                    - 响应：返回符合条件的用户展示列表；无可见用户时返回空列表。
+                    """
+    )
+    @CheckLogin
+    @GetMapping("/searchUser")
+    public R<List<UserSearchUserResponse>> searchUser(
+            @RequestParam("keyword") @NotBlank @Size(max = 128) String keyword
+    ) {
+        return R.ok(userService.searchUser(keyword));
+    }
+
+    @Operation(
+            summary = "查询用户搜索补全",
+            description = """
+                    - 用途：在输入接收人时，从当前用户所在小组范围内提供候选用户补全。
+                    - 请求：keyword 为补全前缀，至少 2 个字符；size 控制返回数量，默认 10，最大 20。
+                    - 约束：当前用户必须已登录；候选用户必须与当前用户至少同属一个小组、账号正常且完成身份认证。
+                    - 处理：从当前认证上下文读取用户所在小组，批量读取这些小组的成员，再按 username、email、campusNo 前缀匹配；不返回邮箱、手机号或学工号。
+                    - 失败：未登录 -> PermissionError.NOT_LOGIN。
+                    - 响应：返回包含真实姓名的用户展示补全列表；无可见候选用户时返回空列表。
+                    """
+    )
+    @CheckLogin
+    @GetMapping("/listUserSearchSuggestions")
+    public R<List<UserSearchUserResponse>> listUserSearchSuggestions(
+            @RequestParam("keyword") @NotBlank @Size(min = 2, max = 128) String keyword,
+            @RequestParam(value = "size", defaultValue = "10") @Min(1) @Max(20) Integer size
+    ) {
+        return R.ok(userService.listUserSearchSuggestions(SecurityContextHolder.getGroupRoleMap().keySet(), keyword, size));
     }
 
     @Operation(

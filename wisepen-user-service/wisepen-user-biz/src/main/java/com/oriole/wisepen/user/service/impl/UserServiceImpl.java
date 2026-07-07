@@ -21,12 +21,15 @@ import com.oriole.wisepen.user.api.domain.base.UserInfoBase;
 import com.oriole.wisepen.user.api.domain.base.UserProfileBase;
 import com.oriole.wisepen.user.api.domain.dto.req.*;
 import com.oriole.wisepen.user.api.domain.dto.res.UserDetailInfoResponse;
+import com.oriole.wisepen.user.api.domain.dto.res.UserSearchUserResponse;
 import com.oriole.wisepen.user.api.enums.Status;
 import com.oriole.wisepen.user.cache.RedisCacheManager;
+import com.oriole.wisepen.user.domain.entity.GroupMemberEntity;
 import com.oriole.wisepen.user.domain.entity.UserEntity;
 import com.oriole.wisepen.user.domain.entity.UserProfileEntity;
 import com.oriole.wisepen.user.domain.entity.UserWalletEntity;
 import com.oriole.wisepen.user.exception.UserError;
+import com.oriole.wisepen.user.mapper.GroupMemberMapper;
 import com.oriole.wisepen.user.mapper.UserWalletsMapper;
 import com.oriole.wisepen.user.service.IUserService;
 import com.oriole.wisepen.user.mapper.UserMapper;
@@ -50,6 +53,7 @@ public class UserServiceImpl implements IUserService {
 
     private final UserMapper userMapper;
     private final UserProfileMapper userProfileMapper;
+    private final GroupMemberMapper groupMemberMapper;
     private final UserWalletsMapper userWalletsMapper;
     private final RedisCacheManager redisCacheManager;
 
@@ -83,6 +87,55 @@ public class UserServiceImpl implements IUserService {
                 UserEntity::getUserId,
                 user -> BeanUtil.copyProperties(user, UserDisplayBase.class),
                 (existing, replacement) -> existing));
+    }
+
+    @Override
+    public List<UserSearchUserResponse> searchUser(String keyword) {
+        String searchKeyword = keyword.trim();
+        LambdaQueryWrapper<UserEntity> userWrapper = Wrappers.<UserEntity>lambdaQuery();
+        // 被搜索的用户必须是已经认证的用户
+        userWrapper.eq(UserEntity::getStatus, Status.NORMAL).isNotNull(UserEntity::getVerificationMode)
+                .and(wrapper -> wrapper.eq(UserEntity::getUsername, searchKeyword).or().eq(UserEntity::getEmail, searchKeyword));
+        List<UserEntity> candidateUsers = userMapper.selectList(userWrapper);
+        if (CollectionUtils.isEmpty(candidateUsers)) {
+            return Collections.emptyList();
+        }
+        return candidateUsers.stream()
+                .map(user -> BeanUtil.copyProperties(user, UserSearchUserResponse.class))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<UserSearchUserResponse> listUserSearchSuggestions(Set<Long> groupIds, String keyword, Integer size) {
+        String searchKeyword = keyword.trim();
+        if (CollectionUtils.isEmpty(groupIds) || searchKeyword.length() < 2) {
+            return Collections.emptyList();
+        }
+        int querySize = Math.min(Math.max(size == null ? 10 : size, 1), 20);
+
+        LambdaQueryWrapper<GroupMemberEntity> groupMemberWrapper = Wrappers.<GroupMemberEntity>lambdaQuery();
+        groupMemberWrapper.in(GroupMemberEntity::getGroupId, groupIds)
+                .select(GroupMemberEntity::getUserId);
+        Set<Long> groupUserIds = groupMemberMapper.selectList(groupMemberWrapper).stream()
+                .map(GroupMemberEntity::getUserId)
+                .collect(Collectors.toSet());
+        if (CollectionUtils.isEmpty(groupUserIds)) {
+            return Collections.emptyList();
+        }
+
+        LambdaQueryWrapper<UserEntity> userWrapper = Wrappers.<UserEntity>lambdaQuery();
+        userWrapper.in(UserEntity::getUserId, groupUserIds)
+                .eq(UserEntity::getStatus, Status.NORMAL)
+                .isNotNull(UserEntity::getVerificationMode)
+                .and(wrapper -> wrapper.likeRight(UserEntity::getUsername, searchKeyword)
+                        .or().likeRight(UserEntity::getEmail, searchKeyword)
+                        .or().likeRight(UserEntity::getCampusNo, searchKeyword))
+                .orderByAsc(UserEntity::getUsername);
+        Page<UserEntity> suggestionPage = userMapper.selectPage(new Page<>(1, querySize, false), userWrapper);
+
+        return suggestionPage.getRecords().stream()
+                .map(user -> BeanUtil.copyProperties(user, UserSearchUserResponse.class))
+                .collect(Collectors.toList());
     }
 
     @Override
