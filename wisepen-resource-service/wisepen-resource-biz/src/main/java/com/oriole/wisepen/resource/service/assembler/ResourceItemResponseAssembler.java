@@ -162,7 +162,7 @@ public class ResourceItemResponseAssembler {
     private Map<Long, GroupDisplayBase> fetchOverrideGroupInfo(List<ResourceItemEntity> entities, String currentUserId) {
         List<Long> groupIds = entities.stream()
                 .filter(entity -> Objects.equals(currentUserId, entity.getOwnerId()))
-                .map(ResourceItemEntity::getOverrideGrantedActionsMask).flatMap(mask -> mask.keySet().stream())
+                .map(ResourceItemEntity::getOverrideGrantedActionsMask).filter(Objects::nonNull).flatMap(mask -> mask.keySet().stream())
                 .map(Long::valueOf).distinct().toList();
         if (groupIds.isEmpty()) return Collections.emptyMap();
         try {
@@ -178,7 +178,7 @@ public class ResourceItemResponseAssembler {
     private Map<Long, UserDisplayBase> fetchSpecifiedUserInfo(List<ResourceItemEntity> entities, String currentUserId) {
         List<Long> userIds = entities.stream()
                 .filter(entity -> Objects.equals(currentUserId, entity.getOwnerId()))
-                .map(ResourceItemEntity::getSpecifiedUsersGrantedActionsMask).flatMap(mask -> mask.keySet().stream())
+                .map(ResourceItemEntity::getSpecifiedUsersGrantedActionsMask).filter(Objects::nonNull).flatMap(mask -> mask.keySet().stream())
                 .map(Long::valueOf).distinct().toList();
         if (userIds.isEmpty()) return Collections.emptyMap();
         try {
