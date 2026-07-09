@@ -19,7 +19,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.Set;
 
-import static com.oriole.wisepen.document.util.MarkdownPageBreakInjector.pageBreakMarker;
+import static com.oriole.wisepen.document.util.MarkdownPageBreakInjector.pageEndMarker;
+import static com.oriole.wisepen.document.util.MarkdownPageBreakInjector.pageStartMarker;
 
 @Slf4j
 @Service
@@ -87,9 +88,10 @@ public class DocumentFileServiceImpl implements IDocumentFileService {
                 charCount += pageText.length();
 
                 pageText = PdfTextNormalizer.normalize(pageText);
-                if (normalizedText.length() > 0) normalizedText.append("\n\n");
-                if (pageNo > 1) normalizedText.append(pageBreakMarker(pageNo)).append("\n\n");
-                if (pageText != null && !pageText.isBlank()) normalizedText.append(pageText);
+                if (!normalizedText.isEmpty()) normalizedText.append("\n\n");
+                normalizedText.append(pageStartMarker(pageNo)).append("\n\n");
+                if (pageText != null && !pageText.isBlank()) normalizedText.append(pageText).append("\n\n");
+                normalizedText.append(pageEndMarker(pageNo));
             }
             log.debug("pdf text extraction finished. pages={} charCount={} normalizedCharCount={}",
                     pageCount, charCount, normalizedText.length());
