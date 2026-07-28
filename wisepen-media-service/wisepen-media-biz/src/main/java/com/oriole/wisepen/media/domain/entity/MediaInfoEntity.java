@@ -1,8 +1,6 @@
 package com.oriole.wisepen.media.domain.entity;
 
 import com.oriole.wisepen.media.api.domain.base.MediaStatus;
-import com.oriole.wisepen.media.api.domain.base.MediaUploadMeta;
-import com.oriole.wisepen.media.api.enums.ForensicCapability;
 import com.oriole.wisepen.resource.enums.ResourceType;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -41,15 +39,21 @@ public class MediaInfoEntity implements Persistable<String> {
 
     private ResourceType resourceType;
 
+    private String originalFilename;
+
+    private String sourceExtension;
+
+    /** 源文件在 OSS 中的 ObjectKey */
     private String sourceObjectKey;
 
+    /** 视频源 HLS 在 OSS 中的目录前缀 */
     private String sourceHlsPrefix;
 
+    /** 视频源 HLS 具体文件 ObjectKey 列表，用于资源删除时精确清理 */
     private List<String> sourceHlsObjectKeys;
 
+    /** 图片预览图或视频封面图在 OSS 中的 ObjectKey */
     private String previewObjectKey;
-
-    private String posterObjectKey;
 
     private Long durationMs;
 
@@ -59,11 +63,8 @@ public class MediaInfoEntity implements Persistable<String> {
 
     private Long size;
 
+    /** 当前媒体处理状态和失败原因 */
     private MediaStatus mediaStatus;
-
-    private ForensicCapability forensicCapability;
-
-    private MediaUploadMeta uploadMeta;
 
     @CreatedDate
     private LocalDateTime createTime;

@@ -25,7 +25,7 @@ public class FileUploadedConsumer {
     @KafkaListener(topics = TOPIC_FILE_UPLOADED, groupId = "wisepen-media-upload-callback-group")
     @AsyncListener(operation = @AsyncOperation(
             channelName = TOPIC_FILE_UPLOADED,
-            description = "消费文件上传完成事件，更新媒体上传元数据并发布后续媒体处理任务。",
+            description = "消费文件上传完成事件，更新媒体上传状态和大小并发布后续媒体处理任务。",
             payloadType = FileUploadedMessage.class,
             message = @AsyncMessage(name = "FileUploadedMessage", title = "文件上传完成事件")
     ))

@@ -14,9 +14,6 @@ public interface MqTopicConstants {
     /** 短视频会话级 HLS JIT 处理任务。 */
     String TOPIC_MEDIA_JIT_PLAYBACK = "wisepen-media-jit-playback-topic";
 
-    /** 带水印下载产物生成任务。 */
-    String TOPIC_MEDIA_WATERMARK_DOWNLOAD = "wisepen-media-watermark-download-topic";
-
     /** 媒体处理就绪事件。 */
     String TOPIC_MEDIA_READY = "wisepen-media-ready-topic";
 }

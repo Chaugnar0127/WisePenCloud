@@ -1,7 +1,6 @@
 package com.oriole.wisepen.media.repository;
 
 import com.oriole.wisepen.media.api.domain.base.MediaStatus;
-import com.oriole.wisepen.media.api.enums.ForensicCapability;
 import com.oriole.wisepen.media.api.enums.MediaStatusEnum;
 import com.oriole.wisepen.media.domain.entity.MediaInfoEntity;
 import org.springframework.data.mongodb.repository.MongoRepository;
@@ -23,8 +22,8 @@ public interface MediaInfoRepository extends MongoRepository<MediaInfoEntity, St
 
     Optional<MediaInfoEntity> findBySourceObjectKey(String sourceObjectKey);
 
-    @Query("{ 'uploadMeta.uploaderId': ?0, 'mediaStatus.status': { $in: ?1 } }")
-    List<MediaInfoEntity> findByUploaderIdAndStatusIn(Long uploaderId, List<MediaStatusEnum> statusList);
+    @Query("{ 'ownerId': ?0, 'mediaStatus.status': { $in: ?1 } }")
+    List<MediaInfoEntity> findByOwnerIdAndStatusIn(Long ownerId, List<MediaStatusEnum> statusList);
 
     @Query("{'_id': ?0}")
     @Update("{'$set': {'mediaStatus': ?1}}")
@@ -35,17 +34,12 @@ public interface MediaInfoRepository extends MongoRepository<MediaInfoEntity, St
     void updateResourceIdById(String mediaId, String resourceId);
 
     @Query("{'_id': ?0}")
-    @Update("{'$set': {'sourceHlsPrefix': ?1, 'sourceHlsObjectKeys': ?2, 'previewObjectKey': ?3, 'posterObjectKey': ?4, 'durationMs': ?5, 'width': ?6, 'height': ?7}}")
+    @Update("{'$set': {'sourceHlsPrefix': ?1, 'sourceHlsObjectKeys': ?2, 'previewObjectKey': ?3, 'durationMs': ?4, 'width': ?5, 'height': ?6}}")
     void updatePackagingResultById(String mediaId,
                                    String sourceHlsPrefix,
                                    List<String> sourceHlsObjectKeys,
                                    String previewObjectKey,
-                                   String posterObjectKey,
                                    Long durationMs,
                                    Integer width,
                                    Integer height);
-
-    @Query("{'_id': ?0}")
-    @Update("{'$set': {'forensicCapability': ?1}}")
-    void updateForensicCapabilityById(String mediaId, ForensicCapability forensicCapability);
 }

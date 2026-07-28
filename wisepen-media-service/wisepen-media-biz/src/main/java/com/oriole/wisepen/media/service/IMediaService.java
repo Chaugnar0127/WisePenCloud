@@ -25,5 +25,7 @@ public interface IMediaService {
 
     MediaInfoResponse getMediaInfo(String resourceId);
 
+    String getOriginalDownloadUrl(String resourceId);
+
     void deleteMediaByResourceIds(List<String> resourceIds);
 }

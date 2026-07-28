@@ -23,11 +23,6 @@ public class MediaProperties {
     private long sessionTtlMinutes = 30L;
 
     /**
-     * 带水印下载任务默认过期时间。
-     */
-    private long downloadJobTtlHours = 24L;
-
-    /**
      * 明水印固定声明文本。
      */
     private String academicUseText = "ACADEMIC USE ONLY";

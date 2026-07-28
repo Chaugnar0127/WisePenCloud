@@ -7,8 +7,7 @@ import java.util.Locale;
 public enum MediaSubject implements IBusinessSubject {
     MEDIA,
     MEDIA_PROCESS,
-    MEDIA_PREVIEW,
-    MEDIA_DOWNLOAD;
+    MEDIA_PREVIEW;
 
     @Override
     public String key() {

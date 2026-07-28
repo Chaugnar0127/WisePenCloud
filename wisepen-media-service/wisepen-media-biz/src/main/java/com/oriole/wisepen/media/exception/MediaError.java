@@ -27,9 +27,6 @@ public enum MediaError implements IResult {
     MEDIA_PLAYBACK_FAILED(10231, new ResultKey(BusinessDomain.MEDIA, MediaSubject.MEDIA_PREVIEW, ErrorReason.FAILED), "媒体播放会话创建失败"),
     MEDIA_FORENSIC_UNAVAILABLE(10241, new ResultKey(BusinessDomain.MEDIA, MediaSubject.MEDIA_PREVIEW, ErrorReason.UNSUPPORTED), "媒体暗水印能力不可用"),
 
-    MEDIA_DOWNLOAD_JOB_NOT_FOUND(10311, new ResultKey(BusinessDomain.MEDIA, MediaSubject.MEDIA_DOWNLOAD, ErrorReason.NOT_FOUND), "媒体下载任务不存在"),
-    MEDIA_DOWNLOAD_NOT_READY(10312, new ResultKey(BusinessDomain.MEDIA, MediaSubject.MEDIA_DOWNLOAD, ErrorReason.STATE_INVALID), "媒体下载任务尚未就绪"),
-    MEDIA_WATERMARK_NOT_SUPPORTED(10313, new ResultKey(BusinessDomain.MEDIA, MediaSubject.MEDIA_DOWNLOAD, ErrorReason.UNSUPPORTED), "该媒体不支持带水印下载"),
     CANNOT_RETRY_MEDIA_PROCESS_IN_CURRENT_STATE(10322, new ResultKey(BusinessDomain.MEDIA, MediaSubject.MEDIA_PROCESS, ErrorReason.STATE_INVALID), "媒体当前状态不能重试处理流程"),
     MEDIA_PROCESS_FAILED(10321, new ResultKey(BusinessDomain.MEDIA, MediaSubject.MEDIA_PROCESS, ErrorReason.FAILED), "媒体处理失败");
 

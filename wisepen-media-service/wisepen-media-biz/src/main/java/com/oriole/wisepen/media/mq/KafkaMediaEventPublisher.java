@@ -5,7 +5,6 @@ import com.oriole.wisepen.common.mq.ReliablePublisher;
 import com.oriole.wisepen.media.api.domain.mq.MediaJitPlaybackTaskMessage;
 import com.oriole.wisepen.media.api.domain.mq.MediaProcessTaskMessage;
 import com.oriole.wisepen.media.api.domain.mq.MediaReadyMessage;
-import com.oriole.wisepen.media.api.domain.mq.MediaWatermarkDownloadTaskMessage;
 import io.github.springwolf.core.asyncapi.annotations.AsyncMessage;
 import io.github.springwolf.core.asyncapi.annotations.AsyncOperation;
 import io.github.springwolf.core.asyncapi.annotations.AsyncPublisher;
@@ -64,23 +63,6 @@ public class KafkaMediaEventPublisher {
         } catch (Exception e) {
             log.error("media jit playback event publish request failed. topic={} mediaId={}",
                     TOPIC_MEDIA_JIT_PLAYBACK, message.getMediaId(), e);
-        }
-    }
-
-    @AsyncPublisher(operation = @AsyncOperation(
-            channelName = TOPIC_MEDIA_WATERMARK_DOWNLOAD,
-            description = "媒体带水印下载任务创建后发布最终产物生成任务。",
-            payloadType = MediaWatermarkDownloadTaskMessage.class,
-            message = @AsyncMessage(name = "MediaWatermarkDownloadTaskMessage", title = "媒体带水印下载任务")
-    ))
-    public void publishWatermarkDownloadTask(MediaWatermarkDownloadTaskMessage message) {
-        try {
-            reliablePublisher.publish(TOPIC_MEDIA_WATERMARK_DOWNLOAD, message.getJobId(), message, message.getJobId());
-            log.debug("media watermark download event publish requested. topic={} jobId={} mediaId={}",
-                    TOPIC_MEDIA_WATERMARK_DOWNLOAD, message.getJobId(), message.getMediaId());
-        } catch (Exception e) {
-            log.error("media watermark download event publish request failed. topic={} jobId={} mediaId={}",
-                    TOPIC_MEDIA_WATERMARK_DOWNLOAD, message.getJobId(), message.getMediaId(), e);
         }
     }
 

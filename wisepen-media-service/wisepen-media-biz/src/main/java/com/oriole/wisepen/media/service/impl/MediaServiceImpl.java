@@ -13,19 +13,15 @@ import com.oriole.wisepen.file.storage.api.enums.StorageSceneEnum;
 import com.oriole.wisepen.file.storage.api.feign.RemoteStorageService;
 import com.oriole.wisepen.media.api.constant.MediaConstants;
 import com.oriole.wisepen.media.api.domain.base.MediaStatus;
-import com.oriole.wisepen.media.api.domain.base.MediaUploadMeta;
 import com.oriole.wisepen.media.api.domain.dto.req.MediaUploadInitRequest;
 import com.oriole.wisepen.media.api.domain.dto.res.MediaInfoResponse;
 import com.oriole.wisepen.media.api.domain.dto.res.MediaUploadInitResponse;
 import com.oriole.wisepen.media.api.domain.mq.MediaProcessTaskMessage;
-import com.oriole.wisepen.media.api.enums.ForensicCapability;
 import com.oriole.wisepen.media.api.enums.MediaStatusEnum;
-import com.oriole.wisepen.media.domain.entity.MediaDownloadJobEntity;
 import com.oriole.wisepen.media.domain.entity.MediaInfoEntity;
 import com.oriole.wisepen.media.domain.entity.MediaWatermarkSessionEntity;
 import com.oriole.wisepen.media.exception.MediaError;
 import com.oriole.wisepen.media.mq.KafkaMediaEventPublisher;
-import com.oriole.wisepen.media.repository.MediaDownloadJobRepository;
 import com.oriole.wisepen.media.repository.MediaInfoRepository;
 import com.oriole.wisepen.media.repository.MediaWatermarkSessionRepository;
 import com.oriole.wisepen.media.service.IMediaProcessService;
@@ -51,7 +47,6 @@ public class MediaServiceImpl implements IMediaService {
 
     private final MediaInfoRepository mediaInfoRepository;
     private final MediaWatermarkSessionRepository watermarkSessionRepository;
-    private final MediaDownloadJobRepository downloadJobRepository;
     private final KafkaMediaEventPublisher eventPublisher;
     private final RemoteStorageService remoteStorageService;
     private final IMediaProcessService mediaProcessService;
@@ -80,24 +75,16 @@ public class MediaServiceImpl implements IMediaService {
             throw new ServiceException(MediaError.MEDIA_UPLOAD_URL_APPLY_FAILED, e.getMessage());
         }
 
-        MediaUploadMeta uploadMeta = MediaUploadMeta.builder()
-                .mediaName(request.getFilename())
-                .uploaderId(uploaderId)
-                .resourceType(resourceType)
-                .extension(request.getExtension())
-                .size(request.getExpectedSize())
-                .build();
-
         MediaInfoEntity entity = MediaInfoEntity.builder()
                 .mediaId(mediaId)
                 .ownerId(uploaderId)
                 .resourceType(resourceType)
+                .originalFilename(request.getFilename())
+                .sourceExtension(request.getExtension())
                 .sourceObjectKey(uploadInitResp.getObjectKey())
                 .size(request.getExpectedSize())
                 .mediaStatus(new MediaStatus(Boolean.TRUE.equals(uploadInitResp.getFlashUploaded())
                         ? MediaStatusEnum.UPLOADED : MediaStatusEnum.UPLOADING))
-                .forensicCapability(ForensicCapability.UNAVAILABLE)
-                .uploadMeta(uploadMeta)
                 .build();
         mediaInfoRepository.save(entity);
 
@@ -120,7 +107,7 @@ public class MediaServiceImpl implements IMediaService {
 
     @Override
     public List<MediaInfoResponse> listPendingMedia(Long uploaderId) {
-        List<MediaInfoEntity> entities = mediaInfoRepository.findByUploaderIdAndStatusIn(
+        List<MediaInfoEntity> entities = mediaInfoRepository.findByOwnerIdAndStatusIn(
                 uploaderId,
                 List.of(MediaStatusEnum.UPLOADING,
                         MediaStatusEnum.UPLOADED,
@@ -158,17 +145,12 @@ public class MediaServiceImpl implements IMediaService {
                     .size(storageRecord.getSize())
                     .mediaStatus(new MediaStatus(MediaStatusEnum.UPLOADED))
                     .build(), entity, IGNORE_NULL_COPY_OPTIONS);
-            if (entity.getUploadMeta() != null) {
-                BeanUtil.copyProperties(MediaUploadMeta.builder()
-                        .size(storageRecord.getSize())
-                        .build(), entity.getUploadMeta(), IGNORE_NULL_COPY_OPTIONS);
-            }
             mediaInfoRepository.save(entity);
             eventPublisher.publishProcessTask(MediaProcessTaskMessage.builder()
                     .mediaId(entity.getMediaId())
                     .sourceObjectKey(entity.getSourceObjectKey())
                     .resourceType(entity.getResourceType())
-                    .extension(entity.getUploadMeta() != null ? entity.getUploadMeta().getExtension() : null)
+                    .extension(entity.getSourceExtension())
                     .build());
         }
         return entity.getMediaStatus();
@@ -188,7 +170,7 @@ public class MediaServiceImpl implements IMediaService {
                     .mediaId(entity.getMediaId())
                     .sourceObjectKey(entity.getSourceObjectKey())
                     .resourceType(entity.getResourceType())
-                    .extension(entity.getUploadMeta() != null ? entity.getUploadMeta().getExtension() : null)
+                    .extension(entity.getSourceExtension())
                     .build());
         } else if (status == MediaStatusEnum.REGISTERING_RES_TIMEOUT) {
             mediaProcessService.finalizeToReady(mediaId);
@@ -203,7 +185,7 @@ public class MediaServiceImpl implements IMediaService {
     public void assertMediaUploader(String mediaId, Long uploaderId) {
         MediaInfoEntity entity = mediaInfoRepository.findById(mediaId)
                 .orElseThrow(() -> new ServiceException(MediaError.MEDIA_NOT_FOUND));
-        if (entity.getUploadMeta() == null || !uploaderId.equals(entity.getUploadMeta().getUploaderId())) {
+        if (!uploaderId.equals(entity.getOwnerId())) {
             throw new ServiceException(MediaError.MEDIA_PERMISSION_DENIED);
         }
     }
@@ -234,18 +216,13 @@ public class MediaServiceImpl implements IMediaService {
                 .size(message.getSize())
                 .mediaStatus(new MediaStatus(MediaStatusEnum.UPLOADED))
                 .build(), entity, IGNORE_NULL_COPY_OPTIONS);
-        if (entity.getUploadMeta() != null) {
-            BeanUtil.copyProperties(MediaUploadMeta.builder()
-                    .size(message.getSize())
-                    .build(), entity.getUploadMeta(), IGNORE_NULL_COPY_OPTIONS);
-        }
         mediaInfoRepository.save(entity);
 
         eventPublisher.publishProcessTask(MediaProcessTaskMessage.builder()
                 .mediaId(entity.getMediaId())
                 .sourceObjectKey(entity.getSourceObjectKey())
                 .resourceType(entity.getResourceType())
-                .extension(entity.getUploadMeta() != null ? entity.getUploadMeta().getExtension() : null)
+                .extension(entity.getSourceExtension())
                 .build());
         log.info("media file upload finished. mediaId={} resourceId={} objectKey={} size={}",
                 entity.getMediaId(), entity.getResourceId(), message.getObjectKey(), message.getSize());
@@ -258,10 +235,19 @@ public class MediaServiceImpl implements IMediaService {
     }
 
     @Override
+    public String getOriginalDownloadUrl(String resourceId) {
+        MediaInfoEntity mediaInfo = mediaInfoRepository.findByResourceId(resourceId)
+                .orElseThrow(() -> new ServiceException(MediaError.MEDIA_NOT_FOUND));
+        if (mediaInfo.getMediaStatus() == null || mediaInfo.getMediaStatus().getStatus() != MediaStatusEnum.READY) {
+            throw new ServiceException(MediaError.MEDIA_PREVIEW_NOT_READY);
+        }
+        return remoteStorageService.getDownloadUrl(mediaInfo.getSourceObjectKey(), null).getData();
+    }
+
+    @Override
     public void deleteMediaByResourceIds(List<String> resourceIds) {
         List<MediaInfoEntity> mediaInfos = mediaInfoRepository.findByResourceIdIn(resourceIds);
         List<MediaWatermarkSessionEntity> sessions = watermarkSessionRepository.findByResourceIdIn(resourceIds);
-        List<MediaDownloadJobEntity> downloadJobs = downloadJobRepository.findByResourceIdIn(resourceIds);
         Set<String> objectKeys = new LinkedHashSet<>();
         for (MediaInfoEntity mediaInfo : mediaInfos) {
             if (StrUtil.isNotBlank(mediaInfo.getSourceObjectKey())) {
@@ -274,9 +260,6 @@ public class MediaServiceImpl implements IMediaService {
             }
             if (StrUtil.isNotBlank(mediaInfo.getPreviewObjectKey())) {
                 objectKeys.add(mediaInfo.getPreviewObjectKey());
-            }
-            if (StrUtil.isNotBlank(mediaInfo.getPosterObjectKey())) {
-                objectKeys.add(mediaInfo.getPosterObjectKey());
             }
         }
         for (MediaWatermarkSessionEntity session : sessions) {
@@ -292,16 +275,10 @@ public class MediaServiceImpl implements IMediaService {
                         .forEach(objectKeys::add);
             }
         }
-        for (MediaDownloadJobEntity downloadJob : downloadJobs) {
-            if (StrUtil.isNotBlank(downloadJob.getOutputObjectKey())) {
-                objectKeys.add(downloadJob.getOutputObjectKey());
-            }
-        }
         if (!objectKeys.isEmpty()) {
             eventPublisher.publishFileDeleteEvent(new ArrayList<>(objectKeys));
         }
         watermarkSessionRepository.deleteByResourceIdIn(resourceIds);
-        downloadJobRepository.deleteByResourceIdIn(resourceIds);
         mediaInfoRepository.deleteByResourceIdIn(resourceIds);
         log.info("media resources deleted. count={} resourceIds={}", resourceIds.size(), summarizeIds(resourceIds));
     }

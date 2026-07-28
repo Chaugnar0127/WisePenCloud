@@ -20,7 +20,7 @@ public enum MediaStatusEnum {
     /** 正在生成媒体基础产物，如预览图、封面或 HLS。 */
     PACKAGING(3, "PACKAGING"),
 
-    /** 正在进行取证水印预处理或能力确认。 */
+    /** 历史状态：正在进行取证水印预处理或能力确认，新上传媒体不再进入该状态。 */
     FORENSIC_PREPROCESSING(4, "FORENSIC_PREPROCESSING"),
 
     /** 正在向资源服务注册可对外访问的资源。 */

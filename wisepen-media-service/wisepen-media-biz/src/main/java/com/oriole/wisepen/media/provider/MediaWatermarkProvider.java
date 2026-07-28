@@ -1,7 +1,6 @@
 package com.oriole.wisepen.media.provider;
 
 import com.oriole.wisepen.media.domain.MediaPlaybackGrant;
-import com.oriole.wisepen.media.domain.entity.MediaDownloadJobEntity;
 import com.oriole.wisepen.media.domain.entity.MediaInfoEntity;
 import com.oriole.wisepen.media.domain.entity.MediaWatermarkSessionEntity;
 
@@ -12,8 +11,4 @@ public interface MediaWatermarkProvider {
 
     MediaPlaybackGrant createPlaybackGrant(MediaInfoEntity mediaInfo,
                                            MediaWatermarkSessionEntity session);
-
-    String createWatermarkDownload(MediaInfoEntity mediaInfo,
-                                   MediaWatermarkSessionEntity session,
-                                   MediaDownloadJobEntity downloadJob);
 }

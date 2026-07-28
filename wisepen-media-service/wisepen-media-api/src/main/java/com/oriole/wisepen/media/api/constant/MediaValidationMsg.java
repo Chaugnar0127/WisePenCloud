@@ -13,7 +13,6 @@ public final class MediaValidationMsg {
     public static final String MEDIA_ID_EMPTY = "媒体ID不能为空";
     public static final String RESOURCE_ID_EMPTY = "资源ID不能为空";
     public static final String SESSION_ID_EMPTY = "会话ID不能为空";
-    public static final String JOB_ID_EMPTY = "下载任务ID不能为空";
 
     private MediaValidationMsg() {
     }

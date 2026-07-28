@@ -23,7 +23,7 @@ public class MediaProcessConsumer {
     @KafkaListener(topics = TOPIC_MEDIA_PROCESS, groupId = "wisepen-media-process-group")
     @AsyncListener(operation = @AsyncOperation(
             channelName = TOPIC_MEDIA_PROCESS,
-            description = "消费媒体处理任务，按媒体类型完成基础处理、取证预处理和资源注册。",
+            description = "消费媒体处理任务，按媒体类型完成基础产物生成和资源注册。",
             payloadType = MediaProcessTaskMessage.class,
             message = @AsyncMessage(name = "MediaProcessTaskMessage", title = "媒体处理任务")
     ))
