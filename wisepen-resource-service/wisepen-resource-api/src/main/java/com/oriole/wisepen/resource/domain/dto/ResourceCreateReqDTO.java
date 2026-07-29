@@ -1,5 +1,6 @@
 package com.oriole.wisepen.resource.domain.dto;
 
+import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.resource.constant.ResourceValidationMsg;
 import com.oriole.wisepen.resource.enums.ResourceType;
 import jakarta.validation.constraints.NotBlank;
@@ -8,6 +9,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.util.Map;
 
 @Data
 @Builder
@@ -22,6 +25,8 @@ public class ResourceCreateReqDTO {
     private String ownerId;
 
     private String pathTagId;
+
+    private Map<Long, GroupRoleType> groupRoles;
 
     private String preview;        // 初始预览图
     private Long size;             // 初始大小/字数

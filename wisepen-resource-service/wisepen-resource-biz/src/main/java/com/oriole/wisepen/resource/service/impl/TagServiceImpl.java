@@ -73,7 +73,7 @@ public class TagServiceImpl implements ITagService {
         }
 
         // 禁止建立系统级保留节点 Tag
-        if (ResourceConstants.ROOT_TAG_NAME.equals(tagName) || ResourceConstants.TRASH_TAG_NAME.equals(tagName)) {
+        if (isSystemPathTagName(tagName)) {
             throw new ServiceException(ResourceError.CANNOT_USE_RESERVED_TAG_PATH_NODE_NAME);
         }
 
@@ -132,14 +132,38 @@ public class TagServiceImpl implements ITagService {
         // 一次性查出该组所有节点，避免 N+1 查询问题
         List<TagEntity> allTags = tagRepository.findByGroupId(groupId);
 
+        ensurePersonalSystemTags(groupId, allTags);
+
+        // 转换为 DTO
+        List<TagTreeResponse> tagTreeResponseList = allTags.stream().map(entity -> {
+            TagTreeResponse tagTreeResponse = new TagTreeResponse();
+            BeanUtil.copyProperties(entity, tagTreeResponse);
+            int taggedResourceGrantedActionsMask = entity.getTaggedResourceGrantedActionsMask() == null ? 0 : entity.getTaggedResourceGrantedActionsMask();
+            tagTreeResponse.setGrantedActions(ResourceAction.permissionCodeToActions(taggedResourceGrantedActionsMask));
+            tagTreeResponse.setChildren(new ArrayList<>());
+            return tagTreeResponse;
+        }).collect(Collectors.toList());
+
+        // 在内存中组装树状结构 (比在 DB 中递归查快得多)
+        return buildTree(tagTreeResponseList, "0");
+    }
+
+    @Override
+    public void ensurePersonalSystemTags(String groupId) {
+        ensurePersonalSystemTags(groupId, tagRepository.findByGroupId(groupId));
+    }
+
+    private void ensurePersonalSystemTags(String groupId, List<TagEntity> allTags) {
         if (groupId.startsWith(ResourceConstants.PERSONAL_GROUP_PREFIX)) {
             boolean hasRoot = false;
             boolean hasTrash = false;
+            boolean hasShared = false;
 
             for (TagEntity tag : allTags) {
                 if ("0".equals(tag.getParentId())) {
                     if (ResourceConstants.ROOT_TAG_NAME.equals(tag.getTagName())) hasRoot = true;
                     if (ResourceConstants.TRASH_TAG_NAME.equals(tag.getTagName())) hasTrash = true;
+                    if (ResourceConstants.SHARED_TAG_NAME.equals(tag.getTagName())) hasShared = true;
                 }
             }
 
@@ -156,24 +180,17 @@ public class TagServiceImpl implements ITagService {
                 allTags.add(tagRepository.save(entity));
                 initialized = true;
             }
+            if (!hasShared) {
+                TagEntity entity = TagEntity.builder().groupId(groupId).ancestors(new ArrayList<>())
+                        .tagName(ResourceConstants.SHARED_TAG_NAME).parentId("0").isPath(true).build();
+                allTags.add(tagRepository.save(entity));
+                initialized = true;
+            }
 
             if (initialized) {
-                log.info("personal space created. groupId={} nodes=root,trash", groupId);
+                log.info("personal space created. groupId={} nodes=root,trash,shared", groupId);
             }
         }
-
-        // 转换为 DTO
-        List<TagTreeResponse> tagTreeResponseList = allTags.stream().map(entity -> {
-            TagTreeResponse tagTreeResponse = new TagTreeResponse();
-            BeanUtil.copyProperties(entity, tagTreeResponse);
-            int taggedResourceGrantedActionsMask = entity.getTaggedResourceGrantedActionsMask() == null ? 0 : entity.getTaggedResourceGrantedActionsMask();
-            tagTreeResponse.setGrantedActions(ResourceAction.permissionCodeToActions(taggedResourceGrantedActionsMask));
-            tagTreeResponse.setChildren(new ArrayList<>());
-            return tagTreeResponse;
-        }).collect(Collectors.toList());
-
-        // 在内存中组装树状结构 (比在 DB 中递归查快得多)
-        return buildTree(tagTreeResponseList, "0");
     }
 
     // --- 更新 Tag (Update) ---
@@ -199,12 +216,12 @@ public class TagServiceImpl implements ITagService {
         }
 
         // 禁止修改系统级保留 Tag
-        if (ResourceConstants.ROOT_TAG_NAME.equals(entity.getTagName()) || ResourceConstants.TRASH_TAG_NAME.equals(entity.getTagName())) {
+        if (isSystemPathTagName(entity.getTagName())) {
             throw new ServiceException(ResourceError.CANNOT_MODIFY_SYSTEM_TAG_PATH_NODE);
         }
 
         // 禁止改名为系统级保留节点 Tag
-        if (ResourceConstants.ROOT_TAG_NAME.equals(newName) || ResourceConstants.TRASH_TAG_NAME.equals(newName)) {
+        if (isSystemPathTagName(newName)) {
             throw new ServiceException(ResourceError.CANNOT_USE_RESERVED_TAG_PATH_NODE_NAME);
         }
 
@@ -272,7 +289,7 @@ public class TagServiceImpl implements ITagService {
         }
 
         // 系统级保留节点禁止移动位置
-        if (ResourceConstants.ROOT_TAG_NAME.equals(targetNode.getTagName()) || ResourceConstants.TRASH_TAG_NAME.equals(targetNode.getTagName())) {
+        if (isSystemPathTagName(targetNode.getTagName())) {
             throw new ServiceException(ResourceError.CANNOT_MOVE_SYSTEM_TAG_PATH_NODE);
         }
 
@@ -368,7 +385,7 @@ public class TagServiceImpl implements ITagService {
                 .orElseThrow(() -> new ServiceException(ResourceError.TAG_NODE_NOT_FOUND));
 
         // 系统级保留节点禁止删除
-        if (ResourceConstants.ROOT_TAG_NAME.equals(targetNode.getTagName()) || ResourceConstants.TRASH_TAG_NAME.equals(targetNode.getTagName())) {
+        if (isSystemPathTagName(targetNode.getTagName())) {
             throw new ServiceException(ResourceError.CANNOT_DELETE_SYSTEM_TAG_PATH_NODE);
         }
 
@@ -421,6 +438,12 @@ public class TagServiceImpl implements ITagService {
         TagEntity parent = tagRepository.findByGroupIdAndTagId(groupId, targetParentId).orElse(null);
         return parent != null && parent.getAncestors() != null && parent.getAncestors().contains(trashNode.getTagId())
                 ? TagType.IN_TRASH : TagType.NOT_IN_TRASH;
+    }
+
+    private static boolean isSystemPathTagName(String tagName) {
+        return ResourceConstants.ROOT_TAG_NAME.equals(tagName)
+                || ResourceConstants.TRASH_TAG_NAME.equals(tagName)
+                || ResourceConstants.SHARED_TAG_NAME.equals(tagName);
     }
 
     // 内存组装树

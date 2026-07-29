@@ -31,10 +31,10 @@ public class InternalResourceItemController implements RemoteResourceService {
             summary = "内部注册资源",
             description = """
                     - 用途：供文档、文件等业务服务在完成资源前置创建后登记资源中心记录。
-                    - 请求：请求体携带资源 ID、所有者、资源类型、资源名称和可选路径标签等资源摘要字段。
-                    - 约束：调用方必须通过内部服务调用边界；资源所有者和路径标签需要与业务上下文一致。
-                    - 处理：创建资源记录，绑定到所有者个人标签空间的指定路径或默认根路径，初始化互动统计，并同步资源搜索元数据；若标签绑定失败会回滚资源记录。
-                    - 失败：个人标签根节点或指定路径标签不存在 -> ResourceError.TAG_NODE_NOT_FOUND；路径标签数量不唯一 -> ResourceError.CANNOT_BIND_RESOURCE_TO_MULTIPLE_PATH_NODES；路径标签未放在首位 -> ResourceError.CANNOT_PLACE_RESOURCE_PATH_TAG_AFTER_TAGS；搜索同步失败 -> ResourceError.RESOURCE_SEARCH_FAILED。
+                    - 请求：请求体携带资源 ID、所有者、资源类型、资源名称、可选路径标签和上传初始化时的小组角色快照等资源摘要字段。
+                    - 约束：调用方必须通过内部服务调用边界；资源所有者和路径标签需要与业务上下文一致；小组路径标签必须在角色快照中存在对应成员身份。
+                    - 处理：创建资源记录；个人路径标签绑定到所有者个人空间，普通小组标签同时绑定到所有者个人 .Shared 与目标小组标签；初始化互动统计并同步资源搜索元数据；若标签绑定失败会回滚资源记录。
+                    - 失败：个人标签根节点或指定路径标签不存在 -> ResourceError.TAG_NODE_NOT_FOUND；路径标签数量不唯一 -> ResourceError.CANNOT_BIND_RESOURCE_TO_MULTIPLE_PATH_NODES；路径标签未放在首位 -> ResourceError.CANNOT_PLACE_RESOURCE_PATH_TAG_AFTER_TAGS；无权挂载到小组标签 -> ResourceError.BIND_RESOURCE_TO_TAG_NODE_DENIED；不能直接绑定集市组标签 -> ResourceError.CANNOT_BIND_MARKET_GROUP_TAG_DIRECTLY；搜索同步失败 -> ResourceError.RESOURCE_SEARCH_FAILED。
                     - 响应：返回新注册资源 ID。
                     """
     )
