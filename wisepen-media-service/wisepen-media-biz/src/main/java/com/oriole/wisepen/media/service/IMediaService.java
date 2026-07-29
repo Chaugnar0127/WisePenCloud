@@ -4,7 +4,6 @@ import com.oriole.wisepen.media.api.domain.base.MediaStatus;
 import com.oriole.wisepen.media.api.domain.dto.req.MediaUploadInitRequest;
 import com.oriole.wisepen.media.api.domain.dto.res.MediaInfoResponse;
 import com.oriole.wisepen.media.api.domain.dto.res.MediaUploadInitResponse;
-import com.oriole.wisepen.media.domain.entity.MediaInfoEntity;
 import com.oriole.wisepen.file.storage.api.domain.mq.FileUploadedMessage;
 
 import java.util.List;
