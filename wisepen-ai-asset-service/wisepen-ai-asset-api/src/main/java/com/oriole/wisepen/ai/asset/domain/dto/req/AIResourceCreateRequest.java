@@ -20,6 +20,8 @@ public class AIResourceCreateRequest {
 
     private String description;
 
+    private String pathTagId;
+
     @Builder.Default
     private AIResourceSourceType sourceType = AIResourceSourceType.MANUAL;
 }

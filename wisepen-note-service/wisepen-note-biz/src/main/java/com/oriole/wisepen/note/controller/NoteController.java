@@ -58,9 +58,9 @@ public class NoteController {
             summary = "创建笔记",
             description = """
                     - 用途：为当前用户创建一份新的笔记体系资源，可创建普通协同笔记或 Draw.io 图。
-                    - 请求：title 为资源标题；resourceType 可选，未传时按 NOTE 处理，允许 NOTE 或 DRAWIO。
+                    - 请求：title 为资源标题；resourceType 可选，未传时按 NOTE 处理，允许 NOTE 或 DRAWIO；pathTagId 可选，用于指定资源所属路径标签。
                     - 约束：当前用户必须已登录；title 必须是可用于展示的标题；resourceType 必须属于笔记服务支持的资源类型。
-                    - 处理：调用资源服务注册对应类型资源，以当前用户作为所有者；随后创建笔记信息记录并将当前用户写入作者列表；不创建初始快照。
+                    - 处理：记录当前小组角色并调用资源服务注册对应类型资源，以当前用户作为所有者挂载到指定路径或个人根目录；随后创建笔记信息记录并将当前用户写入作者列表；不创建初始快照。
                     - 失败：未登录 -> PermissionError.NOT_LOGIN；资源类型不支持 -> NoteError.CANNOT_SUPPORT_NOTE_RESOURCE_TYPE；资源注册失败或笔记信息落库失败 -> NoteError.NOTE_REGISTER_RESOURCE_FAILED。
                     - 响应：返回新笔记的资源 ID。
                     """
@@ -69,7 +69,8 @@ public class NoteController {
     @PostMapping("/addNote")
     public R<String> createNote(@Validated @RequestBody NoteCreateRequest request) {
         String userId = SecurityContextHolder.getUserId().toString();
-        String resourceId = noteService.createNote(request, userId);
+        Map<Long, GroupRoleType> groupRoles = SecurityContextHolder.getGroupRoleMap();
+        String resourceId = noteService.createNote(request, userId, groupRoles);
         return R.ok(resourceId);
     }
 

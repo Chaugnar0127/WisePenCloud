@@ -93,7 +93,7 @@ public class DocumentServiceImpl implements IDocumentService {
     }
 
     @Override
-    public String createDocument(DocumentCreateRequest request, String userId) {
+    public String createDocument(DocumentCreateRequest request, String userId, Map<Long, GroupRoleType> groupRoles) {
 
         // 向 resource 服务注册 Document 资源
         String resourceId;
@@ -103,6 +103,8 @@ public class DocumentServiceImpl implements IDocumentService {
                             .resourceName(request.getTitle())
                             .resourceType(request.getResourceType())
                             .ownerId(userId)
+                            .pathTagId(request.getPathTagId())
+                            .groupRoles(groupRoles)
                             .build()
             ).getData();
         } catch (Exception e) {

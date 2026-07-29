@@ -26,7 +26,7 @@ public interface IDocumentService {
     void assertDocumentUploader(String documentId, Long uploaderId);
 
     // 新建文档
-    String createDocument(DocumentCreateRequest request, String userId);
+    String createDocument(DocumentCreateRequest request, String userId, Map<Long, GroupRoleType> groupRoles);
 
     // 初始化上传
     DocumentUploadInitResponse initUploadDocument(DocumentUploadInitRequest request, Long uploaderId,

@@ -66,9 +66,9 @@ public class DocumentController {
             summary = "创建文档",
             description = """
                     - 用途：为当前用户创建一份新的文档资源。
-                    - 请求：title 为文档标题。
+                    - 请求：title 为文档标题；resourceType 指定文档类型；pathTagId 可选，用于指定资源所属路径标签。
                     - 约束：当前用户必须已登录；title 必须是可用于展示的文档标题；resourceType 必须属于文档服务支持的文件型文档类型。
-                    - 处理：调用资源服务注册选定的文档类型资源，以当前用户作为所有者；随后创建文档信息记录并将当前用户写入作者列表。
+                    - 处理：记录当前小组角色并调用资源服务注册选定的文档类型资源，以当前用户作为所有者挂载到指定路径或个人根目录；随后创建文档信息记录并将当前用户写入作者列表。
                     - 失败：文件类型不支持 -> DocumentError.CANNOT_SUPPORT_FILE_TYPE；资源注册失败或文档信息落库失败 -> DocumentError.DOCUMENT_REGISTER_RESOURCE_FAILED。
                     - 响应：返回新文档的资源 ID。
                     """
@@ -80,7 +80,8 @@ public class DocumentController {
             throw new ServiceException(CANNOT_SUPPORT_FILE_TYPE);
         }
         String userId = SecurityContextHolder.getUserId().toString();
-        String resourceId = documentService.createDocument(request, userId);
+        Map<Long, GroupRoleType> groupRoles = SecurityContextHolder.getGroupRoleMap();
+        String resourceId = documentService.createDocument(request, userId, groupRoles);
         return R.ok(resourceId);
     }
 

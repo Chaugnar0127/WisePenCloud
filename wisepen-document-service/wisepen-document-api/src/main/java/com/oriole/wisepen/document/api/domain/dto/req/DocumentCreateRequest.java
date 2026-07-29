@@ -12,4 +12,6 @@ public class DocumentCreateRequest {
     private String title;
     @NotNull()
     private ResourceType resourceType;
+
+    private String pathTagId;
 }
