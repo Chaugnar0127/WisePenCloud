@@ -31,16 +31,13 @@ public class MediaPlaybackResponse implements Serializable {
     /** 播放交付模式 */
     private MediaDeliveryMode deliveryMode;
 
-    /** 图片预览图 URL */
-    private String previewUrl;
-
-    /** 视频封面图 URL */
-    private String posterUrl;
+    /** 图片或视频封面图 URL */
+    private String coverUrl;
 
     /** 视频源 HLS manifest URL */
     private String manifestUrl;
 
-    /** 音频源文件播放 URL */
+    /** 图片或音频源文件播放 URL */
     private String playbackUrl;
 
     /** 音频或视频时长，单位毫秒 */

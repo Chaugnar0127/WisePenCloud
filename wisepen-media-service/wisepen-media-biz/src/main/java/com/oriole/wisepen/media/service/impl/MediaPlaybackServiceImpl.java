@@ -16,7 +16,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 /**
- * 无水印媒体播放服务，按媒体类型返回预览图、源文件或源 HLS 播放地址
+ * 无水印媒体播放服务，按媒体类型返回封面图、源文件或源 HLS 播放地址
  */
 @Service
 @RequiredArgsConstructor
@@ -47,8 +47,9 @@ public class MediaPlaybackServiceImpl implements IMediaPlaybackService {
                 throw new ServiceException(MediaError.MEDIA_PREVIEW_NOT_READY);
             }
             return builder
-                    .deliveryMode(MediaDeliveryMode.IMAGE_PREVIEW)
-                    .previewUrl(remoteStorageService.getDownloadUrl(mediaInfo.getPreviewObjectKey(), null).getData())
+                    .deliveryMode(MediaDeliveryMode.IMAGE_SOURCE)
+                    .coverUrl(remoteStorageService.getDownloadUrl(mediaInfo.getPreviewObjectKey(), null).getData())
+                    .playbackUrl(remoteStorageService.getDownloadUrl(mediaInfo.getSourceObjectKey(), null).getData())
                     .build();
         }
         if (mediaInfo.getResourceType() == ResourceType.VIDEO) {
@@ -57,7 +58,7 @@ public class MediaPlaybackServiceImpl implements IMediaPlaybackService {
             }
             return builder
                     .deliveryMode(MediaDeliveryMode.VIDEO_SOURCE_HLS)
-                    .posterUrl(StrUtil.isNotBlank(mediaInfo.getPreviewObjectKey())
+                    .coverUrl(StrUtil.isNotBlank(mediaInfo.getPreviewObjectKey())
                             ? remoteStorageService.getDownloadUrl(mediaInfo.getPreviewObjectKey(), null).getData()
                             : null)
                     .manifestUrl("/media/getPlaybackManifest?resourceId=" + resourceId)

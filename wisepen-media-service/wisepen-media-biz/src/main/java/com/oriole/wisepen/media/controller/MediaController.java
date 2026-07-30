@@ -127,9 +127,9 @@ public class MediaController {
                     - 用途：为有查看权限的用户获取无水印媒体播放地址。
                     - 请求：resourceId 指定媒体资源。
                     - 约束：当前用户必须拥有 VIEW 动作；媒体必须已经处理完成。
-                    - 处理：图片签发处理阶段生成的预览图 OSS 短时 URL；音频直接签发源文件 OSS 短时 URL；视频返回媒体服务的源 HLS manifest 地址，不创建水印会话，不生成水印。
+                    - 处理：图片签发原图和低清封面图 OSS 短时 URL；音频签发源文件 OSS 短时 URL；视频返回封面图和媒体服务的源 HLS manifest 地址，不创建水印会话，不生成水印。
                     - 失败：无查看权限 -> MediaError.MEDIA_PERMISSION_DENIED；媒体不存在 -> MediaError.MEDIA_NOT_FOUND；媒体未就绪 -> MediaError.MEDIA_PREVIEW_NOT_READY。
-                    - 响应：返回播放交付模式、预览 URL、音频播放 URL 或视频 manifest URL。
+                    - 响应：图片通过 playbackUrl 返回原图、coverUrl 返回低清封面图；视频通过 coverUrl 返回封面图、manifestUrl 返回 HLS 地址；音频通过 playbackUrl 返回源文件。
                     """
     )
     @GetMapping("/getPlayback")
