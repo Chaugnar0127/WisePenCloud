@@ -198,7 +198,7 @@ public class MediaServiceImpl implements IMediaService {
             return;
         }
 
-        MediaInfoEntity entity = mediaInfoRepository.findBySourceObjectKey(message.getObjectKey()).orElse(null);
+        MediaInfoEntity entity = mediaInfoRepository.findByStorageObjectKey(message.getObjectKey()).orElse(null);
         if (entity == null) {
             eventPublisher.publishFileDeleteEvent(List.of(message.getObjectKey()));
             log.warn("media file upload compensated for missing media. objectKey={}", message.getObjectKey());
