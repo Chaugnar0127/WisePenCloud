@@ -33,8 +33,6 @@ public interface IResourceService {
 
     void updateGroupResourceTags(String resourceId, String groupId, String userId, GroupRoleType groupRole, List<String> tagIds);
 
-    void updateGroupResourceTags(ResourceItemEntity resource, String groupId, String userId, GroupRoleType groupRole, List<String> tagIds);
-
     List<TagEntity> findAndValidateTags(String groupId, List<String> tagIds);
 
     void updateResourceActionPermission(ResourceUpdateActionPermissionRequest req);
@@ -57,9 +55,6 @@ public interface IResourceService {
     // ToService：增加、移除、更新资源；检查特定资源的权限
 
     String createResourceItem(ResourceCreateReqDTO dto);
-
-    // 校验资源创建时的路径挂载权限，不创建资源
-    void checkCreateResourcePermission(ResourceCreateReqDTO dto);
 
     void hardRemoveResources(List<String> resourceIds);
 

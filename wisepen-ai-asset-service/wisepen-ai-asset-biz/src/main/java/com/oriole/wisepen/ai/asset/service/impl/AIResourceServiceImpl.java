@@ -44,8 +44,8 @@ public abstract class AIResourceServiceImpl<AT extends AIResourceBaseEntity<AT>,
                 .resourceName(req.getTitle())
                 .resourceType(getResourceType())
                 .ownerId(userId)
-                .pathTagId(req.getPathTagId())
-                .groupRoles(groupRoles)
+                .ownerGroupRoles(groupRoles)
+                .mountTargetTagId(req.getMountTargetTagId())
                 .build()).getData();
         if (!StringUtils.hasText(resourceId)) {
             throw new ServiceException(AIResourceError.AI_RESOURCE_REGISTER_FAILED);

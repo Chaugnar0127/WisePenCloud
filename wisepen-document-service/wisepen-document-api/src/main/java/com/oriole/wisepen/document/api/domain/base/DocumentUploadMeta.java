@@ -16,8 +16,8 @@ import java.util.Map;
 public class DocumentUploadMeta {
     private String documentName;
     private Long uploaderId;
+    private Map<Long, GroupRoleType> uploaderGroupRoles;
     private ResourceType fileType;
     private Long size;
-    private String pathTagId;
-    private Map<Long, GroupRoleType> groupRoles;
+    private String mountTargetTagId;
 }

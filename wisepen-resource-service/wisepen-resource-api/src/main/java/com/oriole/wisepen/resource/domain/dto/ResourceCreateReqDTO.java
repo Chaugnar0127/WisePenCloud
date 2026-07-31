@@ -24,9 +24,9 @@ public class ResourceCreateReqDTO {
     @NotBlank(message = ResourceValidationMsg.OWNER_ID_NOT_BLANK)
     private String ownerId;
 
-    private String pathTagId;
+    private Map<Long, GroupRoleType> ownerGroupRoles;
 
-    private Map<Long, GroupRoleType> groupRoles;
+    private String mountTargetTagId;
 
     private String preview;        // 初始预览图
     private Long size;             // 初始大小/字数

@@ -34,7 +34,7 @@ public class InternalResourceItemController implements RemoteResourceService {
                     - 请求：请求体携带资源 ID、所有者、资源类型、资源名称、可选路径标签和上传初始化时的小组角色快照等资源摘要字段。
                     - 约束：调用方必须通过内部服务调用边界；资源所有者和路径标签需要与业务上下文一致；小组路径标签必须在角色快照中存在对应成员身份。
                     - 处理：创建资源记录；个人路径标签绑定到所有者个人空间，普通小组标签同时绑定到所有者个人 .Shared 与目标小组标签；初始化互动统计并同步资源搜索元数据；若标签绑定失败会回滚资源记录。
-                    - 失败：个人标签根节点或指定路径标签不存在 -> ResourceError.TAG_NODE_NOT_FOUND；路径标签数量不唯一 -> ResourceError.CANNOT_BIND_RESOURCE_TO_MULTIPLE_PATH_NODES；路径标签未放在首位 -> ResourceError.CANNOT_PLACE_RESOURCE_PATH_TAG_AFTER_TAGS；无权挂载到小组标签 -> ResourceError.BIND_RESOURCE_TO_TAG_NODE_DENIED；不能直接绑定集市组标签 -> ResourceError.CANNOT_BIND_MARKET_GROUP_TAG_DIRECTLY；搜索同步失败 -> ResourceError.RESOURCE_SEARCH_FAILED。
+                    - 失败：个人标签根节点或指定路径标签不存在 -> ResourceError.TAG_NODE_NOT_FOUND；路径标签数量不唯一 -> ResourceError.CANNOT_BIND_RESOURCE_TO_MULTIPLE_PATH_NODES；路径标签未放在首位 -> ResourceError.CANNOT_PLACE_RESOURCE_PATH_TAG_AFTER_TAGS；搜索同步失败 -> ResourceError.RESOURCE_SEARCH_FAILED。
                     - 响应：返回新注册资源 ID。
                     """
     )
@@ -43,23 +43,6 @@ public class InternalResourceItemController implements RemoteResourceService {
     public R<String> createResource(@Validated @RequestBody ResourceCreateReqDTO dto) {
         String resourceId = resourceService.createResourceItem(dto);
         return R.ok(resourceId);
-    }
-
-    @Operation(
-            summary = "内部校验资源创建权限",
-            description = """
-                    - 用途：供文档等业务服务在申请文件上传凭证前，校验资源路径标签是否允许当前所有者挂载。
-                    - 请求：请求体携带资源所有者、可选路径标签和上传初始化时的小组角色快照。
-                    - 约束：该接口只做标签存在性和挂载权限校验，不创建资源、不修改资源标签和搜索索引。
-                    - 处理：复用资源正式注册时的个人空间、小组空间、集市标签和标签挂载权限规则。
-                    - 失败：标签不存在或不属于目标空间 -> ResourceError.TAG_NODE_NOT_FOUND；无权挂载到小组标签 -> ResourceError.BIND_RESOURCE_TO_TAG_NODE_DENIED；不能直接绑定集市组标签 -> ResourceError.CANNOT_BIND_MARKET_GROUP_TAG_DIRECTLY。
-                    - 响应：校验通过时返回空结果。
-                    """
-    )
-    @PostMapping("/checkCreateResPermission")
-    public R<Void> checkCreateResourcePermission(@Validated @RequestBody ResourceCreateReqDTO dto) {
-        resourceService.checkCreateResourcePermission(dto);
-        return R.ok();
     }
 
     // 同步修改资源属性

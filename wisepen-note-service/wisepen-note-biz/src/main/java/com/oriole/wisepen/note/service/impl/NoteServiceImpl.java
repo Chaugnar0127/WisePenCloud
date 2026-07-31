@@ -59,8 +59,8 @@ public class NoteServiceImpl implements INoteService {
                             .resourceName(request.getTitle())
                             .resourceType(resourceType)
                             .ownerId(userId)
-                            .pathTagId(request.getPathTagId())
-                            .groupRoles(groupRoles)
+                            .ownerGroupRoles(groupRoles)
+                            .mountTargetTagId(request.getMountTargetTagId())
                             .build()
             ).getData();
         } catch (Exception e) {

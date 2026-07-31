@@ -14,7 +14,6 @@ import com.oriole.wisepen.document.domain.entity.DocumentPdfMetaEntity;
 import com.oriole.wisepen.document.domain.entity.DocumentVersionEntity;
 import com.oriole.wisepen.common.core.domain.PageR;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
-import com.oriole.wisepen.resource.enums.ResourceType;
 
 import java.util.List;
 import java.util.Map;
@@ -26,11 +25,11 @@ public interface IDocumentService {
     void assertDocumentUploader(String documentId, Long uploaderId);
 
     // 新建文档
-    String createDocument(DocumentCreateRequest request, String userId, Map<Long, GroupRoleType> groupRoles);
+    String createDocument(DocumentCreateRequest request, String userId, Map<Long, GroupRoleType> uploaderGroupRoles);
 
     // 初始化上传
     DocumentUploadInitResponse initUploadDocument(DocumentUploadInitRequest request, Long uploaderId,
-                                                   Map<Long, GroupRoleType> groupRoles);
+                                                   Map<Long, GroupRoleType> uploaderGroupRoles);
 
     // 初始化上传（OnlyOffice）
     DocumentUploadInitResponse initUploadDocumentByOnlyOffice(DocumentUploadInitRequest request, Long uploaderId, Boolean isVersioned);

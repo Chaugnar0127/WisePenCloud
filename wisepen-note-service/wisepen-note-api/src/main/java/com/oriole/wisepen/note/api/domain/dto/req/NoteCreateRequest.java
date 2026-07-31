@@ -12,5 +12,5 @@ public class NoteCreateRequest {
 
     private ResourceType resourceType;
 
-    private String pathTagId;
+    private String mountTargetTagId;
 }

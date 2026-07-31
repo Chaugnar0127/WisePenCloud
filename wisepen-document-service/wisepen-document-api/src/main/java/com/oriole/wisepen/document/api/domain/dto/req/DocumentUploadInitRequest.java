@@ -33,5 +33,5 @@ public class DocumentUploadInitRequest implements Serializable {
     @NotNull(message = DocumentValidationMsg.FILE_SIZE_NULL)
     private Long expectedSize;
 
-    private String pathTagId;
+    private String mountTargetTagId;
 }

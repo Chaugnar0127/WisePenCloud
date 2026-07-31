@@ -64,9 +64,9 @@ public class SkillController {
             summary = "创建技能资产",
             description = """
                     - 用途：为当前用户创建一个可管理和发布的技能资产。
-                    - 请求：title 为资源展示标题；name、description 和 sourceType 为技能资产元信息，sourceType 为空时按 MANUAL 处理；pathTagId 可选，用于指定资源所属路径标签。
+                    - 请求：title 为资源展示标题；name、description 和 sourceType 为技能资产元信息，sourceType 为空时按 MANUAL 处理；mountTargetTagId 可选，用于指定资源所属路径标签。
                     - 约束：当前用户必须已登录；title 必须是可用于展示的资源标题。
-                    - 处理：记录当前小组角色并调用资源服务注册 SKILL 类型资源，以当前用户作为所有者挂载到指定路径或个人根目录；创建技能主档并初始化首个草稿版本 1；不上传技能文件，也不发布版本。
+                    - 处理：调用资源服务注册 SKILL 类型资源，以当前用户作为所有者挂载到指定路径或个人根目录；创建技能主档并初始化首个草稿版本 1；不上传技能文件，也不发布版本。
                     - 失败：未登录 -> PermissionError.NOT_LOGIN；资源注册失败或技能主档落库失败 -> AIResourceError.AI_RESOURCE_REGISTER_FAILED。
                     - 响应：返回技能资产资源 ID。
                     """

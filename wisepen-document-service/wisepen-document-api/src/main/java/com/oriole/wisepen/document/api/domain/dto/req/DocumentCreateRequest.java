@@ -13,5 +13,5 @@ public class DocumentCreateRequest {
     @NotNull()
     private ResourceType resourceType;
 
-    private String pathTagId;
+    private String mountTargetTagId;
 }

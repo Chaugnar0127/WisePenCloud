@@ -20,7 +20,7 @@ public class AIResourceCreateRequest {
 
     private String description;
 
-    private String pathTagId;
+    private String mountTargetTagId;
 
     @Builder.Default
     private AIResourceSourceType sourceType = AIResourceSourceType.MANUAL;
