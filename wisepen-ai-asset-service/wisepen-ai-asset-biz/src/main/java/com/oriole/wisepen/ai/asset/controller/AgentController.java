@@ -52,9 +52,9 @@ public class AgentController {
             summary = "创建智能体资产",
             description = """
                     - 用途：为当前用户创建一个可管理和发布的智能体资产。
-                    - 请求：title 为资源展示标题；name、description 和 sourceType 为智能体元信息，sourceType 为空时按 MANUAL 处理。
+                    - 请求：title 为资源展示标题；name、description 和 sourceType 为智能体元信息，sourceType 为空时按 MANUAL 处理；pathTagId 可选，用于指定资源所属路径标签。
                     - 约束：当前用户必须已登录；title 必须是可用于展示的资源标题。
-                    - 处理：调用资源服务注册 AGENT 类型资源，以当前用户作为所有者；创建智能体主档并初始化首个草稿版本 1；不上传文件，也不发布版本。
+                    - 处理：记录当前小组角色并调用资源服务注册 AGENT 类型资源，以当前用户作为所有者挂载到指定路径或个人根目录；创建智能体主档并初始化首个草稿版本 1；不上传文件，也不发布版本。
                     - 失败：未登录 -> PermissionError.NOT_LOGIN；资源注册失败或智能体主档落库失败 -> AIResourceError.AI_RESOURCE_REGISTER_FAILED。
                     - 响应：返回智能体资产资源 ID。
                     """
@@ -63,7 +63,8 @@ public class AgentController {
     @PostMapping("/createAgent")
     public R<String> createAgent(@Validated @RequestBody AIResourceCreateRequest request) {
         String userId = SecurityContextHolder.getUserId().toString();
-        String resourceId = agentService.createAIResource(request, userId);
+        Map<Long, GroupRoleType> groupRoles = SecurityContextHolder.getGroupRoleMap();
+        String resourceId = agentService.createAIResource(request, userId, groupRoles);
         return R.ok(resourceId);
     }
 

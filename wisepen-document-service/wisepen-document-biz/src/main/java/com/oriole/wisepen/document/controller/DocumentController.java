@@ -24,10 +24,12 @@ import com.oriole.wisepen.document.service.IDocumentPreviewService;
 import com.oriole.wisepen.document.service.IDocumentService;
 import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionReqDTO;
 import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionResDTO;
+import com.oriole.wisepen.resource.domain.dto.ResourceCreateReqDTO;
 import com.oriole.wisepen.resource.domain.dto.ResourceInfoGetReqDTO;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
 import com.oriole.wisepen.resource.enums.ResourceAccessRole;
 import com.oriole.wisepen.resource.enums.ResourceAction;
+import com.oriole.wisepen.resource.enums.ResourceType;
 import com.oriole.wisepen.resource.feign.RemoteResourceService;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
 import com.oriole.wisepen.user.api.feign.RemoteUserService;
@@ -38,6 +40,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -66,9 +69,9 @@ public class DocumentController {
             summary = "创建文档",
             description = """
                     - 用途：为当前用户创建一份新的文档资源。
-                    - 请求：title 为文档标题。
+                    - 请求：title 为文档标题；resourceType 指定文档类型；pathTagId 可选，用于指定资源所属路径标签。
                     - 约束：当前用户必须已登录；title 必须是可用于展示的文档标题；resourceType 必须属于文档服务支持的文件型文档类型。
-                    - 处理：调用资源服务注册选定的文档类型资源，以当前用户作为所有者；随后创建文档信息记录并将当前用户写入作者列表。
+                    - 处理：记录当前小组角色并调用资源服务注册选定的文档类型资源，以当前用户作为所有者挂载到指定路径或个人根目录；随后创建文档信息记录并将当前用户写入作者列表。
                     - 失败：文件类型不支持 -> DocumentError.CANNOT_SUPPORT_FILE_TYPE；资源注册失败或文档信息落库失败 -> DocumentError.DOCUMENT_REGISTER_RESOURCE_FAILED。
                     - 响应：返回新文档的资源 ID。
                     """
@@ -80,7 +83,8 @@ public class DocumentController {
             throw new ServiceException(CANNOT_SUPPORT_FILE_TYPE);
         }
         String userId = SecurityContextHolder.getUserId().toString();
-        String resourceId = documentService.createDocument(request, userId);
+        Map<Long, GroupRoleType> groupRoles = SecurityContextHolder.getGroupRoleMap();
+        String resourceId = documentService.createDocument(request, userId, groupRoles);
         return R.ok(resourceId);
     }
 
@@ -88,10 +92,10 @@ public class DocumentController {
             summary = "初始化文档上传",
             description = """
                     - 用途：为当前用户创建文档上传任务，并申请对象存储直传凭证。
-                    - 请求：filename 为展示文件名；extension 为文件扩展名；md5 用于秒传判定；expectedSize 为预期文件大小。
+                    - 请求：filename 为展示文件名；extension 为文件扩展名；md5 用于秒传判定；expectedSize 为预期文件大小；pathTagId 可选，首次上传完成后用于指定资源所属路径标签。
                     - 约束：当前用户必须已登录；扩展名必须属于文档服务支持的文件类型；请求字段必须通过校验。
-                    - 处理：创建首个待处理版本，向文件存储服务申请上传 URL 或触发秒传；命中秒传时立即发布文档解析任务；版本解析完成后注册资源并发布为当前版本。
-                    - 失败：未登录 -> PermissionError.NOT_LOGIN；文件类型不支持 -> DocumentError.CANNOT_SUPPORT_FILE_TYPE；存储服务申请上传凭证失败 -> DocumentError.DOCUMENT_UPLOAD_URL_APPLY_FAILED；资源注册失败 -> DocumentError.DOCUMENT_REGISTER_RESOURCE_FAILED。
+                    - 处理：首次上传若携带 pathTagId，会在申请上传 URL 前按当前小组角色预检资源路径挂载权限；随后创建首个待处理版本并记录当前小组角色，向文件存储服务申请上传 URL 或触发秒传；命中秒传时立即发布文档解析任务；版本解析完成后注册资源。
+                    - 失败：未登录 -> PermissionError.NOT_LOGIN；文件类型不支持 -> DocumentError.CANNOT_SUPPORT_FILE_TYPE；无资源编辑或路径挂载权限 -> DocumentError.DOCUMENT_PERMISSION_DENIED；存储服务申请上传凭证失败 -> DocumentError.DOCUMENT_UPLOAD_URL_APPLY_FAILED；资源注册失败 -> DocumentError.DOCUMENT_REGISTER_RESOURCE_FAILED。
                     - 响应：返回 documentId、objectKey、上传凭证信息和是否秒传。
                     """
     )
@@ -99,15 +103,30 @@ public class DocumentController {
     @PostMapping("/uploadDoc")
     public R<DocumentUploadInitResponse> uploadDoc(@Valid @RequestBody DocumentUploadInitRequest request) {
         Long userId = SecurityContextHolder.getUserId();
+        Map<Long, GroupRoleType> groupRoles = SecurityContextHolder.getGroupRoleMap();
         if (request.getResourceId() != null) { // 更新现有版本
-            Map<Long, GroupRoleType> groupRoles = SecurityContextHolder.getGroupRoleMap();
             ResourceCheckPermissionResDTO permission = remoteResourceService.checkResPermission(ResourceCheckPermissionReqDTO.builder()
                     .resourceId(request.getResourceId()).userId(userId).groupRoles(groupRoles).build()).getData();
             if (permission == null || permission.getAllowedActions() == null || !permission.getAllowedActions().contains(ResourceAction.EDIT)) {
                 throw new ServiceException(DOCUMENT_PERMISSION_DENIED);
             }
+        } else if (StringUtils.hasText(request.getPathTagId())) { // 首次上传时，先校验目标路径的挂载权限
+            ResourceType resourceType = ResourceType.fromExtension(request.getExtension());
+            if (resourceType == null || !DocumentConstants.ALLOWED_TYPES.contains(resourceType)) {
+                throw new ServiceException(CANNOT_SUPPORT_FILE_TYPE);
+            }
+            R<Void> permissionCheck = remoteResourceService.checkCreateResourcePermission(ResourceCreateReqDTO.builder()
+                    .resourceName(request.getFilename())
+                    .resourceType(resourceType)
+                    .ownerId(userId.toString())
+                    .pathTagId(request.getPathTagId())
+                    .groupRoles(groupRoles)
+                    .build());
+            if (permissionCheck == null || !Integer.valueOf(200).equals(permissionCheck.getCode())) {
+                throw new ServiceException(DOCUMENT_PERMISSION_DENIED);
+            }
         }
-        return R.ok(documentService.initUploadDocument(request, userId));
+        return R.ok(documentService.initUploadDocument(request, userId, groupRoles));
     }
 
     @Operation(
