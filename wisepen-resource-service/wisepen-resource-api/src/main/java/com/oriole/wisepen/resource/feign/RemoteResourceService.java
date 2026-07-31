@@ -17,6 +17,9 @@ public interface RemoteResourceService {
     @PostMapping("/internal/resource/addRes")
     R<String> createResource(@RequestBody ResourceCreateReqDTO dto);
 
+    @PostMapping("/internal/resource/checkCreateResPermission")
+    R<Void> checkCreateResourcePermission(@RequestBody ResourceCreateReqDTO dto);
+
     @PostMapping("/internal/resource/changeResAttr")
     R<Void> updateAttributes(@RequestBody ResourceUpdateReqDTO dto);
 

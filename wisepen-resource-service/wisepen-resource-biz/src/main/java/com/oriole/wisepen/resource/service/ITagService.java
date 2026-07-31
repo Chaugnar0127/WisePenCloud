@@ -16,6 +16,9 @@ public interface ITagService {
     // 获取指定用户组下的完整 Tag 树
     List<TagTreeResponse> getTagTree(String groupId);
 
+    // 确保个人空间的系统路径节点存在
+    void ensurePersonalSystemTags(String groupId);
+
     // 拖拽/移动 Tag 节点 (核心难点：维护整棵子树的 ancestors)
     void moveTag(TagMoveRequest tagMoveRequest);
 

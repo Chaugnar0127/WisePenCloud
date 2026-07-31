@@ -11,4 +11,6 @@ public class NoteCreateRequest {
     private String title;
 
     private ResourceType resourceType;
+
+    private String pathTagId;
 }

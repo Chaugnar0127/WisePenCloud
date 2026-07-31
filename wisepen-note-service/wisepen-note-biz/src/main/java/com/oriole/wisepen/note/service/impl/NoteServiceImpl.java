@@ -1,6 +1,7 @@
 package com.oriole.wisepen.note.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
+import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.note.api.domain.dto.req.NoteCreateRequest;
 import com.oriole.wisepen.note.api.domain.dto.req.NoteForkRequest;
@@ -26,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Slf4j
@@ -42,7 +44,7 @@ public class NoteServiceImpl implements INoteService {
     private final RemoteResourceService remoteResourceService;
 
     @Override
-    public String createNote(NoteCreateRequest request, String userId) {
+    public String createNote(NoteCreateRequest request, String userId, Map<Long, GroupRoleType> groupRoles) {
         ResourceType resourceType = request.getResourceType() == null ? ResourceType.NOTE : request.getResourceType();
         // 检查资源类型
         if (resourceType != ResourceType.NOTE && resourceType != ResourceType.DRAWIO) {
@@ -57,6 +59,8 @@ public class NoteServiceImpl implements INoteService {
                             .resourceName(request.getTitle())
                             .resourceType(resourceType)
                             .ownerId(userId)
+                            .pathTagId(request.getPathTagId())
+                            .groupRoles(groupRoles)
                             .build()
             ).getData();
         } catch (Exception e) {

@@ -14,6 +14,7 @@ import com.oriole.wisepen.ai.asset.repository.AIResourceBaseRepository;
 import com.oriole.wisepen.ai.asset.service.IAIResourceService;
 import com.oriole.wisepen.ai.asset.service.IVersionService;
 import com.oriole.wisepen.common.core.exception.ServiceException;
+import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.resource.domain.dto.ResourceCreateReqDTO;
 import com.oriole.wisepen.resource.enums.ResourceType;
 import com.oriole.wisepen.resource.feign.RemoteResourceService;
@@ -23,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @RequiredArgsConstructor
@@ -37,11 +39,13 @@ public abstract class AIResourceServiceImpl<AT extends AIResourceBaseEntity<AT>,
     protected abstract ResourceType getResourceType();
 
     @Override
-    public String createAIResource(AIResourceCreateRequest req, String userId) {
+    public String createAIResource(AIResourceCreateRequest req, String userId, Map<Long, GroupRoleType> groupRoles) {
         String resourceId = remoteResourceService.createResource(ResourceCreateReqDTO.builder()
                 .resourceName(req.getTitle())
                 .resourceType(getResourceType())
                 .ownerId(userId)
+                .pathTagId(req.getPathTagId())
+                .groupRoles(groupRoles)
                 .build()).getData();
         if (!StringUtils.hasText(resourceId)) {
             throw new ServiceException(AIResourceError.AI_RESOURCE_REGISTER_FAILED);

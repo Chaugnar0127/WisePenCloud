@@ -4,6 +4,7 @@ import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import com.oriole.wisepen.common.core.domain.PageR;
+import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.document.api.constant.DocumentConstants;
 import com.oriole.wisepen.document.api.domain.base.DocumentVersionBase;
@@ -50,6 +51,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static com.oriole.wisepen.common.core.util.LogIdUtils.summarizeIds;
@@ -91,7 +93,7 @@ public class DocumentServiceImpl implements IDocumentService {
     }
 
     @Override
-    public String createDocument(DocumentCreateRequest request, String userId) {
+    public String createDocument(DocumentCreateRequest request, String userId, Map<Long, GroupRoleType> groupRoles) {
 
         // 向 resource 服务注册 Document 资源
         String resourceId;
@@ -101,6 +103,8 @@ public class DocumentServiceImpl implements IDocumentService {
                             .resourceName(request.getTitle())
                             .resourceType(request.getResourceType())
                             .ownerId(userId)
+                            .pathTagId(request.getPathTagId())
+                            .groupRoles(groupRoles)
                             .build()
             ).getData();
         } catch (Exception e) {
@@ -120,17 +124,20 @@ public class DocumentServiceImpl implements IDocumentService {
         return resourceId;
     }
 
-    public DocumentUploadInitResponse initUploadDocument(DocumentUploadInitRequest request, Long uploaderId)  {
+    public DocumentUploadInitResponse initUploadDocument(DocumentUploadInitRequest request, Long uploaderId,
+                                                          Map<Long, GroupRoleType> groupRoles)  {
         // 普通上传新增版本，检查编辑状态
-        return initUploadDocument(request, uploaderId, true, true);
+        return initUploadDocument(request, uploaderId, groupRoles, true, true);
     }
 
     public DocumentUploadInitResponse initUploadDocumentByOnlyOffice(DocumentUploadInitRequest request, Long uploaderId, Boolean isVersioned)  {
         // OnlyOffice 回调上传不检查编辑状态，是否新增版本由调用方决定
-        return initUploadDocument(request, uploaderId, isVersioned, false);
+        return initUploadDocument(request, uploaderId, null, isVersioned, false);
     }
 
-    private DocumentUploadInitResponse initUploadDocument(DocumentUploadInitRequest request, Long uploaderId, Boolean isVersioned, Boolean isCheckEditStatus) {
+    private DocumentUploadInitResponse initUploadDocument(DocumentUploadInitRequest request, Long uploaderId,
+                                                           Map<Long, GroupRoleType> groupRoles, Boolean isVersioned,
+                                                           Boolean isCheckEditStatus) {
         ResourceType fileType = ResourceType.fromExtension(request.getExtension());
         if (fileType == null || !DocumentConstants.ALLOWED_TYPES.contains(fileType)) {
             throw new ServiceException(DocumentError.CANNOT_SUPPORT_FILE_TYPE);
@@ -168,7 +175,10 @@ public class DocumentServiceImpl implements IDocumentService {
             DocumentUploadMeta meta = DocumentUploadMeta.builder().fileType(fileType)
                     .documentName(request.getFilename())
                     .size(request.getExpectedSize())
-                    .uploaderId(uploaderId).build();
+                    .uploaderId(uploaderId)
+                    .pathTagId(request.getPathTagId())
+                    .groupRoles(groupRoles)
+                    .build();
 
             DocumentVersionEntity versionEntity = DocumentVersionEntity.builder()
                     .documentId(documentId)
@@ -464,6 +474,8 @@ public class DocumentServiceImpl implements IDocumentService {
                                 .resourceType(versionEntity.getUploadMeta().getFileType())
                                 .ownerId(versionEntity.getUploadMeta().getUploaderId().toString())
                                 .size(versionEntity.getUploadMeta().getSize())
+                                .pathTagId(versionEntity.getUploadMeta().getPathTagId())
+                                .groupRoles(versionEntity.getUploadMeta().getGroupRoles())
                                 .build()
                 ).getData();
             } catch (Exception e) {

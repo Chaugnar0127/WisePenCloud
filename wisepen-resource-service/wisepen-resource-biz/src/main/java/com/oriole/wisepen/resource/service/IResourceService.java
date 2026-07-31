@@ -58,6 +58,9 @@ public interface IResourceService {
 
     String createResourceItem(ResourceCreateReqDTO dto);
 
+    // 校验资源创建时的路径挂载权限，不创建资源
+    void checkCreateResourcePermission(ResourceCreateReqDTO dto);
+
     void hardRemoveResources(List<String> resourceIds);
 
     void updateResourceAttributes(ResourceUpdateReqDTO dto);
