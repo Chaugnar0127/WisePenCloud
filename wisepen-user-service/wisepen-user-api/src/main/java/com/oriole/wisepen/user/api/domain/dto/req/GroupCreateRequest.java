@@ -21,4 +21,6 @@ public class GroupCreateRequest implements Serializable {
 	private String groupDesc; // 群组描述
 
 	private String groupCoverUrl; // 组封面URL(可选)
+
+	private String groupMetaInfo; // 组 Meta 信息(可选)
 }

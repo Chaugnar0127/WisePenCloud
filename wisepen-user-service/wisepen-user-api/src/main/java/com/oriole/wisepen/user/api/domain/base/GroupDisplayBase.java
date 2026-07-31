@@ -15,4 +15,5 @@ public class GroupDisplayBase implements Serializable {
     private String groupDesc;
     private String groupCoverUrl;
     private GroupType groupType;
+    private String groupMetaInfo;
 }
