@@ -419,9 +419,35 @@ public class ResourceServiceImpl implements IResourceService {
         return entity.getResourceId();
     }
 
+    @Override
+    public void checkCreateResourcePermission(ResourceCreateReqDTO dto) {
+        if (!StringUtils.hasText(dto.getPathTagId())) {
+            return;
+        }
+
+        String personalGroupId = ResourceConstants.PERSONAL_GROUP_PREFIX + dto.getOwnerId();
+        validateResourcePathTag(dto.getOwnerId(), personalGroupId, dto.getPathTagId(), dto.getGroupRoles());
+    }
+
     private void mountResourceToPathTag(ResourceItemEntity entity, String ownerId, String personalGroupId,
                                         String pathTagId, Map<Long, GroupRoleType> groupRoles) {
         List<String> targetTagIds = Collections.singletonList(pathTagId);
+        TagEntity pathTag = validateResourcePathTag(ownerId, personalGroupId, pathTagId, groupRoles);
+        if (pathTag.getGroupId().startsWith(ResourceConstants.PERSONAL_GROUP_PREFIX)) {
+            this.updatePersonalResourceTags(entity.getResourceId(), personalGroupId, targetTagIds);
+            return;
+        }
+
+        // 通过路径标签校验后，先挂.Shared，再挂目标小组标签
+        String sharedTagId = tagRepository.findByGroupIdAndParentIdAndTagName(
+                personalGroupId, "0", ResourceConstants.SHARED_TAG_NAME
+        ).orElseThrow(() -> new ServiceException(ResourceError.TAG_NODE_NOT_FOUND)).getTagId();
+        this.updatePersonalResourceTags(entity.getResourceId(), personalGroupId, List.of(sharedTagId));
+        mountGroupResourceTags(entity, pathTag.getGroupId(), targetTagIds);
+    }
+
+    private TagEntity validateResourcePathTag(String ownerId, String personalGroupId, String pathTagId,
+                                               Map<Long, GroupRoleType> groupRoles) {
         TagEntity pathTag = tagRepository.findById(pathTagId)
                 .orElseThrow(() -> new ServiceException(ResourceError.TAG_NODE_NOT_FOUND));
         // 个人标签只能挂载到资源所有者自己的个人空间。
@@ -429,8 +455,10 @@ public class ResourceServiceImpl implements IResourceService {
             if (!personalGroupId.equals(pathTag.getGroupId())) {
                 throw new ServiceException(ResourceError.TAG_NODE_NOT_FOUND);
             }
-            this.updatePersonalResourceTags(entity.getResourceId(), personalGroupId, targetTagIds);
-            return;
+            if (!Boolean.TRUE.equals(pathTag.getIsPath())) {
+                throw new ServiceException(ResourceError.CANNOT_BIND_RESOURCE_TO_MULTIPLE_PATH_NODES);
+            }
+            return pathTag;
         }
 
         // 禁止直接挂载到集市
@@ -440,12 +468,8 @@ public class ResourceServiceImpl implements IResourceService {
 
         // 挂载到小组前先检查挂载权限，然后先挂.Shared，再挂小组
         GroupRoleType groupRole = groupRoles == null ? null : groupRoles.get(Long.valueOf(pathTag.getGroupId()));
-        validateGroupResourceTags(pathTag.getGroupId(), ownerId, groupRole, targetTagIds);
-        String sharedTagId = tagRepository.findByGroupIdAndParentIdAndTagName(
-                personalGroupId, "0", ResourceConstants.SHARED_TAG_NAME
-        ).orElseThrow(() -> new ServiceException(ResourceError.TAG_NODE_NOT_FOUND)).getTagId();
-        this.updatePersonalResourceTags(entity.getResourceId(), personalGroupId, List.of(sharedTagId));
-        mountGroupResourceTags(entity, pathTag.getGroupId(), targetTagIds);
+        validateGroupResourceTags(pathTag.getGroupId(), ownerId, groupRole, List.of(pathTagId));
+        return pathTag;
     }
 
     @Override

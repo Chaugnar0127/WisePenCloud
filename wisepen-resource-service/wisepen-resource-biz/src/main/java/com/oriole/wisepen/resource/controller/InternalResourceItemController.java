@@ -45,6 +45,23 @@ public class InternalResourceItemController implements RemoteResourceService {
         return R.ok(resourceId);
     }
 
+    @Operation(
+            summary = "内部校验资源创建权限",
+            description = """
+                    - 用途：供文档等业务服务在申请文件上传凭证前，校验资源路径标签是否允许当前所有者挂载。
+                    - 请求：请求体携带资源所有者、可选路径标签和上传初始化时的小组角色快照。
+                    - 约束：该接口只做标签存在性和挂载权限校验，不创建资源、不修改资源标签和搜索索引。
+                    - 处理：复用资源正式注册时的个人空间、小组空间、集市标签和标签挂载权限规则。
+                    - 失败：标签不存在或不属于目标空间 -> ResourceError.TAG_NODE_NOT_FOUND；无权挂载到小组标签 -> ResourceError.BIND_RESOURCE_TO_TAG_NODE_DENIED；不能直接绑定集市组标签 -> ResourceError.CANNOT_BIND_MARKET_GROUP_TAG_DIRECTLY。
+                    - 响应：校验通过时返回空结果。
+                    """
+    )
+    @PostMapping("/checkCreateResPermission")
+    public R<Void> checkCreateResourcePermission(@Validated @RequestBody ResourceCreateReqDTO dto) {
+        resourceService.checkCreateResourcePermission(dto);
+        return R.ok();
+    }
+
     // 同步修改资源属性
     @Operation(
             summary = "内部更新资源属性",
