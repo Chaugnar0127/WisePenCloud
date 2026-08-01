@@ -8,6 +8,7 @@ import com.oriole.wisepen.resource.domain.GroupTagBind;
 import com.oriole.wisepen.resource.domain.dto.*;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceRenameRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateActionPermissionRequest;
+import com.oriole.wisepen.resource.domain.dto.res.ResourceBaseInfoResponse;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
 import com.oriole.wisepen.resource.domain.entity.ResourceItemEntity;
 import com.oriole.wisepen.resource.domain.entity.TagEntity;
@@ -36,6 +37,8 @@ public interface IResourceService {
     List<TagEntity> findAndValidateTags(String groupId, List<String> tagIds);
 
     void updateResourceActionPermission(ResourceUpdateActionPermissionRequest req);
+
+    ResourceBaseInfoResponse getResourceBaseInfo(String resourceId, String currentUserId, Map<Long, GroupRoleType> groupRoles);
 
     PageR<ResourceItemResponse> listResources(String currentUserId,
                                               String groupId, GroupRoleType userGroupRole, Map<Long, GroupRoleType> groupRoles,

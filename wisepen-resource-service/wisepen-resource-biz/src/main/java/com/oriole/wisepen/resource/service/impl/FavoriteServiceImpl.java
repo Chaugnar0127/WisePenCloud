@@ -254,6 +254,7 @@ public class FavoriteServiceImpl implements IFavoriteService {
 
         // 组装 ResourceItemResponse（过滤无 ResourceAction.DISCOVER 权限的）
         Map<String, ResourceItemResponse> responseMap = resourceItemResponseAssembler
+                // 收藏列表只做列表态可见性，不要求匹配某个具体 Market 版本，因此 checkMarketTargetVersion 为 false
                 .assembleMany(resourceMap.values().stream().toList(), userId, groupRoles, List.of(ResourceAction.DISCOVER), null, false)
                 .stream().collect(Collectors.toMap(ResourceItemResponse::getResourceId, response -> response));
 

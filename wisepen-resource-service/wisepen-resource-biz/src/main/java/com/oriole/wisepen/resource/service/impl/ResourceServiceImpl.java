@@ -14,6 +14,7 @@ import com.oriole.wisepen.resource.domain.MarketSaleInfo;
 import com.oriole.wisepen.resource.domain.dto.*;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceRenameRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateActionPermissionRequest;
+import com.oriole.wisepen.resource.domain.dto.res.ResourceBaseInfoResponse;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
 import com.oriole.wisepen.resource.domain.entity.FavoriteResourceRef;
 import com.oriole.wisepen.resource.domain.entity.GroupResConfigEntity;
@@ -31,6 +32,8 @@ import com.oriole.wisepen.resource.service.IGroupResService;
 import com.oriole.wisepen.resource.service.IResourceService;
 import com.oriole.wisepen.resource.service.ISearchSyncService;
 import com.oriole.wisepen.resource.service.ITagService;
+import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
+import com.oriole.wisepen.user.api.feign.RemoteUserService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -78,6 +81,8 @@ public class ResourceServiceImpl implements IResourceService {
     private final ISearchSyncService searchSyncService;
 
     private final ResourceItemResponseAssembler resourceItemResponseAssembler;
+
+    private final RemoteUserService remoteUserService;
 
     @EventListener
     public void handleTagTrashedEvent(TagTrashedEvent event) {
@@ -316,6 +321,34 @@ public class ResourceServiceImpl implements IResourceService {
 
         // 保存资源级权限覆盖后，触发重算
         eventPublisher.publishAclRecalculateEvent(entity.getResourceId(), "RESOURCE_ACTION_PERMISSION_CHANGED");
+    }
+
+    @Override
+    public ResourceBaseInfoResponse getResourceBaseInfo(String resourceId, String currentUserId, Map<Long, GroupRoleType> groupRoles){
+        ResourceItemEntity entity = getResourceEntity(resourceId);
+
+        // Market 组的权限在此不起作用
+        ResourceItemResponseAssembler.ResolvedResourceAccess resourceAccess =
+                resourceItemResponseAssembler.resolveAccess(entity, currentUserId, groupRoles, null, true);
+        List<ResourceAction> resourceActions = ResourceAction.permissionCodeToActions(resourceAccess.getActionsMask());
+
+        if (!resourceActions.contains(ResourceAction.DISCOVER)) {
+            log.warn("resource base info permission denied. resourceId={} userId={}", entity.getResourceId(), currentUserId);
+            throw new ServiceException(ResourceError.RESOURCE_PERMISSION_DENIED);
+        }
+
+        ResourceBaseInfoResponse response = BeanUtil.copyProperties(entity, ResourceBaseInfoResponse.class);
+        if (!resourceActions.contains(ResourceAction.VIEW)) {
+            // 预览仅对有 VIEW 权限的用户生效
+            response.setPreview(null);
+        }
+
+        Long owner = Long.valueOf(entity.getOwnerId());
+        Map<Long, UserDisplayBase> ownerInfoMap = remoteUserService.getUserDisplayInfo(List.of(owner)).getData();
+        UserDisplayBase ownerInfo = ownerInfoMap.get(owner);
+        response.setOwnerInfo(ownerInfo == null ? new UserDisplayBase("UNKNOW", null, null, null) : ownerInfo);
+
+        return response;
     }
 
     @Override
