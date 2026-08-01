@@ -139,6 +139,12 @@ public class ResourceItemResponseAssembler {
                     }
                 });
             }
+
+            if (!response.getCurrentActions().contains(ResourceAction.VIEW)) {
+                // 预览仅对有 VIEW 权限的用户生效
+                response.setPreview(null);
+            }
+
             return response;
         }).toList();
     }
