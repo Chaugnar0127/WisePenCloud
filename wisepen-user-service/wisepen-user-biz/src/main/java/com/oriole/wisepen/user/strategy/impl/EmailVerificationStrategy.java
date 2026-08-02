@@ -87,15 +87,15 @@ public class EmailVerificationStrategy implements UserVerificationStrategy {
 
         String token = redisCacheManager.setEmailVerificationCode(email, userId, school.getDomain(), school.getNameZh());
 
-        // 构建重置链接
+        // 构建验证链接
         String resetLink = userProperties.getApiDomain() + "/verify-email?token=" + token;
 
-        // 构建重置邮件
+        // 构建验证邮件
         Context context = new Context();
-        context.setVariable("reset_link", resetLink);
+        context.setVariable("verify_link", resetLink);
         context.setVariable("current_date", DateUtil.now());
         // Thymeleaf 渲染
-        String emailContent = templateEngine.process("verfiyMailTemplate", context);
+        String emailContent = templateEngine.process("verifyMailTemplate", context);
 
         MailSendDTO mailDTO = MailSendDTO.builder().toEmail(email).subject("WisePen 邮箱验证").content(emailContent).build();
 
