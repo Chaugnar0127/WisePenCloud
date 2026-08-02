@@ -139,6 +139,12 @@ public class ResourceItemResponseAssembler {
                     }
                 });
             }
+
+            if (!response.getCurrentActions().contains(ResourceAction.VIEW)) {
+                // 预览仅对有 VIEW 权限的用户生效
+                response.setPreview(null);
+            }
+
             return response;
         }).toList();
     }
@@ -232,7 +238,7 @@ public class ResourceItemResponseAssembler {
     }
 
     // 预计算 ACL 快速鉴权 (拦截非法越权访问)
-    private ResolvedResourceAccess resolveAccess(
+    public ResolvedResourceAccess resolveAccess(
             ResourceItemEntity entity,
             String currentUserId,
             Map<Long, GroupRoleType> groupRoles,

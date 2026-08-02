@@ -5,6 +5,7 @@ import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.user.api.domain.dto.req.*;
 import com.oriole.wisepen.user.api.domain.dto.res.GroupMemberDetailResponse;
 
+import java.util.List;
 import java.util.Map;
 
 public interface IGroupMemberService {
@@ -26,6 +27,9 @@ public interface IGroupMemberService {
 
 	// 获取群组成员分页列表
 	PageR<GroupMemberDetailResponse> getGroupMemberList(Long groupId, int page, int size);
+
+	// 获取群组成员 ID 列表
+	List<Long> listGroupMemberIds(Long groupId);
 
 	// 内部业务方法
 

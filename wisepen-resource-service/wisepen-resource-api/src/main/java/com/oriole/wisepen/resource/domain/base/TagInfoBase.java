@@ -19,6 +19,7 @@ public class TagInfoBase extends TagSpaceBase{
     private String tagDesc;
     private String tagIcon;
     private String tagColor;
+    private String tagMetaInfo;
 
     private String tagCreator;
 

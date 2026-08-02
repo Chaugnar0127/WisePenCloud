@@ -71,8 +71,12 @@ public class GroupController {
 			throw new PermissionException(PermissionError.UNAUTHORIZED);
 		}
 
-		if (req.getGroupType()==GroupType.MARKET_GROUP && userIdentityType != IdentityType.ADMIN) {
+		if (req.getGroupType() == GroupType.MARKET_GROUP && userIdentityType != IdentityType.ADMIN) {
 			throw new PermissionException(PermissionError.UNAUTHORIZED);
+		}
+
+		if (req.getGroupType() == GroupType.NORMAL_GROUP) {
+			req.setGroupMetaInfo(null); // 普通组不能有 Meta 信息
 		}
 
 		return R.ok(groupService.createGroup(req, SecurityContextHolder.getUserId()));
@@ -101,6 +105,11 @@ public class GroupController {
 		if (req.getGroupType()==GroupType.MARKET_GROUP && userIdentityType != IdentityType.ADMIN) {
 			throw new PermissionException(PermissionError.UNAUTHORIZED);
 		}
+
+		if (req.getGroupType() == GroupType.NORMAL_GROUP) {
+			req.setGroupMetaInfo(null); // 普通组不能有 Meta 信息
+		}
+
 		groupService.updateGroup(req);
 		return R.ok();
 	}

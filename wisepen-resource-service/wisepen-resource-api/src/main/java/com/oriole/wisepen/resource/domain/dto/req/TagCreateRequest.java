@@ -20,6 +20,12 @@ public class TagCreateRequest extends TagSpaceBase {
 
     private String tagDesc;
 
+    private String tagIcon;
+
+    private String tagColor;
+
+    private String tagMetaInfo;
+
     private AccessControlScope taggedResourceAclGrantScope;
     private List<String> taggedResourceAclGrantSpecifiedUsers;
     private List<ResourceAction> grantedActions;

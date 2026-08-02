@@ -10,6 +10,7 @@ import com.oriole.wisepen.user.api.domain.dto.req.WalletSettleCoinTradeRequest;
 import com.oriole.wisepen.user.api.feign.RemoteUserMessageService;
 import com.oriole.wisepen.user.api.feign.RemoteUserService;
 import com.oriole.wisepen.user.api.feign.RemoteWalletService;
+import com.oriole.wisepen.user.service.IGroupMemberService;
 import com.oriole.wisepen.user.service.IGroupService;
 import com.oriole.wisepen.user.service.IMessageService;
 import com.oriole.wisepen.user.service.IUserService;
@@ -37,6 +38,7 @@ public class InternalController implements RemoteUserService, RemoteWalletServic
 
     private final IUserService userService;
     private final IGroupService groupService;
+    private final IGroupMemberService groupMemberService;
     private final IWalletService walletService;
     private final IMessageService messageService;
 
@@ -72,6 +74,23 @@ public class InternalController implements RemoteUserService, RemoteWalletServic
     @GetMapping("/group/getGroupDisplayInfo")
     public R<Map<Long, GroupDisplayBase>> getGroupDisplayInfo(@RequestParam("groupId") List<Long> groupIds) {
         return R.ok(groupService.getGroupDisplayInfoByIds(new HashSet<>(groupIds)));
+    }
+
+    @Override
+    @Operation(
+            summary = "内部查询小组成员ID",
+            description = """
+                    - 用途：供业务微服务批量组装小组成员维度的数据。
+                    - 请求：groupId 指定目标小组。
+                    - 约束：调用方必须来自可信服务链路。
+                    - 处理：读取目标小组的全部成员关系并返回成员 userId；不返回成员展示信息、账号信息或角色信息。
+                    - 失败：无业务失败点。
+                    - 响应：返回小组成员 userId 列表；没有成员时返回空列表。
+                    """
+    )
+    @GetMapping("/group/member/listGroupMemberIds")
+    public R<List<Long>> listGroupMemberIds(@RequestParam("groupId") Long groupId) {
+        return R.ok(groupMemberService.listGroupMemberIds(groupId));
     }
 
     @Override

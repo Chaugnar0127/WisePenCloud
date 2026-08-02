@@ -14,6 +14,7 @@ import com.oriole.wisepen.resource.domain.MarketSaleInfo;
 import com.oriole.wisepen.resource.domain.dto.*;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceRenameRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateActionPermissionRequest;
+import com.oriole.wisepen.resource.domain.dto.res.ResourceBaseInfoResponse;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
 import com.oriole.wisepen.resource.domain.entity.FavoriteResourceRef;
 import com.oriole.wisepen.resource.domain.entity.GroupResConfigEntity;
@@ -31,6 +32,8 @@ import com.oriole.wisepen.resource.service.IGroupResService;
 import com.oriole.wisepen.resource.service.IResourceService;
 import com.oriole.wisepen.resource.service.ISearchSyncService;
 import com.oriole.wisepen.resource.service.ITagService;
+import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
+import com.oriole.wisepen.user.api.feign.RemoteUserService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -78,6 +81,8 @@ public class ResourceServiceImpl implements IResourceService {
     private final ISearchSyncService searchSyncService;
 
     private final ResourceItemResponseAssembler resourceItemResponseAssembler;
+
+    private final RemoteUserService remoteUserService;
 
     @EventListener
     public void handleTagTrashedEvent(TagTrashedEvent event) {
@@ -224,21 +229,7 @@ public class ResourceServiceImpl implements IResourceService {
         updateGroupResourceTags(entity, groupId, userId, groupRole, tagIds);
     }
 
-    @Override
     public void updateGroupResourceTags(ResourceItemEntity entity, String groupId, String userId, GroupRoleType groupRole, List<String> tagIds) {
-        validateGroupResourceTags(groupId, userId, groupRole, tagIds);
-        mountGroupResourceTags(entity, groupId, tagIds);
-    }
-
-    private void mountGroupResourceTags(ResourceItemEntity entity, String groupId, List<String> tagIds) {
-        entity.setGroupBinds(updateResourceGroupBinds(entity.getGroupBinds(), groupId, tagIds));
-        resourceItemRepository.save(entity);
-        log.info("resource tags changed. resourceId={} groupId={} tagCount={}",
-                entity.getResourceId(), groupId, tagIds == null ? 0 : tagIds.size());
-        eventPublisher.publishAclRecalculateEvent(entity.getResourceId(), "RESOURCE_TAGS_CHANGED");
-    }
-
-    private void validateGroupResourceTags(String groupId, String userId, GroupRoleType groupRole, List<String> tagIds) {
         if (tagIds != null && !tagIds.isEmpty()) {
             // 查找并检查Tag
             // MARKET 组的 Tag 无法通过这种方法找到（在 MARKET_GROUP_PREFIX 前缀的 groupId 下）因此无法通过该方法绑定
@@ -257,6 +248,12 @@ public class ResourceServiceImpl implements IResourceService {
                 checkGroupMemberTagMountPermission(userId, validTags);
             }
         }
+
+        entity.setGroupBinds(updateResourceGroupBinds(entity.getGroupBinds(), groupId, tagIds));
+        resourceItemRepository.save(entity);
+        log.info("resource tags changed. resourceId={} groupId={} tagCount={}",
+                entity.getResourceId(), groupId, tagIds == null ? 0 : tagIds.size());
+        eventPublisher.publishAclRecalculateEvent(entity.getResourceId(), "RESOURCE_TAGS_CHANGED");
     }
 
     public List<TagEntity> findAndValidateTags(String groupId, List<String> tagIds) {
@@ -327,6 +324,34 @@ public class ResourceServiceImpl implements IResourceService {
     }
 
     @Override
+    public ResourceBaseInfoResponse getResourceBaseInfo(String resourceId, String currentUserId, Map<Long, GroupRoleType> groupRoles){
+        ResourceItemEntity entity = getResourceEntity(resourceId);
+
+        // Market 组的权限在此不起作用
+        ResourceItemResponseAssembler.ResolvedResourceAccess resourceAccess =
+                resourceItemResponseAssembler.resolveAccess(entity, currentUserId, groupRoles, null, true);
+        List<ResourceAction> resourceActions = ResourceAction.permissionCodeToActions(resourceAccess.getActionsMask());
+
+        if (!resourceActions.contains(ResourceAction.DISCOVER)) {
+            log.warn("resource base info permission denied. resourceId={} userId={}", entity.getResourceId(), currentUserId);
+            throw new ServiceException(ResourceError.RESOURCE_PERMISSION_DENIED);
+        }
+
+        ResourceBaseInfoResponse response = BeanUtil.copyProperties(entity, ResourceBaseInfoResponse.class);
+        if (!resourceActions.contains(ResourceAction.VIEW)) {
+            // 预览仅对有 VIEW 权限的用户生效
+            response.setPreview(null);
+        }
+
+        Long owner = Long.valueOf(entity.getOwnerId());
+        Map<Long, UserDisplayBase> ownerInfoMap = remoteUserService.getUserDisplayInfo(List.of(owner)).getData();
+        UserDisplayBase ownerInfo = ownerInfoMap.get(owner);
+        response.setOwnerInfo(ownerInfo == null ? new UserDisplayBase("UNKNOW", null, null, null) : ownerInfo);
+
+        return response;
+    }
+
+    @Override
     public ResourceItemResponse getResourceInfo(ResourceInfoGetReqDTO dto) {
         ResourceItemEntity entity = getResourceEntity(dto.getResourceId());
 
@@ -393,17 +418,42 @@ public class ResourceServiceImpl implements IResourceService {
         ResourceItemEntity entity = new ResourceItemEntity();
         BeanUtil.copyProperties(dto, entity);
         resourceItemRepository.save(entity);
+
+        String personalGroupId = ResourceConstants.PERSONAL_GROUP_PREFIX + dto.getOwnerId();
+
+        String mountTargetTagID = dto.getMountTargetTagId();
+        // 获取 Tag 信息
+        TagEntity mountTargetTag = StringUtils.hasText(mountTargetTagID) ?
+                tagRepository.findById(mountTargetTagID).orElse(null) : null;
+        // mountTargetTag 为空时，获取个人的根目录
+        if (mountTargetTag == null) {
+            mountTargetTagID = tagRepository.findByGroupIdAndParentIdAndTagName(
+                    personalGroupId, "0", ResourceConstants.ROOT_TAG_NAME
+            ).orElseThrow(() -> new ServiceException(ResourceError.TAG_NODE_NOT_FOUND)).getTagId();
+        }
+
         try {
-            String personalGroupId = ResourceConstants.PERSONAL_GROUP_PREFIX + dto.getOwnerId();
-            tagService.ensurePersonalSystemTags(personalGroupId);
-            String pathTagID = dto.getPathTagId();
-            // pathTagID 为空时，获取个人的根目录
-            if (!StringUtils.hasText(pathTagID)) {
-                pathTagID = tagRepository.findByGroupIdAndParentIdAndTagName(
-                        personalGroupId, "0", ResourceConstants.ROOT_TAG_NAME
-                ).orElseThrow(() -> new ServiceException(ResourceError.TAG_NODE_NOT_FOUND)).getTagId();
+            if (mountTargetTag != null && !mountTargetTag.getGroupId().startsWith(ResourceConstants.PERSONAL_GROUP_PREFIX)) {
+                // 小组 Tag 需要先挂 个人.Shared 目录，再挂目标小组标签
+                String sharedTagId = tagRepository.findByGroupIdAndParentIdAndTagName(
+                        personalGroupId, "0", ResourceConstants.SHARED_TAG_NAME).orElseThrow(
+                        () -> new ServiceException(ResourceError.TAG_NODE_NOT_FOUND)
+                ).getTagId();
+                this.updatePersonalResourceTags(entity.getResourceId(), personalGroupId, List.of(sharedTagId));
+
+                try {
+                    // 确定用户有权限挂载到对应位置
+                    GroupRoleType groupRole = dto.getOwnerGroupRoles().get(Long.valueOf(mountTargetTag.getGroupId()));
+                    // 挂载标签
+                    updateGroupResourceTags(entity, mountTargetTag.getGroupId(), dto.getOwnerId(), groupRole, List.of(mountTargetTagID));
+                } catch (Exception ignored) {
+                    // 如果没有权限或出现其他错误，静默失败
+                    // TODO: 给用户发送站内信
+                }
+            } else {
+                // 个人 Tag 直接更新
+                this.updatePersonalResourceTags(entity.getResourceId(), personalGroupId, List.of(mountTargetTagID));
             }
-            mountResourceToPathTag(entity, dto.getOwnerId(), personalGroupId, pathTagID, dto.getGroupRoles());
         } catch (Exception e) {
             // 创建资源失败，回滚
             resourceItemRepository.deleteById(entity.getResourceId());
@@ -414,62 +464,9 @@ public class ResourceServiceImpl implements IResourceService {
         // 同步初始化资源搜索记录
         searchSyncService.syncResourceMetadata(entity, EnumSet.of(UpsertField.RESOURCE_TYPE, UpsertField.RESOURCE_NAME, UpsertField.ACL));
 
-        log.info("resource created. resourceId={} ownerId={} resourceType={} pathTagId={}",
-                entity.getResourceId(), dto.getOwnerId(), dto.getResourceType(), dto.getPathTagId());
+        log.info("resource created. resourceId={} ownerId={} resourceType={} mountTargetTagId={}",
+                entity.getResourceId(), dto.getOwnerId(), dto.getResourceType(), dto.getMountTargetTagId());
         return entity.getResourceId();
-    }
-
-    @Override
-    public void checkCreateResourcePermission(ResourceCreateReqDTO dto) {
-        if (!StringUtils.hasText(dto.getPathTagId())) {
-            return;
-        }
-
-        String personalGroupId = ResourceConstants.PERSONAL_GROUP_PREFIX + dto.getOwnerId();
-        validateResourcePathTag(dto.getOwnerId(), personalGroupId, dto.getPathTagId(), dto.getGroupRoles());
-    }
-
-    private void mountResourceToPathTag(ResourceItemEntity entity, String ownerId, String personalGroupId,
-                                        String pathTagId, Map<Long, GroupRoleType> groupRoles) {
-        List<String> targetTagIds = Collections.singletonList(pathTagId);
-        TagEntity pathTag = validateResourcePathTag(ownerId, personalGroupId, pathTagId, groupRoles);
-        if (pathTag.getGroupId().startsWith(ResourceConstants.PERSONAL_GROUP_PREFIX)) {
-            this.updatePersonalResourceTags(entity.getResourceId(), personalGroupId, targetTagIds);
-            return;
-        }
-
-        // 通过路径标签校验后，先挂.Shared，再挂目标小组标签
-        String sharedTagId = tagRepository.findByGroupIdAndParentIdAndTagName(
-                personalGroupId, "0", ResourceConstants.SHARED_TAG_NAME
-        ).orElseThrow(() -> new ServiceException(ResourceError.TAG_NODE_NOT_FOUND)).getTagId();
-        this.updatePersonalResourceTags(entity.getResourceId(), personalGroupId, List.of(sharedTagId));
-        mountGroupResourceTags(entity, pathTag.getGroupId(), targetTagIds);
-    }
-
-    private TagEntity validateResourcePathTag(String ownerId, String personalGroupId, String pathTagId,
-                                               Map<Long, GroupRoleType> groupRoles) {
-        TagEntity pathTag = tagRepository.findById(pathTagId)
-                .orElseThrow(() -> new ServiceException(ResourceError.TAG_NODE_NOT_FOUND));
-        // 个人标签只能挂载到资源所有者自己的个人空间。
-        if (pathTag.getGroupId().startsWith(ResourceConstants.PERSONAL_GROUP_PREFIX)) {
-            if (!personalGroupId.equals(pathTag.getGroupId())) {
-                throw new ServiceException(ResourceError.TAG_NODE_NOT_FOUND);
-            }
-            if (!Boolean.TRUE.equals(pathTag.getIsPath())) {
-                throw new ServiceException(ResourceError.CANNOT_BIND_RESOURCE_TO_MULTIPLE_PATH_NODES);
-            }
-            return pathTag;
-        }
-
-        // 禁止直接挂载到集市
-        if (pathTag.getGroupId().startsWith(ResourceConstants.MARKET_GROUP_PREFIX)) {
-            throw new ServiceException(ResourceError.CANNOT_BIND_MARKET_GROUP_TAG_DIRECTLY);
-        }
-
-        // 挂载到小组前先检查挂载权限，然后先挂.Shared，再挂小组
-        GroupRoleType groupRole = groupRoles == null ? null : groupRoles.get(Long.valueOf(pathTag.getGroupId()));
-        validateGroupResourceTags(pathTag.getGroupId(), ownerId, groupRole, List.of(pathTagId));
-        return pathTag;
     }
 
     @Override

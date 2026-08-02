@@ -1,22 +1,21 @@
 package com.oriole.wisepen.resource.domain.dto.res;
 
-import com.oriole.wisepen.resource.domain.base.ResourceItemInfoBase;
 import com.oriole.wisepen.resource.enums.ResourceAction;
 import com.oriole.wisepen.user.api.domain.base.GroupDisplayBase;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
-import lombok.Builder;
-import lombok.Data;
-import lombok.EqualsAndHashCode;
+import lombok.*;
+import lombok.experimental.SuperBuilder;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.List;
 
 @EqualsAndHashCode(callSuper = true)
+@SuperBuilder
+@AllArgsConstructor
+@NoArgsConstructor
 @Data
-public class ResourceItemResponse extends ResourceItemInfoBase {
-    private String resourceId;
-    private UserDisplayBase ownerInfo;
+public class ResourceItemResponse extends ResourceBaseInfoResponse {
 
     private List<ResourceTagBindResponse> tagBinds;
     private List<ResourceAction> currentActions;

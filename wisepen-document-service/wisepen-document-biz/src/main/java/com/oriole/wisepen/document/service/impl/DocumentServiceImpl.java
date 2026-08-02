@@ -103,8 +103,8 @@ public class DocumentServiceImpl implements IDocumentService {
                             .resourceName(request.getTitle())
                             .resourceType(request.getResourceType())
                             .ownerId(userId)
-                            .pathTagId(request.getPathTagId())
-                            .groupRoles(groupRoles)
+                            .ownerGroupRoles(groupRoles)
+                            .mountTargetTagId(request.getMountTargetTagId())
                             .build()
             ).getData();
         } catch (Exception e) {
@@ -125,9 +125,9 @@ public class DocumentServiceImpl implements IDocumentService {
     }
 
     public DocumentUploadInitResponse initUploadDocument(DocumentUploadInitRequest request, Long uploaderId,
-                                                          Map<Long, GroupRoleType> groupRoles)  {
+                                                          Map<Long, GroupRoleType> uploaderGroupRoles)  {
         // 普通上传新增版本，检查编辑状态
-        return initUploadDocument(request, uploaderId, groupRoles, true, true);
+        return initUploadDocument(request, uploaderId, uploaderGroupRoles, true, true);
     }
 
     public DocumentUploadInitResponse initUploadDocumentByOnlyOffice(DocumentUploadInitRequest request, Long uploaderId, Boolean isVersioned)  {
@@ -136,7 +136,7 @@ public class DocumentServiceImpl implements IDocumentService {
     }
 
     private DocumentUploadInitResponse initUploadDocument(DocumentUploadInitRequest request, Long uploaderId,
-                                                           Map<Long, GroupRoleType> groupRoles, Boolean isVersioned,
+                                                           Map<Long, GroupRoleType> uploaderGroupRoles, Boolean isVersioned,
                                                            Boolean isCheckEditStatus) {
         ResourceType fileType = ResourceType.fromExtension(request.getExtension());
         if (fileType == null || !DocumentConstants.ALLOWED_TYPES.contains(fileType)) {
@@ -176,8 +176,8 @@ public class DocumentServiceImpl implements IDocumentService {
                     .documentName(request.getFilename())
                     .size(request.getExpectedSize())
                     .uploaderId(uploaderId)
-                    .pathTagId(request.getPathTagId())
-                    .groupRoles(groupRoles)
+                    .uploaderGroupRoles(uploaderGroupRoles)
+                    .mountTargetTagId(request.getMountTargetTagId())
                     .build();
 
             DocumentVersionEntity versionEntity = DocumentVersionEntity.builder()
@@ -203,6 +203,9 @@ public class DocumentServiceImpl implements IDocumentService {
 
                 versionEntity.setVersion(nextVersion);
                 versionEntity.setResourceId(infoEntity.getResourceId());
+                // 非首次上传时 MountTargetTagId 与 UploaderGroupRoles 字段无效
+                versionEntity.getUploadMeta().setMountTargetTagId(null);
+                versionEntity.getUploadMeta().setUploaderGroupRoles(null);
             }
 
             documentVersionRepository.save(versionEntity);
@@ -473,9 +476,9 @@ public class DocumentServiceImpl implements IDocumentService {
                                 .resourceName(versionEntity.getUploadMeta().getDocumentName())
                                 .resourceType(versionEntity.getUploadMeta().getFileType())
                                 .ownerId(versionEntity.getUploadMeta().getUploaderId().toString())
+                                .ownerGroupRoles(versionEntity.getUploadMeta().getUploaderGroupRoles())
                                 .size(versionEntity.getUploadMeta().getSize())
-                                .pathTagId(versionEntity.getUploadMeta().getPathTagId())
-                                .groupRoles(versionEntity.getUploadMeta().getGroupRoles())
+                                .mountTargetTagId(versionEntity.getUploadMeta().getMountTargetTagId())
                                 .build()
                 ).getData();
             } catch (Exception e) {
