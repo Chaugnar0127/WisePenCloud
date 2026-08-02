@@ -5,7 +5,7 @@ import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.common.core.domain.enums.BusinessType;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.log.annotation.Log;
-import com.oriole.wisepen.common.security.annotation.CheckLogin;
+import com.oriole.wisepen.common.security.annotation.CheckRole;
 import com.oriole.wisepen.resource.domain.base.TagSpaceBase;
 import com.oriole.wisepen.resource.domain.dto.req.TagCreateRequest;
 import com.oriole.wisepen.resource.domain.dto.req.TagDeleteRequest;
@@ -28,7 +28,7 @@ import static com.oriole.wisepen.resource.constant.ResourceConstants.PERSONAL_GR
 @RestController
 @RequestMapping("/resource/tag")
 @RequiredArgsConstructor
-@CheckLogin
+@CheckRole
 public class ResourceTagController {
 
     private final ITagService tagService;

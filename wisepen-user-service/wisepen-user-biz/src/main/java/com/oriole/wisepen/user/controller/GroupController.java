@@ -6,7 +6,7 @@ import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.domain.enums.GroupType;
 import com.oriole.wisepen.common.core.domain.enums.IdentityType;
-import com.oriole.wisepen.common.security.annotation.CheckLogin;
+import com.oriole.wisepen.common.security.annotation.CheckRole;
 import com.oriole.wisepen.common.security.exception.PermissionError;
 import com.oriole.wisepen.common.security.exception.PermissionException;
 import com.oriole.wisepen.user.api.domain.dto.req.GroupCreateRequest;
@@ -29,7 +29,7 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/group")
 @RequiredArgsConstructor
 @Validated
-@CheckLogin
+@CheckRole
 public class GroupController {
 
 	private final IGroupService groupService;

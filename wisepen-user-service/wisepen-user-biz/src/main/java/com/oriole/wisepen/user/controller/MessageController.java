@@ -5,7 +5,7 @@ import com.oriole.wisepen.common.core.domain.PageR;
 import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.common.core.domain.enums.BusinessType;
 import com.oriole.wisepen.common.log.annotation.Log;
-import com.oriole.wisepen.common.security.annotation.CheckLogin;
+import com.oriole.wisepen.common.security.annotation.CheckRole;
 import com.oriole.wisepen.user.api.domain.dto.req.MessageReadRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.MessageRemoveRequest;
 import com.oriole.wisepen.user.api.domain.dto.res.MessageInfoResponse;
@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/user/message")
 @RequiredArgsConstructor
 @Validated
-@CheckLogin
+@CheckRole
 public class MessageController {
 
     private final IMessageService messageService;

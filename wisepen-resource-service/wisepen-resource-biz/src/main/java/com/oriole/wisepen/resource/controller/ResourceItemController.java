@@ -10,7 +10,7 @@ import com.oriole.wisepen.common.core.domain.enums.list.QueryLogicEnum;
 import com.oriole.wisepen.common.core.domain.enums.list.SortDirectionEnum;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.common.log.annotation.Log;
-import com.oriole.wisepen.common.security.annotation.CheckLogin;
+import com.oriole.wisepen.common.security.annotation.CheckRole;
 import com.oriole.wisepen.resource.constant.ResourceConstants;
 import com.oriole.wisepen.resource.constant.ResourceValidationMsg;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateActionPermissionRequest;
@@ -37,7 +37,7 @@ import java.util.Map;
 @RestController
 @RequestMapping("/resource/item")
 @RequiredArgsConstructor
-@CheckLogin
+@CheckRole
 @Validated
 public class ResourceItemController {
 

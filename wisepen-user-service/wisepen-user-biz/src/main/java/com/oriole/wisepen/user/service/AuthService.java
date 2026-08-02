@@ -45,7 +45,7 @@ public class AuthService {
 
         Map<String, Integer> groupRoleMap = groupMemberService.getGroupRoleMapByUserId(user.getUserId());
 
-        String sessionId = redisCacheManager.setSession(user.getUserId(), user.getIdentityType(), groupRoleMap);
+        String sessionId = redisCacheManager.setSession(user.getUserId(), user.getIdentityType(), user.getStatus(), groupRoleMap);
         log.info("login succeeded. account={} userId={} groupCount={}",
                 account, user.getUserId(), groupRoleMap.size());
         return sessionId;
