@@ -1,18 +1,14 @@
 package com.oriole.wisepen.resource.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
-import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.resource.cache.RedisCacheManager;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceRateRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceLikeRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceReadRequest;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceUserInteractionRecordResponse;
-import com.oriole.wisepen.resource.domain.entity.ResourceItemEntity;
 import com.oriole.wisepen.resource.domain.entity.ResourceUserInteractionRecordEntity;
-import com.oriole.wisepen.resource.exception.ResourceError;
 import com.oriole.wisepen.resource.repository.CustomResourceItemRepository;
 import com.oriole.wisepen.resource.repository.CustomResourceUserInteractionRecordRepository;
-import com.oriole.wisepen.resource.repository.ResourceItemRepository;
 import com.oriole.wisepen.resource.repository.ResourceUserInteractionRecordRepository;
 import com.oriole.wisepen.resource.service.IResourceInteractionService;
 import com.oriole.wisepen.resource.service.IResourceService;
@@ -84,5 +80,4 @@ public class ResourceInteractionServiceImpl implements IResourceInteractionServi
                 resourceId, userId, oldScore, newScore);
     }
 }
-
 

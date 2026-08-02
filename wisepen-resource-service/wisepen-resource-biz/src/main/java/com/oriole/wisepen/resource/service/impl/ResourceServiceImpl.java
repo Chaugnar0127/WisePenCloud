@@ -16,9 +16,11 @@ import com.oriole.wisepen.resource.domain.dto.req.ResourceRenameRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateActionPermissionRequest;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceBaseInfoResponse;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
+import com.oriole.wisepen.resource.domain.dto.res.ResourceUserInteractionRecordResponse;
 import com.oriole.wisepen.resource.domain.entity.FavoriteResourceRef;
 import com.oriole.wisepen.resource.domain.entity.GroupResConfigEntity;
 import com.oriole.wisepen.resource.domain.entity.ResourceItemEntity;
+import com.oriole.wisepen.resource.domain.entity.ResourceUserInteractionRecordEntity;
 import com.oriole.wisepen.resource.domain.entity.TagEntity;
 import com.oriole.wisepen.resource.enums.*;
 import com.oriole.wisepen.resource.event.TagChangedEvent;
@@ -346,7 +348,7 @@ public class ResourceServiceImpl implements IResourceService {
         Long owner = Long.valueOf(entity.getOwnerId());
         Map<Long, UserDisplayBase> ownerInfoMap = remoteUserService.getUserDisplayInfo(List.of(owner)).getData();
         UserDisplayBase ownerInfo = ownerInfoMap.get(owner);
-        response.setOwnerInfo(ownerInfo == null ? new UserDisplayBase("UNKNOW", null, null, null) : ownerInfo);
+        response.setOwnerInfo(ownerInfo == null ? new UserDisplayBase("UNKNOWN") : ownerInfo);
 
         return response;
     }
@@ -369,6 +371,7 @@ public class ResourceServiceImpl implements IResourceService {
                                                      String groupId, GroupRoleType userGroupRole,
                                                      Map<Long, GroupRoleType> groupRoles,
                                                      List<String> tagIds, QueryLogicEnum tagQueryLogicMode,
+                                                     Boolean includeMyInteraction,
                                                      String resourceType, int page, int size,
                                                      ResourceSortBy sortBy, SortDirectionEnum sortDir) {
 
@@ -405,6 +408,22 @@ public class ResourceServiceImpl implements IResourceService {
                 response.setTagBinds(response.getTagBinds().stream()
                         .filter(tagBind -> Objects.equals(tagBind.getGroupId(), groupId) || Objects.equals(tagBind.getGroupId(), ResourceConstants.MARKET_GROUP_PREFIX + groupId))
                         .toList());
+            });
+        }
+
+        List<String> resourceIds = responses.stream().map(ResourceItemResponse::getResourceId).toList();
+        if (Boolean.TRUE.equals(includeMyInteraction) && !resourceIds.isEmpty()) {
+            Map<String, ResourceUserInteractionRecordEntity> interactionMap = resourceUserInteractRecordRepository
+                    .findByUserIdAndResourceIdIn(currentUserId, resourceIds).stream()
+                    .collect(Collectors.toMap(
+                            ResourceUserInteractionRecordEntity::getResourceId,
+                            interactionRecord -> interactionRecord,
+                            (existing, replacement) -> existing,
+                            LinkedHashMap::new));
+            responses.forEach(response -> {
+                ResourceUserInteractionRecordEntity interactionRecord = interactionMap.getOrDefault(
+                        response.getResourceId(), new ResourceUserInteractionRecordEntity(response.getResourceId(), currentUserId));
+                response.setMyInteractionRecord(BeanUtil.copyProperties(interactionRecord, ResourceUserInteractionRecordResponse.class));
             });
         }
 

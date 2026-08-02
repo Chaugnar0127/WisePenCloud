@@ -9,5 +9,7 @@ import java.util.Optional;
 public interface ResourceUserInteractionRecordRepository extends MongoRepository<ResourceUserInteractionRecordEntity, String> {
     Optional<ResourceUserInteractionRecordEntity> findByUserIdAndResourceId(String userId, String resourceId);
 
+    List<ResourceUserInteractionRecordEntity> findByUserIdAndResourceIdIn(String userId, List<String> resourceIds);
+
     void deleteAllByResourceIdIn(List<String> resourceIds);
 }

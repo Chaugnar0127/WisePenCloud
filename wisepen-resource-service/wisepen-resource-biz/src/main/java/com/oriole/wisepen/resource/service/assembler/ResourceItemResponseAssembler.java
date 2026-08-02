@@ -318,13 +318,13 @@ public class ResourceItemResponseAssembler {
     private UserDisplayBase resolveOwnerInfo(ResourceItemEntity entity, Map<Long, UserDisplayBase> ownerInfoMap) {
         Long owner = Long.valueOf(entity.getOwnerId());
         UserDisplayBase ownerInfo = ownerInfoMap.get(owner);
-        return ownerInfo == null ? new UserDisplayBase("UNKNOW", null, null, null) : ownerInfo;
+        return ownerInfo == null ? new UserDisplayBase("UNKNOWN") : ownerInfo;
     }
 
     private Map<String, TagInfoBase> resolveTags(List<String> tagIds, Map<String, TagInfoBase> tagMap) {
         Map<String, TagInfoBase> tags = new LinkedHashMap<>();
         for (String tagId : tagIds) {
-            tags.put(tagId, tagMap.getOrDefault(tagId, TagInfoBase.builder().tagName("UNKNOW").build()));
+            tags.put(tagId, tagMap.getOrDefault(tagId, TagInfoBase.builder().tagName("UNKNOWN").build()));
         }
         return tags;
     }

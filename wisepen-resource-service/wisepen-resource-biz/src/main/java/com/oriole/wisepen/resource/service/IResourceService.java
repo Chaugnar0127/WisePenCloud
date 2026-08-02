@@ -43,6 +43,7 @@ public interface IResourceService {
     PageR<ResourceItemResponse> listResources(String currentUserId,
                                               String groupId, GroupRoleType userGroupRole, Map<Long, GroupRoleType> groupRoles,
                                               List<String> tagIds, QueryLogicEnum tagQueryLogicMode,
+                                              Boolean includeMyInteraction,
                                               String resourceType, int page, int size,
                                               ResourceSortBy sortBy, SortDirectionEnum sortDir);
 

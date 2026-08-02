@@ -19,6 +19,7 @@ public class ResourceItemResponse extends ResourceBaseInfoResponse {
 
     private List<ResourceTagBindResponse> tagBinds;
     private List<ResourceAction> currentActions;
+    private ResourceUserInteractionRecordResponse myInteractionRecord;
 
     private List<GroupGrantedActionsResponse> overrideGrantedActions;
     private List<SpecifiedUserGrantedActionsResponse> specifiedUsersGrantedActions;
