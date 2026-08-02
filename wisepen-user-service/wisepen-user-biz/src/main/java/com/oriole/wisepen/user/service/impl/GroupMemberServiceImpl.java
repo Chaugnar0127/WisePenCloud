@@ -9,6 +9,7 @@ import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.oriole.wisepen.common.core.domain.PageR;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
+import com.oriole.wisepen.common.core.domain.enums.GroupType;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
 import com.oriole.wisepen.user.api.domain.dto.req.*;
@@ -27,14 +28,13 @@ import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
-import static java.lang.Math.min;
-
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class GroupMemberServiceImpl implements IGroupMemberService {
 
 	private final GroupMemberMapper groupMemberMapper;
+	private final GroupMapper groupMapper;
 	private final IUserService userService;
 	private final RedisCacheManager redisCacheManager;
 
@@ -128,6 +128,11 @@ public class GroupMemberServiceImpl implements IGroupMemberService {
 
 	@Override
 	public GroupMemberDetailResponse getGroupMemberInfoByUserId(Long groupId, Long userId){
+		GroupEntity groupEntity = groupMapper.selectById(groupId);
+		if (groupEntity == null) {
+			throw new ServiceException(UserError.GROUP_NOT_EXIST);
+		}
+
 		LambdaQueryWrapper<GroupMemberEntity> wrapper = new LambdaQueryWrapper<>();
 		wrapper.eq(GroupMemberEntity::getGroupId, groupId)
 				.eq(GroupMemberEntity::getUserId, userId);
@@ -138,7 +143,8 @@ public class GroupMemberServiceImpl implements IGroupMemberService {
 			throw new ServiceException(UserError.GROUP_MEMBER_NOT_FOUND);
 		}
 
-		UserDisplayBase userInfo = userService.getUserDisplayInfoByIds(Set.of(userId)).get(userId);
+		boolean includePrivateFields = GroupType.ADVANCED_GROUP.equals(groupEntity.getGroupType());
+		UserDisplayBase userInfo = userService.getUserDisplayInfoByIds(Set.of(userId), includePrivateFields).get(userId);
 
 		GroupMemberDetailResponse resp = new GroupMemberDetailResponse();
 		BeanUtil.copyProperties(memberEntity, resp);
@@ -149,6 +155,11 @@ public class GroupMemberServiceImpl implements IGroupMemberService {
 
 	@Override
 	public PageR<GroupMemberDetailResponse> getGroupMemberList(Long groupId, int page, int size) {
+		GroupEntity groupEntity = groupMapper.selectById(groupId);
+		if (groupEntity == null) {
+			throw new ServiceException(UserError.GROUP_NOT_EXIST);
+		}
+
 		Page<GroupMemberEntity> pageParam = new Page<>(page, size);
 		LambdaQueryWrapper<GroupMemberEntity> wrapper = new LambdaQueryWrapper<>();
 		wrapper.eq(GroupMemberEntity::getGroupId, groupId)
@@ -165,7 +176,8 @@ public class GroupMemberServiceImpl implements IGroupMemberService {
 
 		PageR<GroupMemberDetailResponse> pageR = new PageR<>(memberPage.getTotal(), page, size);
 
-		Map<Long, UserDisplayBase> userMap = userService.getUserDisplayInfoByIds(userIds);
+		boolean includePrivateFields = GroupType.ADVANCED_GROUP.equals(groupEntity.getGroupType());
+		Map<Long, UserDisplayBase> userMap = userService.getUserDisplayInfoByIds(userIds, includePrivateFields);
 
 		List<GroupMemberDetailResponse> records = memberPage.getRecords().stream().map(memberEntity -> {
 			GroupMemberDetailResponse resp = new GroupMemberDetailResponse();
@@ -177,6 +189,18 @@ public class GroupMemberServiceImpl implements IGroupMemberService {
 
 		pageR.addAll(records);
 		return pageR;
+	}
+
+	@Override
+	public List<Long> listGroupMemberIds(Long groupId) {
+		LambdaQueryWrapper<GroupMemberEntity> wrapper = new LambdaQueryWrapper<>();
+		wrapper.eq(GroupMemberEntity::getGroupId, groupId)
+				.orderByAsc(GroupMemberEntity::getRole)
+				.orderByDesc(GroupMemberEntity::getJoinTime)
+				.select(GroupMemberEntity::getUserId);
+		return groupMemberMapper.selectList(wrapper).stream()
+				.map(GroupMemberEntity::getUserId)
+				.collect(Collectors.toList());
 	}
 
 	@Override

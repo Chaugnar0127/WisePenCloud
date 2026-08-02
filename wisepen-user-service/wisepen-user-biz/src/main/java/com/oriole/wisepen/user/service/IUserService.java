@@ -22,6 +22,8 @@ public interface IUserService {
     UserDetailInfoResponse getUserInfoById(Long userId);
     // 根据 userId 列表获取用户展示信息
     Map<Long, UserDisplayBase> getUserDisplayInfoByIds(Set<Long> userIds);
+    // 根据 userId 列表获取用户展示信息(额外字段)
+    Map<Long, UserDisplayBase> getUserDisplayInfoByIds(Set<Long> userIds, boolean includePrivateFields);
     // 按完整用户名或邮箱搜索用户
     List<UserSearchUserResponse> searchUser(String keyword);
     // 查询当前用户小组范围内的用户搜索补全

@@ -19,4 +19,7 @@ public interface RemoteUserService {
     @GetMapping("/internal/group/getGroupDisplayInfo")
     R<Map<Long, GroupDisplayBase>> getGroupDisplayInfo(@RequestParam("groupId") List<Long> groupIds);
 
+    @GetMapping("/internal/group/member/listGroupMemberIds")
+    R<List<Long>> listGroupMemberIds(@RequestParam("groupId") Long groupId);
+
 }

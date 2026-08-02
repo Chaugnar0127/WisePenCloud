@@ -14,7 +14,12 @@ import java.io.Serializable;
 @AllArgsConstructor
 public class UserDisplayBase implements Serializable {
     private String nickname;
-    private String realName;
+    private String username;
     private String avatar;
     private IdentityType identityType; // 身份
+
+    private String realName;
+    private String campusNo;
+    private String email;
+    private String mobile;
 }

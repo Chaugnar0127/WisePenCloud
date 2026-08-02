@@ -74,6 +74,11 @@ public class UserServiceImpl implements IUserService {
 
     @Override
     public Map<Long, UserDisplayBase> getUserDisplayInfoByIds(Set<Long> userIds) {
+        return getUserDisplayInfoByIds(userIds, false);
+    }
+
+    @Override
+    public Map<Long, UserDisplayBase> getUserDisplayInfoByIds(Set<Long> userIds, boolean includePrivateFields) {
         if (CollectionUtils.isEmpty(userIds)) {
             return Collections.emptyMap();
         }
@@ -85,7 +90,16 @@ public class UserServiceImpl implements IUserService {
 
         return userList.stream().filter(Objects::nonNull).collect(Collectors.toMap(
                 UserEntity::getUserId,
-                user -> BeanUtil.copyProperties(user, UserDisplayBase.class),
+                user -> {
+                    UserDisplayBase response = BeanUtil.copyProperties(user, UserDisplayBase.class);
+                    if (!includePrivateFields) {
+                        response.setRealName(null);
+                        response.setCampusNo(null);
+                        response.setEmail(null);
+                        response.setMobile(null);
+                    }
+                    return response;
+                },
                 (existing, replacement) -> existing));
     }
 
@@ -95,7 +109,10 @@ public class UserServiceImpl implements IUserService {
         LambdaQueryWrapper<UserEntity> userWrapper = Wrappers.<UserEntity>lambdaQuery();
         // 被搜索的用户必须是已经认证的用户
         userWrapper.eq(UserEntity::getStatus, Status.NORMAL).isNotNull(UserEntity::getVerificationMode)
-                .and(wrapper -> wrapper.eq(UserEntity::getUsername, searchKeyword).or().eq(UserEntity::getEmail, searchKeyword));
+                .and(wrapper -> wrapper.eq(UserEntity::getUsername, searchKeyword)
+                        .or().eq(UserEntity::getRealName, searchKeyword)
+                        .or().eq(UserEntity::getEmail, searchKeyword)
+                        .or().eq(UserEntity::getCampusNo, searchKeyword));
         List<UserEntity> candidateUsers = userMapper.selectList(userWrapper);
         if (CollectionUtils.isEmpty(candidateUsers)) {
             return Collections.emptyList();
@@ -128,6 +145,7 @@ public class UserServiceImpl implements IUserService {
                 .eq(UserEntity::getStatus, Status.NORMAL)
                 .isNotNull(UserEntity::getVerificationMode)
                 .and(wrapper -> wrapper.likeRight(UserEntity::getUsername, searchKeyword)
+                        .or().likeRight(UserEntity::getRealName, searchKeyword)
                         .or().likeRight(UserEntity::getEmail, searchKeyword)
                         .or().likeRight(UserEntity::getCampusNo, searchKeyword))
                 .orderByAsc(UserEntity::getUsername);
