@@ -11,7 +11,7 @@ import java.util.List;
 public interface ITagService {
 
     // 创建 Tag 节点
-    String createTag(TagCreateRequest tagCreateRequest);
+    String createTag(TagCreateRequest tagCreateRequest, String creatorUserId);
 
     // 获取指定用户组下的完整 Tag 树
     List<TagTreeResponse> getTagTree(String groupId);
