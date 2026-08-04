@@ -5,14 +5,19 @@ import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.domain.enums.IdentityType;
+import com.oriole.wisepen.user.api.constant.GroupDashboardMetricConstants;
 import lombok.RequiredArgsConstructor;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDate;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 @Component
@@ -30,6 +35,22 @@ public class RedisCacheManager {
 	private static final String REDIS_GROUP_USER_BLOCK_PREFIX = "wisepen:chat:block:user:";
 	private static final String REDIS_EMAIL_VERIFY_TOKEN_PREFIX = "wisepen:user:auth:verify:";
     private static final long SESSION_TIMEOUT_DAYS = 7;
+
+	public Map<String, Integer> listGroupDashboardMetricCounters(LocalDate statDate) {
+		String indexKey = GroupDashboardMetricConstants.actorIndexKey(statDate);
+		Set<String> metricKeys = stringRedisTemplate.opsForSet().members(indexKey);
+		if (metricKeys == null || metricKeys.isEmpty()) {
+			return Collections.emptyMap();
+		}
+		Map<String, Integer> counters = new LinkedHashMap<>();
+		metricKeys.forEach(metricKey -> {
+			String value = stringRedisTemplate.opsForValue().get(metricKey);
+			if (StrUtil.isNotBlank(value)) {
+				counters.put(metricKey, Integer.parseInt(value));
+			}
+		});
+		return counters;
+	}
 
     public String setEmailVerificationCode(String email, Long userId) {
         // 生成6位数字 token

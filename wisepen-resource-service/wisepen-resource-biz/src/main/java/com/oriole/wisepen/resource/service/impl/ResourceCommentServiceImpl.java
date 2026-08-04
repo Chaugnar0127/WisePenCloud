@@ -2,6 +2,7 @@ package com.oriole.wisepen.resource.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.oriole.wisepen.common.core.domain.PageR;
+import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.domain.enums.IdentityType;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.resource.domain.dto.req.CommentCreateRequest;
@@ -14,14 +15,17 @@ import com.oriole.wisepen.resource.domain.entity.ResourceItemEntity;
 import com.oriole.wisepen.resource.domain.entity.ResourceUserInteractionRecordEntity;
 import com.oriole.wisepen.resource.enums.CommentSortBy;
 import com.oriole.wisepen.resource.enums.CommentType;
+import com.oriole.wisepen.resource.event.ResourceGroupDashboardMetricEvent;
 import com.oriole.wisepen.resource.exception.ResourceError;
 import com.oriole.wisepen.resource.repository.*;
 import com.oriole.wisepen.resource.service.IResourceCommentService;
 import com.oriole.wisepen.resource.service.IResourceService;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
+import com.oriole.wisepen.user.api.enums.ResourceGroupDashboardMetricType;
 import com.oriole.wisepen.user.api.feign.RemoteUserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -43,12 +47,13 @@ public class ResourceCommentServiceImpl implements IResourceCommentService {
     private final CustomResourceItemRepository customResourceItemRepository;
     private final CustomResourceUserInteractionRecordRepository customInteractionRecordRepository;
     private final RemoteUserService remoteUserService;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Override
-    public String createComment(CommentCreateRequest request, String operatorUserId) {
+    public String createComment(CommentCreateRequest request, String operatorUserId, Map<Long, GroupRoleType> groupRoles) {
         // 检查资源状态
         String resourceId = request.getResourceId();
-        resourceService.getResourceEntity(resourceId);
+        ResourceItemEntity resourceItemEntity = resourceService.getResourceEntity(resourceId);
 
         ResourceCommentEntity comment = ResourceCommentEntity.builder()
                 .resourceId(resourceId).authorId(operatorUserId)
@@ -58,15 +63,19 @@ public class ResourceCommentServiceImpl implements IResourceCommentService {
         comment = commentRepository.save(comment);
         // 新增资源评论计数
         customResourceItemRepository.updateCommentCount(resourceId, 1);
+        Long actorUserId = Long.valueOf(operatorUserId);
+        resourceService.listResourceCountableGroupIds(resourceItemEntity.getGroupBinds(), groupRoles).forEach(
+                groupId -> applicationEventPublisher.publishEvent(new ResourceGroupDashboardMetricEvent(groupId, resourceId, actorUserId, ResourceGroupDashboardMetricType.RESOURCE_COMMENT, 1))
+        );
         log.info("comment created. resourceId={} commentId={} authorId={}", resourceId, comment.getCommentId(), operatorUserId);
         return comment.getCommentId();
     }
 
     @Override
-    public String createReply(CommentReplyCreateRequest request, String operatorUserId) {
+    public String createReply(CommentReplyCreateRequest request, String operatorUserId, Map<Long, GroupRoleType> groupRoles) {
         // 检查资源状态
         String resourceId = request.getResourceId();
-        resourceService.getResourceEntity(resourceId);
+        ResourceItemEntity resourceItemEntity = resourceService.getResourceEntity(resourceId);
 
         // 检查回复的Comment是否存在
         ResourceCommentEntity replyToComment = commentRepository.findByIdAndResourceIdAndDeletedAtIsNull(request.getReplyTo(), resourceId)
@@ -92,6 +101,10 @@ public class ResourceCommentServiceImpl implements IResourceCommentService {
         customCommentRepository.updateReplyCount(rootCommentId, 1);
         // 新增资源评论计数
         customResourceItemRepository.updateCommentCount(replyToComment.getResourceId(), 1);
+        Long actorUserId = Long.valueOf(operatorUserId);
+        resourceService.listResourceCountableGroupIds(resourceItemEntity.getGroupBinds(), groupRoles).forEach(
+                groupId -> applicationEventPublisher.publishEvent(new ResourceGroupDashboardMetricEvent(groupId, resourceId, actorUserId, ResourceGroupDashboardMetricType.RESOURCE_COMMENT, 1))
+        );
 
         log.info("reply created. resourceId={} rootCommentId={} replyToCommentId={} commentId={} authorId={}",
                 replyToComment.getResourceId(), rootCommentId, replyToComment.getCommentId(), reply.getCommentId(), operatorUserId);
@@ -99,7 +112,7 @@ public class ResourceCommentServiceImpl implements IResourceCommentService {
     }
 
     @Override
-    public void deleteCommentItem(CommentDeleteRequest request, String operatorUserId, IdentityType operatorIdentityType) {
+    public void deleteCommentItem(CommentDeleteRequest request, String operatorUserId, IdentityType operatorIdentityType, Map<Long, GroupRoleType> groupRoles) {
         // 检查资源状态
         String resourceId = request.getResourceId();
         ResourceItemEntity resourceItemEntity = resourceService.getResourceEntity(resourceId);
@@ -120,6 +133,10 @@ public class ResourceCommentServiceImpl implements IResourceCommentService {
 
         // 减少资源评论计数
         customResourceItemRepository.updateCommentCount(comment.getResourceId(), -1);
+        Long actorUserId = Long.valueOf(operatorUserId);
+        resourceService.listResourceCountableGroupIds(resourceItemEntity.getGroupBinds(), groupRoles).forEach(
+                groupId -> applicationEventPublisher.publishEvent(new ResourceGroupDashboardMetricEvent(groupId, resourceId, actorUserId, ResourceGroupDashboardMetricType.RESOURCE_COMMENT, -1))
+        );
 
         if (CommentType.COMMENT.equals(comment.getCommentType())) {
             log.info("comment deleted. commentId={} operatorUserId={}", commentId, operatorUserId);

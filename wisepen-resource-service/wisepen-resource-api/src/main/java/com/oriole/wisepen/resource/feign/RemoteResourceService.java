@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.util.List;
+
 /**
  * 提供给其他微服务的权限 RPC 接口
  */
@@ -22,6 +24,9 @@ public interface RemoteResourceService {
 
     @PostMapping("/internal/resource/getResourceInfo")
     R<ResourceItemResponse> getResourceInfo(@RequestBody ResourceInfoGetReqDTO dto);
+
+    @PostMapping("/internal/resource/listResourceBaseInfo")
+    R<List<ResourceItemInfoResDTO>> listResourceBaseInfo(@RequestBody List<String> resourceIds);
 
     @PostMapping("/internal/resource/checkResPermission")
     R<ResourceCheckPermissionResDTO> checkResPermission(@RequestBody ResourceCheckPermissionReqDTO dto);

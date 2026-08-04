@@ -25,6 +25,8 @@ public interface IResourceService {
 
     ResourceItemEntity getResourceEntity(String resourceId);
 
+    List<Long> listResourceCountableGroupIds(List<GroupTagBind> groupTagBinds, Map<Long, GroupRoleType> operatorGroupRoles);
+
     // ToUser：重命名、变更Tag、列出资源
     void renameResource(ResourceRenameRequest req);
 
@@ -61,6 +63,8 @@ public interface IResourceService {
     String createResourceItem(ResourceCreateReqDTO dto);
 
     void hardRemoveResources(List<String> resourceIds);
+
+    List<ResourceItemInfoResDTO> listResourceBaseInfo(List<String> resourceIds);
 
     void updateResourceAttributes(ResourceUpdateReqDTO dto);
 
