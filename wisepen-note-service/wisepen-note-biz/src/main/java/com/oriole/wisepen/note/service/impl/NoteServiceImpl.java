@@ -150,7 +150,7 @@ public class NoteServiceImpl implements INoteService {
             // 查询指定资源在指定版本号区间内（从当前版本到最近的 FULL 版本）的所有 DELTA 版本记录，并按版本号升序排列
             // 如果没有最近的 FULL 版本，则到 0
             sourceVersions.addAll(noteVersionRepository
-                    .findByResourceIdAndVersionGreaterThanAndVersionLessThanEqualAndTypeOrderByVersionAsc(
+                    .findByResourceIdAndVersionRangeAndTypeOrderByVersionAsc(
                             request.getResourceId(), latestFullVersion, forkedResourceVersion, VersionType.DELTA));
 
             Integer baseVersion = latestFullVersion - 1;
