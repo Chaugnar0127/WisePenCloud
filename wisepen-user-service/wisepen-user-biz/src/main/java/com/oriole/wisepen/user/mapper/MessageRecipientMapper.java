@@ -18,6 +18,7 @@ public interface MessageRecipientMapper extends BaseMapper<MessageRecipientEntit
             INSERT INTO sys_message_recipient (
                 id,
                 message_id,
+                delivery_scope,
                 user_id,
                 read_time,
                 delete_time,
@@ -28,6 +29,7 @@ public interface MessageRecipientMapper extends BaseMapper<MessageRecipientEntit
                 (
                     #{recipient.id},
                     #{recipient.messageId},
+                    #{recipient.deliveryScope},
                     #{recipient.userId},
                     #{recipient.readTime},
                     #{recipient.deleteTime},
