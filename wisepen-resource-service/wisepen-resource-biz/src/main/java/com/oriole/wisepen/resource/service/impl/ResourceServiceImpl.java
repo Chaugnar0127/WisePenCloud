@@ -513,7 +513,7 @@ public class ResourceServiceImpl implements IResourceService {
             log.warn("resource item compensated. resourceId={}", entity.getResourceId(), e);
             throw e;
         }
-        // interactionInfo 已内嵌在 ResourceItemEntity 中，无需单独初始化
+        // resourceInteractionInfo 已内嵌在 ResourceItemEntity 中，无需单独初始化
         Long actorUserId = Long.valueOf(dto.getOwnerId());
         listResourceCountableGroupIds(entity.getGroupBinds(), dto.getOwnerGroupRoles()).forEach(groupId -> applicationEventPublisher.publishEvent(new ResourceGroupDashboardMetricEvent(groupId, entity.getResourceId(), actorUserId, ResourceGroupDashboardMetricType.RESOURCE_ADDED, 1)));
         // 同步初始化资源搜索记录
