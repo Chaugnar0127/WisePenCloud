@@ -130,7 +130,9 @@ public class MessageServiceImpl implements IMessageService {
     @Transactional(rollbackFor = Exception.class)
     public void readMessage(Long userId, Long messageId) {
         LambdaUpdateWrapper<MessageRecipientEntity> wrapper = new LambdaUpdateWrapper<>();
-        wrapper.eq(MessageRecipientEntity::getId, messageId)
+        wrapper.eq(MessageRecipientEntity::getUserId, userId)
+                .eq(MessageRecipientEntity::getMessageId, messageId)
+                .isNull(MessageRecipientEntity::getDeleteTime)
                 .isNull(MessageRecipientEntity::getReadTime)
                 .set(MessageRecipientEntity::getReadTime, LocalDateTime.now());
         messageRecipientMapper.update(null, wrapper);
