@@ -12,6 +12,7 @@ import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
 import com.oriole.wisepen.resource.constant.ResourceConstants;
+import com.oriole.wisepen.resource.constant.ResourceValidationMsg;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateActionPermissionRequest;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceBaseInfoResponse;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
@@ -23,6 +24,8 @@ import com.oriole.wisepen.resource.service.IResourceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -35,6 +38,7 @@ import java.util.Map;
 @RequestMapping("/resource/item")
 @RequiredArgsConstructor
 @CheckLogin
+@Validated
 public class ResourceItemController {
 
     private final IResourceService resourceService;
@@ -172,9 +176,9 @@ public class ResourceItemController {
             summary = "分页查询资源",
             description = """
                     - 用途：按个人空间或小组空间分页查询当前用户可见的资源列表。
-                    - 请求：groupId 为空时查询当前用户个人资源空间，非空时查询指定小组空间；tagIds 为空表示查询该空间下全部可见资源，非空时按 tagQueryLogicMode 进行多标签筛选；resourceType、page、size、sortBy、sortDir 控制类型过滤、分页和排序。
-                    - 约束：当前用户必须已登录；查询小组空间时必须属于目标小组；分页、排序字段、标签组合逻辑和资源类型必须合法。
-                    - 处理：个人空间默认排除个人回收站体系下的资源，除非显式传入回收站内标签；小组空间按当前用户在小组中的角色和资源 ACL 查询具备 DISCOVER 的资源；批量补充 ownerInfo、按组分隔的 tagBinds、currentActions 和互动统计；tagBinds.primaryTagId 表示对应组内物理位置主标签；当前 groupId 下的 marketOffers（买家仅见已审核通过且在售条目，资源所有者与小组管理员可见全部）；仅资源所有者返回 overrideGrantedActions 与 specifiedUsersGrantedActions；不返回当前用户无权发现的资源。
+                    - 请求：groupId 为空时查询当前用户个人资源空间，非空时查询指定小组空间；tagIds 为空表示查询该空间下全部可见资源，非空时按 tagQueryLogicMode 进行多标签筛选；includeMyInteraction 控制是否补充当前用户交互状态；resourceType、page、size、sortBy、sortDir 控制类型过滤、分页和排序，size 最大为 100。
+                    - 约束：当前用户必须已登录；查询小组空间时必须属于目标小组；page 不能小于 1；size 不能超过 100；排序字段、标签组合逻辑和资源类型必须合法。
+                    - 处理：个人空间默认排除个人回收站体系下的资源，除非显式传入回收站内标签；小组空间按当前用户在小组中的角色和资源 ACL 查询具备 DISCOVER 的资源；批量补充 ownerInfo、按组分隔的 tagBinds、currentActions 和互动统计；按需批量补充当前用户交互状态；tagBinds.primaryTagId 表示对应组内物理位置主标签；当前 groupId 下的 marketOffers（买家仅见已审核通过且在售条目，资源所有者与小组管理员可见全部）；仅资源所有者返回 overrideGrantedActions 与 specifiedUsersGrantedActions；不返回当前用户无权发现的资源。
                     - 失败：未登录 -> PermissionError.NOT_LOGIN；当前用户不属于目标小组 -> PermissionError.PERMISSION_DENIED。
                     - 响应：返回分页资源列表、总数，以及当前页资源的完整列表态 ResourceItemResponse。
                     """
@@ -187,9 +191,10 @@ public class ResourceItemController {
             @RequestParam(value = "tagIds", required = false) List<String> tagIds,
             @Parameter(description = "多标签组合查询时的逻辑关系(AND/OR)")
             @RequestParam(value = "tagQueryLogicMode", defaultValue = "OR") QueryLogicEnum tagQueryLogicMode,
+            @RequestParam(value = "includeMyInteraction", defaultValue = "false") Boolean includeMyInteraction,
             @RequestParam(value = "resourceType", required = false) String resourceType,
-            @RequestParam(value = "page", defaultValue = "1") int page,
-            @RequestParam(value = "size", defaultValue = "20") int size,
+            @RequestParam(value = "page", defaultValue = "1") @Min(value = 1, message = ResourceValidationMsg.PAGE_MIN_INVALID) int page,
+            @RequestParam(value = "size", defaultValue = "20") @Min(value = 1, message = ResourceValidationMsg.SIZE_MIN_INVALID) @Max(value = 100, message = ResourceValidationMsg.SIZE_MAX_INVALID) int size,
             @Parameter(description = "排序字段枚举")
             @RequestParam(value = "sortBy", defaultValue = "UPDATE_TIME") ResourceSortBy sortBy,
             @RequestParam(value = "sortDir", defaultValue = "DESC") SortDirectionEnum sortDir) {
@@ -210,6 +215,7 @@ public class ResourceItemController {
                 groupRoles,
                 tagIds,
                 tagQueryLogicMode,
+                includeMyInteraction,
                 resourceType,
                 page,
                 size,

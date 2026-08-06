@@ -15,6 +15,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 @Tag(name = "内部 - 资源", description = "供业务微服务注册资源、更新资源属性、查询资源信息和校验资源权限")
 @RestController
 @RequestMapping("/internal/resource")
@@ -78,6 +80,22 @@ public class InternalResourceItemController implements RemoteResourceService {
     public R<ResourceItemResponse> getResourceInfo(ResourceInfoGetReqDTO dto) {
         ResourceItemResponse response = resourceService.getResourceInfo(dto);
         return R.ok(response);
+    }
+
+    @Operation(
+            summary = "内部批量获取资源基础信息",
+            description = """
+                    - 用途：供小组看板等内部场景按资源 ID 批量补全资源展示字段。
+                    - 请求：请求体为 resourceId 列表；空列表按空结果处理。
+                    - 约束：调用方必须通过内部服务调用边界；本接口不做用户可见性校验；已删除资源不会返回；不补充 ownerInfo。
+                    - 处理：批量查询资源主记录，返回 resourceId、resourceName、resourceType、ownerId、preview 和 size；不读取交互明细，不修改资源数据。
+                    - 失败：底层存储查询发生未处理异常 -> CommonError.INTERNAL_ERROR。
+                    - 响应：成功时返回资源基础信息列表，结果数量可能少于请求 ID 数量。
+                    """
+    )
+    @PostMapping("/listResourceBaseInfo")
+    public R<List<ResourceItemInfoResDTO>> listResourceBaseInfo(@RequestBody List<String> resourceIds) {
+        return R.ok(resourceService.listResourceBaseInfo(resourceIds));
     }
 
     // 内部鉴权接口，供下游微服务在执行敏感操作（如：导出PDF、分享链接）前进行硬核鉴权

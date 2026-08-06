@@ -3,6 +3,7 @@ package com.oriole.wisepen.resource.controller;
 import com.oriole.wisepen.common.core.context.SecurityContextHolder;
 import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.common.core.domain.enums.BusinessType;
+import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
 import com.oriole.wisepen.resource.constant.ResourceValidationMsg;
@@ -17,6 +18,8 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @Tag(name = "资源互动", description = "资源阅读、点赞、评分与用户互动状态")
 @RestController
@@ -61,7 +64,8 @@ public class ResourceInteractionController {
     @PostMapping("/read")
     public R<Void> changeResourceReadStatus(@Validated @RequestBody ResourceReadRequest request) {
         String userId = SecurityContextHolder.getUserId().toString();
-        resourceInteractionService.changeResourceReadStatus(request, userId);
+        Map<Long, GroupRoleType> groupRoles = SecurityContextHolder.getGroupRoleMap();
+        resourceInteractionService.changeResourceReadStatus(request, userId, groupRoles);
         return R.ok();
     }
 
@@ -80,7 +84,8 @@ public class ResourceInteractionController {
     @PostMapping("/toggleLike")
     public R<Void> changeResourceLikeStatus(@Validated @RequestBody ResourceLikeRequest request) {
         String userId = SecurityContextHolder.getUserId().toString();
-        resourceInteractionService.changeResourceLikeStatus(request, userId);
+        Map<Long, GroupRoleType> groupRoles = SecurityContextHolder.getGroupRoleMap();
+        resourceInteractionService.changeResourceLikeStatus(request, userId, groupRoles);
         return R.ok();
     }
 

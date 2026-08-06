@@ -19,10 +19,13 @@ public class CustomResourceUserInteractionRecordRepository {
 
     private ResourceUserInteractionRecordEntity findAndSetField(String resourceId, String userId, String field, Object value) {
         Query query = Query.query(Criteria.where("resourceId").is(resourceId).and("userId").is(userId));
-        Update update = new Update().set(field, value);
+        Update update = new Update()
+                .set(field, value)
+                .setOnInsert("resourceId", resourceId)
+                .setOnInsert("userId", userId);
 
         return mongoTemplate.findAndModify(
-                query, update, FindAndModifyOptions.options().returnNew(false),
+                query, update, FindAndModifyOptions.options().returnNew(false).upsert(true),
                 ResourceUserInteractionRecordEntity.class);
     }
 

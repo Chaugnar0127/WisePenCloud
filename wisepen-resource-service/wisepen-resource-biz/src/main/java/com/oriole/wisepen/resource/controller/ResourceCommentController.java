@@ -4,6 +4,7 @@ import com.oriole.wisepen.common.core.context.SecurityContextHolder;
 import com.oriole.wisepen.common.core.domain.PageR;
 import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.common.core.domain.enums.BusinessType;
+import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.domain.enums.IdentityType;
 import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
@@ -22,6 +23,8 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @Tag(name = "资源评论", description = "资源评论区的发布、删除、点赞与分页查询")
 @RestController
@@ -48,7 +51,8 @@ public class ResourceCommentController {
     @Log(title = "发布顶级评论", businessType = BusinessType.INSERT)
     public R<String> createComment(@Validated @RequestBody CommentCreateRequest request) {
         String operatorUserId = SecurityContextHolder.getUserId().toString();
-        return R.ok(commentService.createComment(request, operatorUserId));
+        Map<Long, GroupRoleType> groupRoles = SecurityContextHolder.getGroupRoleMap();
+        return R.ok(commentService.createComment(request, operatorUserId, groupRoles));
     }
 
     @Operation(
@@ -66,7 +70,8 @@ public class ResourceCommentController {
     @Log(title = "发布回复", businessType = BusinessType.INSERT)
     public R<String> createReply(@Validated @RequestBody CommentReplyCreateRequest request) {
         String operatorUserId = SecurityContextHolder.getUserId().toString();
-        return R.ok(commentService.createReply(request, operatorUserId));
+        Map<Long, GroupRoleType> groupRoles = SecurityContextHolder.getGroupRoleMap();
+        return R.ok(commentService.createReply(request, operatorUserId, groupRoles));
     }
 
     @Operation(
@@ -86,7 +91,8 @@ public class ResourceCommentController {
     public R<Void> deleteCommentItem(@Validated @RequestBody CommentDeleteRequest request) {
         String operatorUserId = SecurityContextHolder.getUserId().toString();
         IdentityType operatorIdentityType = SecurityContextHolder.getIdentityType();
-        commentService.deleteCommentItem(request, operatorUserId, operatorIdentityType);
+        Map<Long, GroupRoleType> groupRoles = SecurityContextHolder.getGroupRoleMap();
+        commentService.deleteCommentItem(request, operatorUserId, operatorIdentityType, groupRoles);
         return R.ok();
     }
 

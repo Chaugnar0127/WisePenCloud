@@ -1,7 +1,7 @@
 package com.oriole.wisepen.resource.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
-import com.oriole.wisepen.common.core.exception.ServiceException;
+import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.resource.cache.RedisCacheManager;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceRateRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceLikeRequest;
@@ -9,16 +9,19 @@ import com.oriole.wisepen.resource.domain.dto.req.ResourceReadRequest;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceUserInteractionRecordResponse;
 import com.oriole.wisepen.resource.domain.entity.ResourceItemEntity;
 import com.oriole.wisepen.resource.domain.entity.ResourceUserInteractionRecordEntity;
-import com.oriole.wisepen.resource.exception.ResourceError;
+import com.oriole.wisepen.resource.event.ResourceGroupDashboardMetricEvent;
 import com.oriole.wisepen.resource.repository.CustomResourceItemRepository;
 import com.oriole.wisepen.resource.repository.CustomResourceUserInteractionRecordRepository;
-import com.oriole.wisepen.resource.repository.ResourceItemRepository;
 import com.oriole.wisepen.resource.repository.ResourceUserInteractionRecordRepository;
 import com.oriole.wisepen.resource.service.IResourceInteractionService;
 import com.oriole.wisepen.resource.service.IResourceService;
+import com.oriole.wisepen.user.api.enums.ResourceGroupDashboardMetricType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
+
+import java.util.Map;
 
 @Service
 @Slf4j
@@ -31,6 +34,7 @@ public class ResourceInteractionServiceImpl implements IResourceInteractionServi
     private final CustomResourceUserInteractionRecordRepository customResourceUserInteractionRecordRepository;
 
     private final RedisCacheManager redisCacheManager;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     @Override
     public ResourceUserInteractionRecordResponse getResourceUserInteractionInfo(String resourceId, String userId) {
@@ -41,22 +45,26 @@ public class ResourceInteractionServiceImpl implements IResourceInteractionServi
     }
 
     @Override
-    public void changeResourceReadStatus(ResourceReadRequest request, String userId) {
+    public void changeResourceReadStatus(ResourceReadRequest request, String userId, Map<Long, GroupRoleType> groupRoles) {
         String resourceId = request.getResourceId();
-        resourceService.getResourceEntity(request.getResourceId());
+        ResourceItemEntity resourceItemEntity = resourceService.getResourceEntity(request.getResourceId());
         // 检查是否在窗口期中的第一次阅读
         Boolean isFirstReadInWindow = redisCacheManager.isFirstReadInWindow(resourceId, userId);
         if (Boolean.TRUE.equals(isFirstReadInWindow)) {
             customResourceUserInteractionRecordRepository.findAndSetRead(resourceId, userId, true);
             customResourceItemRepository.updateReadCount(resourceId, 1);
+            Long actorUserId = Long.valueOf(userId);
+            resourceService.listResourceCountableGroupIds(resourceItemEntity.getGroupBinds(), groupRoles).forEach(
+                    groupId -> applicationEventPublisher.publishEvent(new ResourceGroupDashboardMetricEvent(groupId, resourceId, actorUserId, ResourceGroupDashboardMetricType.RESOURCE_READ, 1))
+            );
             log.info("resource read count incremented. resourceId={} userId={}", resourceId, userId);
         }
     }
 
     @Override
-    public void changeResourceLikeStatus(ResourceLikeRequest request, String userId) {
+    public void changeResourceLikeStatus(ResourceLikeRequest request, String userId, Map<Long, GroupRoleType> groupRoles) {
         String resourceId = request.getResourceId();
-        resourceService.getResourceEntity(request.getResourceId());
+        ResourceItemEntity resourceItemEntity = resourceService.getResourceEntity(request.getResourceId());
         boolean currentLiked = resourceUserInteractRecordRepository
                 .findByUserIdAndResourceId(userId, resourceId)
                 .map(r -> Boolean.TRUE.equals(r.getLiked()))
@@ -64,6 +72,10 @@ public class ResourceInteractionServiceImpl implements IResourceInteractionServi
         boolean wantLiked = !currentLiked;
         customResourceUserInteractionRecordRepository.findAndSetLiked(resourceId, userId, wantLiked);
         customResourceItemRepository.updateLikeCount(resourceId, wantLiked ? 1 : -1);
+        Long actorUserId = Long.valueOf(userId);
+        resourceService.listResourceCountableGroupIds(resourceItemEntity.getGroupBinds(), groupRoles).forEach(
+                groupId -> applicationEventPublisher.publishEvent(new ResourceGroupDashboardMetricEvent(groupId, resourceId, actorUserId, ResourceGroupDashboardMetricType.RESOURCE_LIKE, wantLiked ? 1 : -1))
+        );
         log.info("resource like toggled. resourceId={} userId={} wantLiked={}", resourceId, userId, wantLiked);
     }
 
@@ -84,5 +96,3 @@ public class ResourceInteractionServiceImpl implements IResourceInteractionServi
                 resourceId, userId, oldScore, newScore);
     }
 }
-
-

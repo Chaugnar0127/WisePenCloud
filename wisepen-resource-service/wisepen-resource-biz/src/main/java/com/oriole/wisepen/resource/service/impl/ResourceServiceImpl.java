@@ -16,11 +16,14 @@ import com.oriole.wisepen.resource.domain.dto.req.ResourceRenameRequest;
 import com.oriole.wisepen.resource.domain.dto.req.ResourceUpdateActionPermissionRequest;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceBaseInfoResponse;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
+import com.oriole.wisepen.resource.domain.dto.res.ResourceUserInteractionRecordResponse;
 import com.oriole.wisepen.resource.domain.entity.FavoriteResourceRef;
 import com.oriole.wisepen.resource.domain.entity.GroupResConfigEntity;
 import com.oriole.wisepen.resource.domain.entity.ResourceItemEntity;
+import com.oriole.wisepen.resource.domain.entity.ResourceUserInteractionRecordEntity;
 import com.oriole.wisepen.resource.domain.entity.TagEntity;
 import com.oriole.wisepen.resource.enums.*;
+import com.oriole.wisepen.resource.event.ResourceGroupDashboardMetricEvent;
 import com.oriole.wisepen.resource.event.TagChangedEvent;
 import com.oriole.wisepen.resource.event.TagDeletedEvent;
 import com.oriole.wisepen.resource.event.TagTrashedEvent;
@@ -33,10 +36,12 @@ import com.oriole.wisepen.resource.service.IResourceService;
 import com.oriole.wisepen.resource.service.ISearchSyncService;
 import com.oriole.wisepen.resource.service.ITagService;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
+import com.oriole.wisepen.user.api.enums.ResourceGroupDashboardMetricType;
 import com.oriole.wisepen.user.api.feign.RemoteUserService;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -81,6 +86,7 @@ public class ResourceServiceImpl implements IResourceService {
     private final ISearchSyncService searchSyncService;
 
     private final ResourceItemResponseAssembler resourceItemResponseAssembler;
+    private final ApplicationEventPublisher applicationEventPublisher;
 
     private final RemoteUserService remoteUserService;
 
@@ -140,6 +146,36 @@ public class ResourceServiceImpl implements IResourceService {
             throw new ServiceException(ResourceError.RESOURCE_NOT_FOUND);
         }
         return resource;
+    }
+
+    @Override
+    public List<ResourceItemInfoResDTO> listResourceBaseInfo(List<String> resourceIds) {
+        if (resourceIds == null || resourceIds.isEmpty()) return Collections.emptyList();
+        return resourceItemRepository.findAllById(resourceIds).stream()
+                .filter(entity -> entity.getDeletedAt() == null)
+                .map(resourceItemEntity -> BeanUtil.copyProperties(resourceItemEntity, ResourceItemInfoResDTO.class))
+                .toList();
+    }
+
+    @Override
+    public List<Long> listResourceCountableGroupIds(List<GroupTagBind> groupTagBinds, Map<Long, GroupRoleType> operatorGroupRoles) {
+        if (groupTagBinds == null || operatorGroupRoles == null || operatorGroupRoles.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Set<Long> groupIds = new LinkedHashSet<>();
+        for (GroupTagBind groupBind : groupTagBinds) {
+            String groupId = groupBind.getGroupId();
+            if (!StringUtils.hasText(groupId) || groupId.startsWith(ResourceConstants.PERSONAL_GROUP_PREFIX)) {
+                continue;
+            }
+            groupId = groupId.startsWith(ResourceConstants.MARKET_GROUP_PREFIX)
+                    ? groupId.substring(ResourceConstants.MARKET_GROUP_PREFIX.length()) : groupId;
+            try {
+                if (operatorGroupRoles.containsKey(Long.valueOf(groupId))) groupIds.add(Long.valueOf(groupId));
+            } catch (NumberFormatException ignored) {
+            }
+        }
+        return new ArrayList<>(groupIds);
     }
 
     @Override
@@ -346,7 +382,7 @@ public class ResourceServiceImpl implements IResourceService {
         Long owner = Long.valueOf(entity.getOwnerId());
         Map<Long, UserDisplayBase> ownerInfoMap = remoteUserService.getUserDisplayInfo(List.of(owner)).getData();
         UserDisplayBase ownerInfo = ownerInfoMap.get(owner);
-        response.setOwnerInfo(ownerInfo == null ? new UserDisplayBase("UNKNOW", null, null, null) : ownerInfo);
+        response.setOwnerInfo(ownerInfo == null ? new UserDisplayBase("UNKNOWN") : ownerInfo);
 
         return response;
     }
@@ -369,6 +405,7 @@ public class ResourceServiceImpl implements IResourceService {
                                                      String groupId, GroupRoleType userGroupRole,
                                                      Map<Long, GroupRoleType> groupRoles,
                                                      List<String> tagIds, QueryLogicEnum tagQueryLogicMode,
+                                                     Boolean includeMyInteraction,
                                                      String resourceType, int page, int size,
                                                      ResourceSortBy sortBy, SortDirectionEnum sortDir) {
 
@@ -405,6 +442,22 @@ public class ResourceServiceImpl implements IResourceService {
                 response.setTagBinds(response.getTagBinds().stream()
                         .filter(tagBind -> Objects.equals(tagBind.getGroupId(), groupId) || Objects.equals(tagBind.getGroupId(), ResourceConstants.MARKET_GROUP_PREFIX + groupId))
                         .toList());
+            });
+        }
+
+        List<String> resourceIds = responses.stream().map(ResourceItemResponse::getResourceId).toList();
+        if (Boolean.TRUE.equals(includeMyInteraction) && !resourceIds.isEmpty()) {
+            Map<String, ResourceUserInteractionRecordEntity> interactionMap = resourceUserInteractRecordRepository
+                    .findByUserIdAndResourceIdIn(currentUserId, resourceIds).stream()
+                    .collect(Collectors.toMap(
+                            ResourceUserInteractionRecordEntity::getResourceId,
+                            interactionRecord -> interactionRecord,
+                            (existing, replacement) -> existing,
+                            LinkedHashMap::new));
+            responses.forEach(response -> {
+                ResourceUserInteractionRecordEntity interactionRecord = interactionMap.getOrDefault(
+                        response.getResourceId(), new ResourceUserInteractionRecordEntity(response.getResourceId(), currentUserId));
+                response.setMyInteractionRecord(BeanUtil.copyProperties(interactionRecord, ResourceUserInteractionRecordResponse.class));
             });
         }
 
@@ -460,7 +513,9 @@ public class ResourceServiceImpl implements IResourceService {
             log.warn("resource item compensated. resourceId={}", entity.getResourceId(), e);
             throw e;
         }
-        // interactionInfo 已内嵌在 ResourceItemEntity 中，无需单独初始化
+        // resourceInteractionInfo 已内嵌在 ResourceItemEntity 中，无需单独初始化
+        Long actorUserId = Long.valueOf(dto.getOwnerId());
+        listResourceCountableGroupIds(entity.getGroupBinds(), dto.getOwnerGroupRoles()).forEach(groupId -> applicationEventPublisher.publishEvent(new ResourceGroupDashboardMetricEvent(groupId, entity.getResourceId(), actorUserId, ResourceGroupDashboardMetricType.RESOURCE_ADDED, 1)));
         // 同步初始化资源搜索记录
         searchSyncService.syncResourceMetadata(entity, EnumSet.of(UpsertField.RESOURCE_TYPE, UpsertField.RESOURCE_NAME, UpsertField.ACL));
 

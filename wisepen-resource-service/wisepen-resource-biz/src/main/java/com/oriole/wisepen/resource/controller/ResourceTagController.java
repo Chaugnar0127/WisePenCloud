@@ -42,7 +42,7 @@ public class ResourceTagController {
                     - 约束：个人空间要求当前用户已登录；小组空间要求当前用户属于目标小组。
                     - 处理：一次性读取目标空间的全部标签并在内存中组装树；个人空间缺少系统根节点或回收站节点时会自动初始化；不修改普通业务标签。
                     - 失败：未登录 -> PermissionError.NOT_LOGIN；当前用户不属于目标小组 -> PermissionError.PERMISSION_DENIED。
-                    - 响应：返回标签树根节点列表及其子节点。
+                    - 响应：返回标签树根节点列表及其子节点；每个节点包含 tagCreator 和对应的 creatorInfo。
                     """
     )
     @GetMapping("/getTagTree")
@@ -59,7 +59,7 @@ public class ResourceTagController {
                     - 用途：在个人或小组资源空间的指定父节点下创建新的资源标签。
                     - 请求：groupId 为空表示个人标签空间，非空表示小组标签空间；parentId 为空或 0 表示创建在根层级；tagName 为新标签名称，其余字段描述标签可见性、挂载权限和默认动作。
                     - 约束：小组空间写入要求当前用户是 OWNER 或 ADMIN；不能在回收站及其子目录下创建标签；不能使用系统根节点或回收站保留名称；同一父节点下名称必须唯一。
-                    - 处理：根据父节点继承路径标签类型并计算 ancestors；个人标签会清空所有标签权限配置；创建成功后只新增标签节点，不自动移动资源。
+                    - 处理：根据父节点继承路径标签类型并计算 ancestors，并记录当前用户为标签创建者；个人标签会清空所有标签权限配置；创建成功后只新增标签节点，不自动移动资源。
                     - 失败：未登录 -> PermissionError.NOT_LOGIN；小组写入权限不足 -> PermissionError.PERMISSION_DENIED；父节点不存在 -> ResourceError.PARENT_TAG_NODE_NOT_FOUND；同级重名 -> ResourceError.TAG_NODE_NAME_CONFLICT；使用系统保留名称 -> ResourceError.CANNOT_USE_RESERVED_TAG_PATH_NODE_NAME；在回收站下创建 -> ResourceError.CANNOT_OPERATE_TRASHED_TAG_PATH_NODE。
                     - 响应：返回新建标签 ID。
                     """
@@ -68,7 +68,7 @@ public class ResourceTagController {
     @PostMapping("/addTag")
     public R<String> createTag(@Validated @RequestBody TagCreateRequest tagCreateRequest) {
         checkPermission(tagCreateRequest, true);
-        return R.ok(tagService.createTag(tagCreateRequest));
+        return R.ok(tagService.createTag(tagCreateRequest, SecurityContextHolder.getUserId().toString()));
     }
 
     // 更新 Tag (重命名、修改可见性规则等)

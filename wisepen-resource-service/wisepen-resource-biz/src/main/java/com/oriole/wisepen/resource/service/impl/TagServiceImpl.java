@@ -19,6 +19,7 @@ import com.oriole.wisepen.resource.exception.ResourceError;
 import com.oriole.wisepen.resource.repository.TagRepository;
 import com.oriole.wisepen.resource.service.ITagService;
 import com.oriole.wisepen.user.api.domain.base.GroupDisplayBase;
+import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
 import com.oriole.wisepen.user.api.feign.RemoteUserService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,6 +28,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -47,7 +49,7 @@ public class TagServiceImpl implements ITagService {
     private final ApplicationEventPublisher eventPublisher;
 
     @Override
-    public String createTag(TagCreateRequest tagCreateRequest) {
+    public String createTag(TagCreateRequest tagCreateRequest, String creatorUserId) {
         String groupID = tagCreateRequest.getGroupId();
 
         // 检查是否是 Market 组
@@ -84,6 +86,7 @@ public class TagServiceImpl implements ITagService {
         TagEntity entity = new TagEntity();
 
         BeanUtil.copyProperties(tagCreateRequest, entity);
+        entity.setTagCreator(creatorUserId);
         if (tagCreateRequest.getGrantedActions() != null) {
             entity.setTaggedResourceGrantedActionsMask(ResourceAction.actionsToPermissionCode(tagCreateRequest.getGrantedActions()));
         }
@@ -134,10 +137,30 @@ public class TagServiceImpl implements ITagService {
 
         ensurePersonalSystemTags(groupId, allTags);
 
+        Set<Long> creatorUserIds = allTags.stream()
+                .map(TagEntity::getTagCreator)
+                .filter(StringUtils::hasText)
+                .map(Long::valueOf)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        Map<Long, UserDisplayBase> creatorInfoMap = Collections.emptyMap();
+        if (!creatorUserIds.isEmpty()) {
+            try {
+                Map<Long, UserDisplayBase> fetched = remoteUserService.getUserDisplayInfo(new ArrayList<>(creatorUserIds)).getData();
+                creatorInfoMap = fetched == null ? Collections.emptyMap() : fetched;
+            } catch (Exception e) {
+                log.warn("tag creator info batch degraded. groupId={} creatorCount={}",
+                        groupId, creatorUserIds.size(), e);
+            }
+        }
+
         // 转换为 DTO
+        Map<Long, UserDisplayBase> finalCreatorInfoMap = creatorInfoMap;
         List<TagTreeResponse> tagTreeResponseList = allTags.stream().map(entity -> {
             TagTreeResponse tagTreeResponse = new TagTreeResponse();
             BeanUtil.copyProperties(entity, tagTreeResponse);
+            if (StringUtils.hasText(entity.getTagCreator())) {
+                tagTreeResponse.setCreatorInfo(finalCreatorInfoMap.get(Long.valueOf(entity.getTagCreator())));
+            }
             int taggedResourceGrantedActionsMask = entity.getTaggedResourceGrantedActionsMask() == null ? 0 : entity.getTaggedResourceGrantedActionsMask();
             tagTreeResponse.setGrantedActions(ResourceAction.permissionCodeToActions(taggedResourceGrantedActionsMask));
             tagTreeResponse.setChildren(new ArrayList<>());

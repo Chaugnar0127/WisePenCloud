@@ -22,4 +22,8 @@ public class UserDisplayBase implements Serializable {
     private String campusNo;
     private String email;
     private String mobile;
+
+    public UserDisplayBase(String nickname) {
+        this.nickname = nickname;
+    }
 }

@@ -84,6 +84,7 @@ public class StorageServiceImpl implements IStorageService {
 
             StorageRecordEntity newRecord = BeanUtil.copyProperties(existRecord, StorageRecordEntity.class,
                     "fileId", "createTime", "objectKey");
+            newRecord.setStatus(StorageStatusEnum.AVAILABLE);
             newRecord.setObjectKey(newObjectKey);
             storageRecordMapper.insert(newRecord);
 

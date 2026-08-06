@@ -5,6 +5,7 @@ import com.oriole.wisepen.note.api.domain.enums.VersionType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.data.mongodb.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -35,7 +36,8 @@ public interface NoteVersionRepository extends MongoRepository<NoteVersionEntity
             String resourceId, Integer version, VersionType type);
 
     /** 查询指定资源在指定版本号区间内的所有特定类型版本记录，并按版本号升序排列, 查询区间为左开右闭(startVersion, endVersion] **/
-    List<NoteVersionEntity> findByResourceIdAndVersionGreaterThanAndVersionLessThanEqualAndTypeOrderByVersionAsc(
+    @Query(value = "{ 'resourceId': ?0, 'version': { '$gt': ?1, '$lte': ?2 }, 'type': ?3 }", sort = "{ 'version': 1 }")
+    List<NoteVersionEntity> findByResourceIdAndVersionRangeAndTypeOrderByVersionAsc(
             String resourceId, Integer startVersion, Integer endVersion, VersionType type);
 
     void deleteByResourceIdIn(List<String> resourceIds);
