@@ -21,8 +21,10 @@ import com.oriole.wisepen.resource.domain.entity.ResourceItemEntity;
 import com.oriole.wisepen.resource.exception.ResourceError;
 import com.oriole.wisepen.resource.repository.CustomResourceInlineCommentRepository;
 import com.oriole.wisepen.resource.repository.ResourceInlineCommentRepository;
+import com.oriole.wisepen.resource.mq.IResourceEventPublisher;
 import com.oriole.wisepen.resource.service.IResourceInlineCommentService;
 import com.oriole.wisepen.resource.service.IResourceService;
+import com.oriole.wisepen.resource.service.assembler.ResourceInteractionMessageBuilder;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
 import com.oriole.wisepen.user.api.feign.RemoteUserService;
 import lombok.RequiredArgsConstructor;
@@ -49,11 +51,13 @@ public class ResourceInlineCommentServiceImpl implements IResourceInlineCommentS
     private final ResourceInlineCommentRepository inlineCommentRepository;
     private final CustomResourceInlineCommentRepository customInlineCommentRepository;
     private final RemoteUserService remoteUserService;
+    private final IResourceEventPublisher resourceEventPublisher;
 
     @Override
     public String createInlineComment(InlineCommentCreateRequest request,
                                       String operatorUserId) {
         String resourceId = request.getResourceId();
+        ResourceItemEntity resource = resourceService.getResourceEntity(resourceId);
 
         LocalDateTime now = LocalDateTime.now();
         // 构建 InlineCommentItem
@@ -75,6 +79,10 @@ public class ResourceInlineCommentServiceImpl implements IResourceInlineCommentS
                 .resolved(false)
                 .createTime(now).updateTime(now).build();
         inlineComment = inlineCommentRepository.save(inlineComment);
+        if (StringUtils.hasText(resource.getOwnerId()) && !Objects.equals(resource.getOwnerId(), operatorUserId)) {
+            resourceEventPublisher.publishUserMessage(ResourceInteractionMessageBuilder.inlineComment(
+                    resource, operatorUserId, inlineComment.getInlineCommentId(), commentItem.getItemId(), resource.getOwnerId()));
+        }
 
         log.info("inline comment created. resourceId={} inlineCommentId={} creatorId={}", resourceId, inlineComment.getInlineCommentId(), operatorUserId);
         return inlineComment.getInlineCommentId();
@@ -84,6 +92,7 @@ public class ResourceInlineCommentServiceImpl implements IResourceInlineCommentS
     public String addInlineCommentItem(InlineCommentItemCreateRequest request,
                                        String operatorUserId) {
         String resourceId = request.getResourceId();
+        ResourceItemEntity resource = resourceService.getResourceEntity(resourceId);
         ResourceInlineCommentEntity inlineComment = getInlineComment(request.getInlineCommentId(), resourceId);
         // 检查是否仍然适用当前版本
         if (!isApplicable(inlineComment, request.getContentVersion())) {
@@ -97,6 +106,10 @@ public class ResourceInlineCommentServiceImpl implements IResourceInlineCommentS
                 .createTime(now).updateTime(now).build();
         BeanUtil.copyProperties(request, commentItem);
         customInlineCommentRepository.appendItem(resourceId, request.getInlineCommentId(), commentItem);
+        if (StringUtils.hasText(inlineComment.getCreatorId()) && !Objects.equals(inlineComment.getCreatorId(), operatorUserId)) {
+            resourceEventPublisher.publishUserMessage(ResourceInteractionMessageBuilder.inlineComment(
+                    resource, operatorUserId, request.getInlineCommentId(), commentItem.getItemId(), inlineComment.getCreatorId()));
+        }
 
         log.info("inline comment item created. resourceId={} inlineCommentId={} itemId={} authorId={}", resourceId, request.getInlineCommentId(), commentItem.getItemId(), operatorUserId);
         return commentItem.getItemId();
@@ -128,6 +141,7 @@ public class ResourceInlineCommentServiceImpl implements IResourceInlineCommentS
     @Override
     public void setInlineCommentItemReaction(InlineCommentItemReactionSetRequest request, String operatorUserId) {
         String resourceId = request.getResourceId();
+        ResourceItemEntity resource = resourceService.getResourceEntity(resourceId);
         ResourceInlineCommentEntity inlineComment = getInlineComment(request.getInlineCommentId(), resourceId);
         if (!isApplicable(inlineComment, request.getContentVersion())) {
             throw new ServiceException(ResourceError.COMMENT_NOT_FOUND);
@@ -144,10 +158,17 @@ public class ResourceInlineCommentServiceImpl implements IResourceInlineCommentS
                 .emojiId(request.getEmojiId())
                 .createTime(now)
                 .build();
-        List<ResourceInlineCommentItemReactionBase> reactions = commentItem.getReactions().getOrDefault(operatorUserId, Collections.emptyList());
+        Map<String, List<ResourceInlineCommentItemReactionBase>> reactionMap =
+                commentItem.getReactions() == null ? Collections.emptyMap() : commentItem.getReactions();
+        List<ResourceInlineCommentItemReactionBase> reactions = new ArrayList<>(reactionMap.getOrDefault(operatorUserId, Collections.emptyList()));
+        boolean alreadyReacted = reactions.stream().anyMatch(existingReaction -> Objects.equals(existingReaction.getEmojiId(), request.getEmojiId()));
         reactions.removeIf(existingReaction -> Objects.equals(existingReaction.getEmojiId(), request.getEmojiId()));
         reactions.add(reaction);
         customInlineCommentRepository.setItemReactions(resourceId, request.getInlineCommentId(), request.getItemId(), operatorUserId, reactions);
+        if (!alreadyReacted && StringUtils.hasText(commentItem.getAuthorId()) && !Objects.equals(commentItem.getAuthorId(), operatorUserId)) {
+            resourceEventPublisher.publishUserMessage(ResourceInteractionMessageBuilder.inlineCommentReaction(
+                    resource, operatorUserId, request.getInlineCommentId(), request.getItemId(), request.getEmojiId(), commentItem.getAuthorId()));
+        }
         log.info("inline comment item reaction set. resourceId={} inlineCommentId={} itemId={} operatorUserId={} emojiId={}",
                 resourceId, request.getInlineCommentId(), request.getItemId(), operatorUserId, request.getEmojiId());
     }

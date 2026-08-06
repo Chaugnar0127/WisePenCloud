@@ -22,12 +22,14 @@ import com.oriole.wisepen.user.mapper.MessageRecipientMapper;
 import com.oriole.wisepen.user.mapper.UserMapper;
 import com.oriole.wisepen.user.service.IMessageService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -38,6 +40,9 @@ public class MessageServiceImpl implements IMessageService {
     private final MessageMapper messageMapper;
     private final MessageRecipientMapper messageRecipientMapper;
     private final UserMapper userMapper;
+
+    @Value("${wisepen.user.message-dedup-window-minutes:60}")
+    private long messageDedupWindowMinutes;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -52,27 +57,66 @@ public class MessageServiceImpl implements IMessageService {
         }
 
         MessageEntity message;
-        LambdaQueryWrapper<MessageEntity> wrapper = new LambdaQueryWrapper<>();
-        wrapper.eq(MessageEntity::getSourceService, req.getSourceService()).eq(MessageEntity::getBizTraceId, req.getBizTraceId());
-        message = messageMapper.selectOne(wrapper);
-
-        if (message == null) {
-            // 不存在则插入消息
-            message = BeanUtil.copyProperties(req, MessageEntity.class);
-            messageMapper.insert(message);
+        if (req.getSourceService() != null && req.getBizTraceId() != null) {
+            LambdaQueryWrapper<MessageEntity> wrapper = new LambdaQueryWrapper<>();
+            wrapper.eq(MessageEntity::getSourceService, req.getSourceService()).eq(MessageEntity::getBizTraceId, req.getBizTraceId());
+            message = messageMapper.selectOne(wrapper);
+            if (message != null) {
+                // 存在则直接返回
+                return;
+            }
         }
+
+        List<Long> receiverUserIds = req.getReceiverUserIds();
+        String messageHash = req.getMessageHash();
+        if (MessageDeliveryScope.DIRECT.equals(req.getDeliveryScope())) {
+            // 找最近窗口内同 hash 的消息
+            LocalDateTime dedupStartTime = LocalDateTime.now().minusMinutes(messageDedupWindowMinutes);
+            LambdaQueryWrapper<MessageEntity> duplicateMessageWrapper = new LambdaQueryWrapper<>();
+            duplicateMessageWrapper.eq(MessageEntity::getMessageHash, messageHash)
+                    .ge(MessageEntity::getCreateTime, dedupStartTime);
+            List<Long> duplicateMessageIds = messageMapper.selectList(duplicateMessageWrapper).stream()
+                    .map(MessageEntity::getMessageId)
+                    .toList();
+            if (!duplicateMessageIds.isEmpty()) {
+                // 查这些消息是否已经投递给当前 receiver
+                LambdaQueryWrapper<MessageRecipientEntity> duplicateRecipientWrapper = new LambdaQueryWrapper<>();
+                duplicateRecipientWrapper.in(MessageRecipientEntity::getMessageId, duplicateMessageIds)
+                        .in(MessageRecipientEntity::getUserId, receiverUserIds)
+                        .eq(MessageRecipientEntity::getDeliveryScope, MessageDeliveryScope.DIRECT)
+                        .isNull(MessageRecipientEntity::getDeleteTime);
+                Set<Long> duplicateReceiverUserIds = messageRecipientMapper.selectList(duplicateRecipientWrapper).stream()
+                        .map(MessageRecipientEntity::getUserId)
+                        .collect(Collectors.toSet());
+                // 命中的 receiver 剔除
+                receiverUserIds = receiverUserIds.stream()
+                        .filter(receiverUserId -> !duplicateReceiverUserIds.contains(receiverUserId))
+                        .toList();
+            }
+            if (receiverUserIds.isEmpty()) {
+                return;
+            }
+        }
+
+        // 不存在则插入消息，保留 bizTraceId 幂等记录
+        message = BeanUtil.copyProperties(req, MessageEntity.class);
+        message.setMessageHash(messageHash);
+        messageMapper.insert(message);
 
         if (MessageDeliveryScope.ALL_USERS.equals(message.getDeliveryScope())) {
             return; // ALL_USERS 消息为懒加载，无需后续处理
         }
 
         MessageEntity finalMessage = message;
-        List<MessageRecipientEntity> recipients = req.getReceiverUserIds().stream()
+        List<MessageRecipientEntity> recipients = receiverUserIds.stream()
                 .map(receiverUserId -> MessageRecipientEntity.builder()
                         .id(IdWorker.getId()).messageId(finalMessage.getMessageId()).deliveryScope(MessageDeliveryScope.DIRECT)
                         .userId(receiverUserId).createTime(finalMessage.getCreateTime())
                         .build())
                 .collect(Collectors.toList());
+        if (recipients.isEmpty()) {
+            return;
+        }
         // 批量插入
         messageRecipientMapper.insertBatch(recipients);
     }

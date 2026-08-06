@@ -9,7 +9,8 @@ import lombok.Getter;
 @AllArgsConstructor
 public enum MessageType {
     SYSTEM(1, "SYSTEM"),
-    GROUP(2, "NORMAL");
+    GROUP(2, "NORMAL"),
+    RESOURCE_INTERACTION(3, "RESOURCE_INTERACTION");
 
     private final int code;
 

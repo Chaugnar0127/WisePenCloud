@@ -17,9 +17,11 @@ import com.oriole.wisepen.resource.enums.CommentSortBy;
 import com.oriole.wisepen.resource.enums.CommentType;
 import com.oriole.wisepen.resource.event.ResourceGroupDashboardMetricEvent;
 import com.oriole.wisepen.resource.exception.ResourceError;
+import com.oriole.wisepen.resource.mq.IResourceEventPublisher;
 import com.oriole.wisepen.resource.repository.*;
 import com.oriole.wisepen.resource.service.IResourceCommentService;
 import com.oriole.wisepen.resource.service.IResourceService;
+import com.oriole.wisepen.resource.service.assembler.ResourceInteractionMessageBuilder;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
 import com.oriole.wisepen.user.api.enums.ResourceGroupDashboardMetricType;
 import com.oriole.wisepen.user.api.feign.RemoteUserService;
@@ -48,6 +50,7 @@ public class ResourceCommentServiceImpl implements IResourceCommentService {
     private final CustomResourceUserInteractionRecordRepository customInteractionRecordRepository;
     private final RemoteUserService remoteUserService;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final IResourceEventPublisher resourceEventPublisher;
 
     @Override
     public String createComment(CommentCreateRequest request, String operatorUserId, Map<Long, GroupRoleType> groupRoles) {
@@ -67,6 +70,10 @@ public class ResourceCommentServiceImpl implements IResourceCommentService {
         resourceService.listResourceCountableGroupIds(resourceItemEntity.getGroupBinds(), groupRoles).forEach(
                 groupId -> applicationEventPublisher.publishEvent(new ResourceGroupDashboardMetricEvent(groupId, resourceId, actorUserId, ResourceGroupDashboardMetricType.RESOURCE_COMMENT, 1))
         );
+        if (!resourceItemEntity.getOwnerId().equals(operatorUserId)) {
+            resourceEventPublisher.publishUserMessage(ResourceInteractionMessageBuilder.comment(
+                    resourceItemEntity, operatorUserId, comment.getCommentId(), comment.getContent()));
+        }
         log.info("comment created. resourceId={} commentId={} authorId={}", resourceId, comment.getCommentId(), operatorUserId);
         return comment.getCommentId();
     }
@@ -105,6 +112,10 @@ public class ResourceCommentServiceImpl implements IResourceCommentService {
         resourceService.listResourceCountableGroupIds(resourceItemEntity.getGroupBinds(), groupRoles).forEach(
                 groupId -> applicationEventPublisher.publishEvent(new ResourceGroupDashboardMetricEvent(groupId, resourceId, actorUserId, ResourceGroupDashboardMetricType.RESOURCE_COMMENT, 1))
         );
+        if (!resourceItemEntity.getOwnerId().equals(operatorUserId)) {
+            resourceEventPublisher.publishUserMessage(ResourceInteractionMessageBuilder.comment(
+                    resourceItemEntity, operatorUserId, reply.getCommentId(), reply.getContent()));
+        }
 
         log.info("reply created. resourceId={} rootCommentId={} replyToCommentId={} commentId={} authorId={}",
                 replyToComment.getResourceId(), rootCommentId, replyToComment.getCommentId(), reply.getCommentId(), operatorUserId);
@@ -152,11 +163,11 @@ public class ResourceCommentServiceImpl implements IResourceCommentService {
     public boolean toggleLike(CommentLikeRequest request, String operatorUserId) {
         // 检查资源状态
         String resourceId = request.getResourceId();
-        resourceService.getResourceEntity(resourceId);
+        ResourceItemEntity resourceItemEntity = resourceService.getResourceEntity(resourceId);
 
         // 确保点赞的评论存在
         String commentId = request.getCommentId();
-        commentRepository.findByIdAndResourceIdAndDeletedAtIsNull(commentId, resourceId)
+        ResourceCommentEntity comment = commentRepository.findByIdAndResourceIdAndDeletedAtIsNull(commentId, resourceId)
                 .orElseThrow(() -> new ServiceException(ResourceError.COMMENT_NOT_FOUND));
 
         // 加载用户互动记录，判断 commentId 是否在 likedCommentIds
@@ -172,6 +183,10 @@ public class ResourceCommentServiceImpl implements IResourceCommentService {
         } else {
             customInteractionRecordRepository.addToLikedCommentIds(resourceId, operatorUserId, commentId);
             customCommentRepository.updateLikeCount(commentId, 1); // 评论赞数增加
+            if (StringUtils.hasText(comment.getAuthorId()) && !Objects.equals(comment.getAuthorId(), operatorUserId)) {
+                resourceEventPublisher.publishUserMessage(ResourceInteractionMessageBuilder.commentLike(
+                        resourceItemEntity, operatorUserId, commentId, comment.getAuthorId()));
+            }
             log.info("comment like added. commentId={} resourceId={} operatorUserId={}", commentId, resourceId, operatorUserId);
             return true;
         }
