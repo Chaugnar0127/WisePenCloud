@@ -144,9 +144,7 @@ public class ResourceInlineCommentServiceImpl implements IResourceInlineCommentS
                 .emojiId(request.getEmojiId())
                 .createTime(now)
                 .build();
-        List<ResourceInlineCommentItemReactionBase> reactions = normalizeItemReactionList(
-                commentItem.getReactions().getOrDefault(operatorUserId, Collections.emptyList())
-        );
+        List<ResourceInlineCommentItemReactionBase> reactions = commentItem.getReactions().getOrDefault(operatorUserId, Collections.emptyList());
         reactions.removeIf(existingReaction -> Objects.equals(existingReaction.getEmojiId(), request.getEmojiId()));
         reactions.add(reaction);
         customInlineCommentRepository.setItemReactions(resourceId, request.getInlineCommentId(), request.getItemId(), operatorUserId, reactions);
@@ -168,9 +166,7 @@ public class ResourceInlineCommentServiceImpl implements IResourceInlineCommentS
                 .orElse(null);
         if (commentItem == null) throw new ServiceException(ResourceError.COMMENT_NOT_FOUND);
 
-        List<ResourceInlineCommentItemReactionBase> reactions = normalizeItemReactionList(
-                commentItem.getReactions().getOrDefault(operatorUserId, Collections.emptyList())
-        );
+        List<ResourceInlineCommentItemReactionBase> reactions = commentItem.getReactions().getOrDefault(operatorUserId, Collections.emptyList());
         reactions.removeIf(existingReaction -> Objects.equals(existingReaction.getEmojiId(), request.getEmojiId()));
         customInlineCommentRepository.setItemReactions(resourceId, request.getInlineCommentId(), request.getItemId(), operatorUserId, reactions);
         log.info("inline comment item reaction deleted. resourceId={} inlineCommentId={} itemId={} operatorUserId={} emojiId={}",
@@ -319,10 +315,6 @@ public class ResourceInlineCommentServiceImpl implements IResourceInlineCommentS
     private ResourceInlineCommentEntity getInlineComment(String inlineCommentId, String resourceId) {
         return inlineCommentRepository.findByIdAndResourceId(inlineCommentId, resourceId)
                 .orElseThrow(() -> new ServiceException(ResourceError.COMMENT_NOT_FOUND));
-    }
-
-    private List<ResourceInlineCommentItemReactionBase> normalizeItemReactionList(List<ResourceInlineCommentItemReactionBase> reactions) {
-        return reactions == null ? new ArrayList<>() : new ArrayList<>(reactions);
     }
 
     private boolean isApplicable(ResourceInlineCommentEntity inlineComment, Integer contentVersion) {
