@@ -87,20 +87,14 @@ public class CustomResourceInlineCommentRepository {
         mongoTemplate.updateFirst(query, update, ResourceInlineCommentEntity.class);
     }
 
-    public void setItemReaction(String resourceId, String inlineCommentId, String itemId,
-                                String operatorUserId, ResourceInlineCommentItemReactionBase reaction) {
+    public void setItemReactions(String resourceId, String inlineCommentId, String itemId,
+                                 String operatorUserId, List<ResourceInlineCommentItemReactionBase> reactions) {
         Query query = Query.query(Criteria.where("_id").is(inlineCommentId)
                 .and("resourceId").is(resourceId)
                 .and("items").elemMatch(Criteria.where("itemId").is(itemId)));
-        Update update = new Update().set("items.$.reactions." + operatorUserId, reaction);
-        mongoTemplate.updateFirst(query, update, ResourceInlineCommentEntity.class);
-    }
-
-    public void deleteItemReaction(String resourceId, String inlineCommentId, String itemId, String operatorUserId) {
-        Query query = Query.query(Criteria.where("_id").is(inlineCommentId)
-                .and("resourceId").is(resourceId)
-                .and("items").elemMatch(Criteria.where("itemId").is(itemId)));
-        Update update = new Update().unset("items.$.reactions." + operatorUserId);
+        Update update = reactions.isEmpty()
+                ? new Update().unset("items.$.reactions." + operatorUserId)
+                : new Update().set("items.$.reactions." + operatorUserId, reactions);
         mongoTemplate.updateFirst(query, update, ResourceInlineCommentEntity.class);
     }
 

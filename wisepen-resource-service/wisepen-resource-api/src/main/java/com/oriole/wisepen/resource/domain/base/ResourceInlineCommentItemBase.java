@@ -28,7 +28,7 @@ public class ResourceInlineCommentItemBase {
     private List<String> mentionUserIds = new ArrayList<>();
 
     @Builder.Default
-    private Map<String, ResourceInlineCommentItemReactionBase> reactions = new HashMap<>();
+    private Map<String, List<ResourceInlineCommentItemReactionBase>> reactions = new HashMap<>();
 
     private LocalDateTime createTime;
     private LocalDateTime updateTime;

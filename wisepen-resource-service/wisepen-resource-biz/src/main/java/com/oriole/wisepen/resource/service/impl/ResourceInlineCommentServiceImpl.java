@@ -144,7 +144,12 @@ public class ResourceInlineCommentServiceImpl implements IResourceInlineCommentS
                 .emojiId(request.getEmojiId())
                 .createTime(now)
                 .build();
-        customInlineCommentRepository.setItemReaction(resourceId, request.getInlineCommentId(), request.getItemId(), operatorUserId, reaction);
+        List<ResourceInlineCommentItemReactionBase> reactions = normalizeItemReactionList(
+                commentItem.getReactions().getOrDefault(operatorUserId, Collections.emptyList())
+        );
+        reactions.removeIf(existingReaction -> Objects.equals(existingReaction.getEmojiId(), request.getEmojiId()));
+        reactions.add(reaction);
+        customInlineCommentRepository.setItemReactions(resourceId, request.getInlineCommentId(), request.getItemId(), operatorUserId, reactions);
         log.info("inline comment item reaction set. resourceId={} inlineCommentId={} itemId={} operatorUserId={} emojiId={}",
                 resourceId, request.getInlineCommentId(), request.getItemId(), operatorUserId, request.getEmojiId());
     }
@@ -163,9 +168,13 @@ public class ResourceInlineCommentServiceImpl implements IResourceInlineCommentS
                 .orElse(null);
         if (commentItem == null) throw new ServiceException(ResourceError.COMMENT_NOT_FOUND);
 
-        customInlineCommentRepository.deleteItemReaction(resourceId, request.getInlineCommentId(), request.getItemId(), operatorUserId);
-        log.info("inline comment item reaction deleted. resourceId={} inlineCommentId={} itemId={} operatorUserId={}",
-                resourceId, request.getInlineCommentId(), request.getItemId(), operatorUserId);
+        List<ResourceInlineCommentItemReactionBase> reactions = normalizeItemReactionList(
+                commentItem.getReactions().getOrDefault(operatorUserId, Collections.emptyList())
+        );
+        reactions.removeIf(existingReaction -> Objects.equals(existingReaction.getEmojiId(), request.getEmojiId()));
+        customInlineCommentRepository.setItemReactions(resourceId, request.getInlineCommentId(), request.getItemId(), operatorUserId, reactions);
+        log.info("inline comment item reaction deleted. resourceId={} inlineCommentId={} itemId={} operatorUserId={} emojiId={}",
+                resourceId, request.getInlineCommentId(), request.getItemId(), operatorUserId, request.getEmojiId());
     }
 
     @Override
@@ -275,19 +284,21 @@ public class ResourceInlineCommentServiceImpl implements IResourceInlineCommentS
                     Map<String, InlineCommentItemReactionGroupResponse> reactionGroupMap = new LinkedHashMap<>();
                     // 这条 item 有人点过表情，才开始组装 reactionGroups
                     if (commentItemResponse.getReactions() != null && !commentItemResponse.getReactions().isEmpty()) {
-                        // 遍历每个用户的 reaction
-                        for (Map.Entry<String, ResourceInlineCommentItemReactionBase> entry : commentItemResponse.getReactions().entrySet()) {
+                        // 遍历每个用户的 reaction 列表，同一用户可对同一消息添加多个表情。
+                        for (Map.Entry<String, List<ResourceInlineCommentItemReactionBase>> entry : commentItemResponse.getReactions().entrySet()) {
                             String reactionUserId = entry.getKey();
-                            ResourceInlineCommentItemReactionBase reaction = entry.getValue();
-                            // 如果当前 emojiId 的分组还不存在，就创建一个，如果已经存在，就复用已有分组
-                            InlineCommentItemReactionGroupResponse reactionGroup = reactionGroupMap.computeIfAbsent(reaction.getEmojiId(),
-                                    emojiId -> InlineCommentItemReactionGroupResponse.builder().emojiId(emojiId).build());
-                            reactionGroup.setCount(reactionGroup.getCount() + 1); // 表情计数 +1
-                            // 如果当前遍历到的是当前登录用户的 reaction，就标记这一组
-                            if (Objects.equals(reactionUserId, operatorUserId)) reactionGroup.setReactedByCurrentUser(true);
-                            // 从前面批量查询好的 userMap 里取这个 reaction 用户的展示信息，放进该表情分组的 users 里
-                            UserDisplayBase reactionUserInfo = userMap.get(Long.valueOf(reactionUserId));
-                            if (reactionUserInfo != null) reactionGroup.getUsers().add(reactionUserInfo);
+                            List<ResourceInlineCommentItemReactionBase> reactions = entry.getValue() == null ? Collections.emptyList() : entry.getValue();
+                            for (ResourceInlineCommentItemReactionBase reaction : reactions) {
+                                // 如果当前 emojiId 的分组还不存在，就创建一个，如果已经存在，就复用已有分组
+                                InlineCommentItemReactionGroupResponse reactionGroup = reactionGroupMap.computeIfAbsent(reaction.getEmojiId(),
+                                        emojiId -> InlineCommentItemReactionGroupResponse.builder().emojiId(emojiId).build());
+                                reactionGroup.setCount(reactionGroup.getCount() + 1); // 表情计数 +1
+                                // 如果当前遍历到的是当前登录用户的 reaction，就标记这一组
+                                if (Objects.equals(reactionUserId, operatorUserId)) reactionGroup.setReactedByCurrentUser(true);
+                                // 从前面批量查询好的 userMap 里取这个 reaction 用户的展示信息，放进该表情分组的 users 里
+                                UserDisplayBase reactionUserInfo = userMap.get(Long.valueOf(reactionUserId));
+                                if (reactionUserInfo != null) reactionGroup.getUsers().add(reactionUserInfo);
+                            }
                         }
                     }
                     commentItemResponse.setReactionGroups(new ArrayList<>(reactionGroupMap.values()));
@@ -308,6 +319,10 @@ public class ResourceInlineCommentServiceImpl implements IResourceInlineCommentS
     private ResourceInlineCommentEntity getInlineComment(String inlineCommentId, String resourceId) {
         return inlineCommentRepository.findByIdAndResourceId(inlineCommentId, resourceId)
                 .orElseThrow(() -> new ServiceException(ResourceError.COMMENT_NOT_FOUND));
+    }
+
+    private List<ResourceInlineCommentItemReactionBase> normalizeItemReactionList(List<ResourceInlineCommentItemReactionBase> reactions) {
+        return reactions == null ? new ArrayList<>() : new ArrayList<>(reactions);
     }
 
     private boolean isApplicable(ResourceInlineCommentEntity inlineComment, Integer contentVersion) {

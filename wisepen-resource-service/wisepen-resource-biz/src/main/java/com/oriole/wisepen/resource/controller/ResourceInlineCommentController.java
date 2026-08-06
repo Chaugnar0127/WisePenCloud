@@ -136,10 +136,10 @@ public class ResourceInlineCommentController {
     @Operation(
             summary = "设置行内批注消息表情",
             description = """
-                    - 用途：让当前用户对行内批注卡片中的某条消息设置或替换一个表情表态。
+                    - 用途：让当前用户对行内批注卡片中的某条消息添加一个表情表态。
                     - 请求：resourceId、inlineCommentId、itemId 和 contentVersion 定位当前内容版本下的消息；emojiId 是前端选择的表情标识。
                     - 约束：当前用户必须已登录；目标资源、行内批注和消息必须存在；当前用户必须拥有 ResourceAction.INLINE_COMMENT。
-                    - 处理：按当前用户 ID 覆盖 items.reactions 中对应表情；同一用户对同一消息只保留一个 emojiId；不更新批注 updateTime，不改普通评论统计。
+                    - 处理：按当前用户 ID 追加 items.reactions 中对应表情；同一用户对同一消息可保留多个不同 emojiId；重复设置同一 emojiId 时保持幂等；不更新批注 updateTime，不改普通评论统计。
                     - 失败：未登录 -> PermissionError.NOT_LOGIN；资源动作权限裁决未通过 -> ResourceError.RESOURCE_PERMISSION_DENIED；行内批注或消息不存在，或不适用于当前内容版本 -> ResourceError.COMMENT_NOT_FOUND。
                     - 响应：成功时返回空结果。
                     """
@@ -166,9 +166,9 @@ public class ResourceInlineCommentController {
             summary = "取消行内批注消息表情",
             description = """
                     - 用途：让当前用户取消自己对某条行内批注消息的表情表态。
-                    - 请求：resourceId、inlineCommentId、itemId 和 contentVersion 定位当前内容版本下的消息。
+                    - 请求：resourceId、inlineCommentId、itemId 和 contentVersion 定位当前内容版本下的消息；emojiId 指定要取消的表情。
                     - 约束：当前用户必须已登录；目标资源、行内批注和消息必须存在；当前用户必须拥有 ResourceAction.INLINE_COMMENT。
-                    - 处理：移除 items.reactions 中当前用户 ID 对应的表情；未设置过表情时保持幂等；不更新批注 updateTime，不改普通评论统计。
+                    - 处理：移除 items.reactions 中当前用户 ID 下指定 emojiId 的表情；未设置过该表情时保持幂等；不更新批注 updateTime，不改普通评论统计。
                     - 失败：未登录 -> PermissionError.NOT_LOGIN；资源动作权限裁决未通过 -> ResourceError.RESOURCE_PERMISSION_DENIED；行内批注或消息不存在，或不适用于当前内容版本 -> ResourceError.COMMENT_NOT_FOUND。
                     - 响应：成功时返回空结果。
                     """
