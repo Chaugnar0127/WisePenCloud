@@ -4,6 +4,7 @@ import cn.hutool.core.util.IdUtil;
 import cn.hutool.json.JSONUtil;
 import com.oriole.wisepen.common.core.domain.enums.BusinessDomain;
 import com.oriole.wisepen.resource.domain.entity.ResourceItemEntity;
+import com.oriole.wisepen.resource.enums.CommentType;
 import com.oriole.wisepen.user.api.constant.MessageTemplatePlaceholders;
 import com.oriole.wisepen.user.api.domain.dto.req.MessagePublishRequest;
 import com.oriole.wisepen.user.api.enums.MessageDeliveryScope;
@@ -35,7 +36,7 @@ public class ResourceInteractionMessageBuilder {
 
     public static MessagePublishRequest comment(ResourceItemEntity resource, String actorUserId,
                                                 String commentId, String content) {
-        String commentContent = content;
+        String commentContent = content == null ? "" : content;
         if (commentContent.length() > 80) {
             commentContent = commentContent.substring(0, 80);
         }
@@ -53,6 +54,33 @@ public class ResourceInteractionMessageBuilder {
                 .jumpUrl(null)
                 .sourceService(BusinessDomain.RESOURCE)
                 .bizTraceId("RESOURCE_INTERACTION:COMMENT:" + commentId)
+                .extra(JSONUtil.toJsonStr(extra))
+                .build();
+    }
+
+    public static MessagePublishRequest reply(ResourceItemEntity resource, String actorUserId,
+                                              String replyId, String replyToCommentId, String receiverUserId,
+                                              CommentType replyToCommentType, String content) {
+        String replyContent = content == null ? "" : content;
+        if (replyContent.length() > 80) {
+            replyContent = replyContent.substring(0, 80);
+        }
+        boolean replyToReply = !CommentType.COMMENT.equals(replyToCommentType);
+        Map<String, Object> extra = new LinkedHashMap<>();
+        extra.put("actionType", "COMMENT_REPLY");
+        extra.put("resourceId", resource.getResourceId());
+        extra.put("commentId", replyId);
+        extra.put("replyToCommentId", replyToCommentId);
+        extra.put("actorUserId", Long.valueOf(actorUserId));
+        return MessagePublishRequest.builder()
+                .receiverUserIds(List.of(Long.valueOf(receiverUserId)))
+                .deliveryScope(MessageDeliveryScope.DIRECT)
+                .messageType(MessageType.RESOURCE_INTERACTION)
+                .title(replyToReply ? "回复收到新回复" : "评论收到新回复")
+                .content(MessageTemplatePlaceholders.user(actorUserId) + " 回复了你在资源 " + resource.getResourceName() + " 下的" + (replyToReply ? "回复" : "评论") + "：" + replyContent)
+                .jumpUrl(null)
+                .sourceService(BusinessDomain.RESOURCE)
+                .bizTraceId("RESOURCE_INTERACTION:COMMENT_REPLY:" + replyId)
                 .extra(JSONUtil.toJsonStr(extra))
                 .build();
     }
@@ -112,8 +140,8 @@ public class ResourceInteractionMessageBuilder {
                 .receiverUserIds(List.of(Long.valueOf(receiverUserId)))
                 .deliveryScope(MessageDeliveryScope.DIRECT)
                 .messageType(MessageType.RESOURCE_INTERACTION)
-                .title("资源收到新行内评论")
-                .content(MessageTemplatePlaceholders.user(actorUserId) + " 在资源 " + resource.getResourceName() + " 中发表了行内评论：" + commentContent)
+                .title("资源收到新批注")
+                .content(MessageTemplatePlaceholders.user(actorUserId) + " 在资源 " + resource.getResourceName() + " 中发表了批注：" + commentContent)
                 .jumpUrl(null)
                 .sourceService(BusinessDomain.RESOURCE)
                 .bizTraceId("RESOURCE_INTERACTION:INLINE_COMMENT:" + resource.getResourceId() + ":" + inlineCommentId + ":" + itemId)
@@ -139,8 +167,8 @@ public class ResourceInteractionMessageBuilder {
                 .receiverUserIds(List.of(Long.valueOf(receiverUserId)))
                 .deliveryScope(MessageDeliveryScope.DIRECT)
                 .messageType(MessageType.RESOURCE_INTERACTION)
-                .title("行内评论收到回应")
-                .content(MessageTemplatePlaceholders.user(actorUserId) + " 回应了你在资源 " + resource.getResourceName() + " 中的行内评论：" + commentContent)
+                .title("批注收到回应")
+                .content(MessageTemplatePlaceholders.user(actorUserId) + " “" + emojiId + "”了你在资源 " + resource.getResourceName() + " 中的批注：" + commentContent)
                 .jumpUrl(null)
                 .sourceService(BusinessDomain.RESOURCE)
                 .bizTraceId("RESOURCE_INTERACTION:INLINE_COMMENT_REACTION:" + resource.getResourceId() + ":" + inlineCommentId + ":" + itemId + ":" + emojiId + ":" + actorUserId + ":" + IdUtil.fastSimpleUUID())

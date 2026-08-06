@@ -112,9 +112,15 @@ public class ResourceCommentServiceImpl implements IResourceCommentService {
         resourceService.listResourceCountableGroupIds(resourceItemEntity.getGroupBinds(), groupRoles).forEach(
                 groupId -> applicationEventPublisher.publishEvent(new ResourceGroupDashboardMetricEvent(groupId, resourceId, actorUserId, ResourceGroupDashboardMetricType.RESOURCE_COMMENT, 1))
         );
-        if (!resourceItemEntity.getOwnerId().equals(operatorUserId)) {
+        if (StringUtils.hasText(resourceItemEntity.getOwnerId())
+                && !Objects.equals(resourceItemEntity.getOwnerId(), operatorUserId)
+                && !Objects.equals(resourceItemEntity.getOwnerId(), replyToComment.getAuthorId())) {
             resourceEventPublisher.publishUserMessage(ResourceInteractionMessageBuilder.comment(
                     resourceItemEntity, operatorUserId, reply.getCommentId(), reply.getContent()));
+        }
+        if (StringUtils.hasText(replyToComment.getAuthorId()) && !Objects.equals(replyToComment.getAuthorId(), operatorUserId)) {
+            resourceEventPublisher.publishUserMessage(ResourceInteractionMessageBuilder.reply(
+                    resourceItemEntity, operatorUserId, reply.getCommentId(), replyToComment.getCommentId(), replyToComment.getAuthorId(), replyToComment.getCommentType(), reply.getContent()));
         }
 
         log.info("reply created. resourceId={} rootCommentId={} replyToCommentId={} commentId={} authorId={}",
