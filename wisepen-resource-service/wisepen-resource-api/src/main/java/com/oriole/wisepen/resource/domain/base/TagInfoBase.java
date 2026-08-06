@@ -21,7 +21,7 @@ public class TagInfoBase extends TagSpaceBase{
     private String tagColor;
     private String tagMetaInfo;
 
-    private String tagCreator;
+    private String tagCreator; // 创建者 userId，系统自动创建的路径节点为空
 
     // 节点类型标识：true 表示 FOLDER(路径)，false 表示普通 TAG
     private Boolean isPath;
