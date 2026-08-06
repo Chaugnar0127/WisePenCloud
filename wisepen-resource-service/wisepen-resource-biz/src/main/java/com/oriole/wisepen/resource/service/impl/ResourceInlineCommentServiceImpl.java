@@ -81,7 +81,7 @@ public class ResourceInlineCommentServiceImpl implements IResourceInlineCommentS
         inlineComment = inlineCommentRepository.save(inlineComment);
         if (StringUtils.hasText(resource.getOwnerId()) && !Objects.equals(resource.getOwnerId(), operatorUserId)) {
             resourceEventPublisher.publishUserMessage(ResourceInteractionMessageBuilder.inlineComment(
-                    resource, operatorUserId, inlineComment.getInlineCommentId(), commentItem.getItemId(), resource.getOwnerId()));
+                    resource, operatorUserId, inlineComment.getInlineCommentId(), commentItem.getItemId(), resource.getOwnerId(), commentItem.getContent()));
         }
 
         log.info("inline comment created. resourceId={} inlineCommentId={} creatorId={}", resourceId, inlineComment.getInlineCommentId(), operatorUserId);
@@ -108,7 +108,7 @@ public class ResourceInlineCommentServiceImpl implements IResourceInlineCommentS
         customInlineCommentRepository.appendItem(resourceId, request.getInlineCommentId(), commentItem);
         if (StringUtils.hasText(inlineComment.getCreatorId()) && !Objects.equals(inlineComment.getCreatorId(), operatorUserId)) {
             resourceEventPublisher.publishUserMessage(ResourceInteractionMessageBuilder.inlineComment(
-                    resource, operatorUserId, request.getInlineCommentId(), commentItem.getItemId(), inlineComment.getCreatorId()));
+                    resource, operatorUserId, request.getInlineCommentId(), commentItem.getItemId(), inlineComment.getCreatorId(), commentItem.getContent()));
         }
 
         log.info("inline comment item created. resourceId={} inlineCommentId={} itemId={} authorId={}", resourceId, request.getInlineCommentId(), commentItem.getItemId(), operatorUserId);
@@ -167,7 +167,7 @@ public class ResourceInlineCommentServiceImpl implements IResourceInlineCommentS
         customInlineCommentRepository.setItemReactions(resourceId, request.getInlineCommentId(), request.getItemId(), operatorUserId, reactions);
         if (!alreadyReacted && StringUtils.hasText(commentItem.getAuthorId()) && !Objects.equals(commentItem.getAuthorId(), operatorUserId)) {
             resourceEventPublisher.publishUserMessage(ResourceInteractionMessageBuilder.inlineCommentReaction(
-                    resource, operatorUserId, request.getInlineCommentId(), request.getItemId(), request.getEmojiId(), commentItem.getAuthorId()));
+                    resource, operatorUserId, request.getInlineCommentId(), request.getItemId(), request.getEmojiId(), commentItem.getAuthorId(), commentItem.getContent()));
         }
         log.info("inline comment item reaction set. resourceId={} inlineCommentId={} itemId={} operatorUserId={} emojiId={}",
                 resourceId, request.getInlineCommentId(), request.getItemId(), operatorUserId, request.getEmojiId());

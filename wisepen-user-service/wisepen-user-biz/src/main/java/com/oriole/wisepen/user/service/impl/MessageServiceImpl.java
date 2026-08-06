@@ -16,7 +16,9 @@ import com.oriole.wisepen.user.api.enums.MessageType;
 import com.oriole.wisepen.user.domain.entity.MessageEntity;
 import com.oriole.wisepen.user.domain.entity.MessageRecipientEntity;
 import com.oriole.wisepen.user.domain.entity.UserEntity;
+import com.oriole.wisepen.user.domain.entity.GroupEntity;
 import com.oriole.wisepen.user.exception.UserError;
+import com.oriole.wisepen.user.mapper.GroupMapper;
 import com.oriole.wisepen.user.mapper.MessageMapper;
 import com.oriole.wisepen.user.mapper.MessageRecipientMapper;
 import com.oriole.wisepen.user.mapper.UserMapper;
@@ -25,12 +27,16 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Service
@@ -40,6 +46,10 @@ public class MessageServiceImpl implements IMessageService {
     private final MessageMapper messageMapper;
     private final MessageRecipientMapper messageRecipientMapper;
     private final UserMapper userMapper;
+    private final GroupMapper groupMapper;
+
+    private static final Pattern USER_PLACEHOLDER_PATTERN = Pattern.compile("\\{\\{USER:(\\d+)}}");
+    private static final Pattern GROUP_PLACEHOLDER_PATTERN = Pattern.compile("\\{\\{GROUP:(\\d+)}}");
 
     @Value("${wisepen.user.message-dedup-window-minutes:60}")
     private long messageDedupWindowMinutes;
@@ -154,8 +164,58 @@ public class MessageServiceImpl implements IMessageService {
                     response.setReadTime(recipient.getReadTime());
                     return response;
                 }).toList();
+        Set<Long> templateUserIds = new HashSet<>();
+        Set<Long> templateGroupIds = new HashSet<>();
+        records.forEach(response -> {
+            collectTemplateIds(response.getTitle(), USER_PLACEHOLDER_PATTERN, templateUserIds);
+            collectTemplateIds(response.getContent(), USER_PLACEHOLDER_PATTERN, templateUserIds);
+            collectTemplateIds(response.getTitle(), GROUP_PLACEHOLDER_PATTERN, templateGroupIds);
+            collectTemplateIds(response.getContent(), GROUP_PLACEHOLDER_PATTERN, templateGroupIds);
+        });
+        Map<Long, UserEntity> templateUserMap = templateUserIds.isEmpty() ? Map.of() : userMapper.selectBatchIds(templateUserIds).stream()
+                .collect(Collectors.toMap(UserEntity::getUserId, Function.identity()));
+        Map<Long, GroupEntity> templateGroupMap = templateGroupIds.isEmpty() ? Map.of() : groupMapper.selectBatchIds(templateGroupIds).stream()
+                .collect(Collectors.toMap(GroupEntity::getGroupId, Function.identity()));
+        records.forEach(response -> {
+            response.setTitle(renderMessageTemplate(response.getTitle(), templateUserMap, templateGroupMap));
+            response.setContent(renderMessageTemplate(response.getContent(), templateUserMap, templateGroupMap));
+        });
         pageR.addAll(records);
         return pageR;
+    }
+
+    private void collectTemplateIds(String text, Pattern pattern, Set<Long> ids) {
+        if (text == null) return;
+        Matcher matcher = pattern.matcher(text);
+        while (matcher.find()) {
+            ids.add(Long.valueOf(matcher.group(1)));
+        }
+    }
+
+    private String renderMessageTemplate(String text, Map<Long, UserEntity> userMap, Map<Long, GroupEntity> groupMap) {
+        if (text == null) {
+            return null;
+        }
+        Matcher userMatcher = USER_PLACEHOLDER_PATTERN.matcher(text);
+        StringBuffer rendered = new StringBuffer();
+        while (userMatcher.find()) {
+            Long userId = Long.valueOf(userMatcher.group(1));
+            UserEntity user = userMap.get(userId);
+            String userName = "用户 " + (user == null ? userId : user.getNickname());
+            userMatcher.appendReplacement(rendered, Matcher.quoteReplacement(userName));
+        }
+        userMatcher.appendTail(rendered);
+
+        Matcher groupMatcher = GROUP_PLACEHOLDER_PATTERN.matcher(rendered.toString());
+        StringBuffer groupRendered = new StringBuffer();
+        while (groupMatcher.find()) {
+            Long groupId = Long.valueOf(groupMatcher.group(1));
+            GroupEntity group = groupMap.get(groupId);
+            String groupName = "小组" + (group == null ? groupId : group.getGroupName());
+            groupMatcher.appendReplacement(groupRendered, Matcher.quoteReplacement(groupName));
+        }
+        groupMatcher.appendTail(groupRendered);
+        return groupRendered.toString();
     }
 
     @Override
