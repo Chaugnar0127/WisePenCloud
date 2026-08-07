@@ -10,11 +10,13 @@ import com.oriole.wisepen.resource.domain.dto.res.ResourceUserInteractionRecordR
 import com.oriole.wisepen.resource.domain.entity.ResourceItemEntity;
 import com.oriole.wisepen.resource.domain.entity.ResourceUserInteractionRecordEntity;
 import com.oriole.wisepen.resource.event.ResourceGroupDashboardMetricEvent;
+import com.oriole.wisepen.resource.mq.IResourceEventPublisher;
 import com.oriole.wisepen.resource.repository.CustomResourceItemRepository;
 import com.oriole.wisepen.resource.repository.CustomResourceUserInteractionRecordRepository;
 import com.oriole.wisepen.resource.repository.ResourceUserInteractionRecordRepository;
 import com.oriole.wisepen.resource.service.IResourceInteractionService;
 import com.oriole.wisepen.resource.service.IResourceService;
+import com.oriole.wisepen.resource.service.assembler.ResourceInteractionMessageBuilder;
 import com.oriole.wisepen.user.api.enums.ResourceGroupDashboardMetricType;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,6 +37,7 @@ public class ResourceInteractionServiceImpl implements IResourceInteractionServi
 
     private final RedisCacheManager redisCacheManager;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final IResourceEventPublisher resourceEventPublisher;
 
     @Override
     public ResourceUserInteractionRecordResponse getResourceUserInteractionInfo(String resourceId, String userId) {
@@ -76,6 +79,9 @@ public class ResourceInteractionServiceImpl implements IResourceInteractionServi
         resourceService.listResourceCountableGroupIds(resourceItemEntity.getGroupBinds(), groupRoles).forEach(
                 groupId -> applicationEventPublisher.publishEvent(new ResourceGroupDashboardMetricEvent(groupId, resourceId, actorUserId, ResourceGroupDashboardMetricType.RESOURCE_LIKE, wantLiked ? 1 : -1))
         );
+        if (wantLiked && !resourceItemEntity.getOwnerId().equals(userId)) {
+            resourceEventPublisher.publishUserMessage(ResourceInteractionMessageBuilder.like(resourceItemEntity, userId));
+        }
         log.info("resource like toggled. resourceId={} userId={} wantLiked={}", resourceId, userId, wantLiked);
     }
 
