@@ -15,4 +15,7 @@ public class InlineCommentItemReactionDeleteRequest {
     private String itemId;
 
     private Integer contentVersion;
+
+    @NotBlank
+    private String emojiId;
 }

@@ -1,13 +1,21 @@
 package com.oriole.wisepen.user.api.domain.dto.req;
 
+import cn.hutool.crypto.SecureUtil;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.oriole.wisepen.common.core.domain.enums.BusinessDomain;
 import com.oriole.wisepen.user.api.enums.MessageDeliveryScope;
 import com.oriole.wisepen.user.api.enums.MessageType;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.List;
 
 @Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
 public class MessagePublishRequest {
     private List<Long> receiverUserIds;
     private MessageDeliveryScope deliveryScope;
@@ -18,4 +26,23 @@ public class MessagePublishRequest {
     private BusinessDomain sourceService;
     private String bizTraceId;
     private String extra;
+
+    @JsonIgnore
+    public String getMessageHash() {
+        return SecureUtil.sha256(String.join("\u001F",
+                hashField(sourceService),
+                hashField(messageType),
+                hashField(title),
+                hashField(content),
+                hashField(jumpUrl),
+                hashField(extra)));
+    }
+
+    private static String hashField(Object value) {
+        if (value == null) {
+            return "-1:";
+        }
+        String text = value.toString();
+        return text.length() + ":" + text;
+    }
 }
