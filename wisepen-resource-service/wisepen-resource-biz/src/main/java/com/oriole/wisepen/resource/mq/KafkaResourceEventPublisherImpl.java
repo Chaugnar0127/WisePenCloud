@@ -6,6 +6,7 @@ import com.oriole.wisepen.resource.domain.entity.ResourceItemEntity;
 import com.oriole.wisepen.resource.domain.mq.AclRecalculateMessage;
 import com.oriole.wisepen.resource.domain.mq.ResourceDeletedMessage;
 import com.oriole.wisepen.resource.enums.ResourceType;
+import com.oriole.wisepen.user.api.domain.dto.req.MessagePublishRequest;
 import io.github.springwolf.core.asyncapi.annotations.AsyncMessage;
 import io.github.springwolf.core.asyncapi.annotations.AsyncOperation;
 import io.github.springwolf.core.asyncapi.annotations.AsyncPublisher;
@@ -19,6 +20,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static com.oriole.wisepen.resource.constant.MqTopicConstants.TOPIC_ACL_RECALC;
+import static com.oriole.wisepen.user.api.constant.MqTopicConstants.TOPIC_USER_MESSAGE_PUBLISH;
 
 @Slf4j
 @Component // 或者 @Service
@@ -69,6 +71,25 @@ public class KafkaResourceEventPublisherImpl implements IResourceEventPublisher 
         reliablePublisher.publish(MqTopicConstants.TOPIC_RESOURCE_PHYSICAL_DESTROY, dedupKey, message, dedupKey);
         log.info("resource physical destroy event publish requested. topic={} resourceCount={} dedupKey={}",
                 MqTopicConstants.TOPIC_RESOURCE_PHYSICAL_DESTROY, resourceCount, dedupKey);
+    }
+
+    @Override
+    @AsyncPublisher(operation = @AsyncOperation(
+            channelName = TOPIC_USER_MESSAGE_PUBLISH,
+            description = "发布通用站内信请求，由用户服务消费后写入收件箱。",
+            payloadType = MessagePublishRequest.class,
+            message = @AsyncMessage(name = "MessagePublishRequest", title = "站内信发布请求")
+    ))
+    public void publishUserMessage(MessagePublishRequest request) {
+        try {
+            String dedupKey = request.getSourceService() + ":" + request.getBizTraceId();
+            reliablePublisher.publish(TOPIC_USER_MESSAGE_PUBLISH, request.getBizTraceId(), request, dedupKey);
+            log.debug("user message publish requested. topic={} bizTraceId={}",
+                    TOPIC_USER_MESSAGE_PUBLISH, request.getBizTraceId());
+        } catch (Exception e) {
+            log.error("user message publish request failed. topic={} bizTraceId={}",
+                    TOPIC_USER_MESSAGE_PUBLISH, request.getBizTraceId(), e);
+        }
     }
 
 }

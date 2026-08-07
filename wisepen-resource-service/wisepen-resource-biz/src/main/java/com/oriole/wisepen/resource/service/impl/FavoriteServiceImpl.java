@@ -22,7 +22,9 @@ import com.oriole.wisepen.resource.repository.FavoriteCollectionRepository;
 import com.oriole.wisepen.resource.repository.FavoriteResourceRefRepository;
 import com.oriole.wisepen.resource.repository.ResourceItemRepository;
 import com.oriole.wisepen.resource.enums.ResourceAction;
+import com.oriole.wisepen.resource.mq.IResourceEventPublisher;
 import com.oriole.wisepen.resource.service.IResourceService;
+import com.oriole.wisepen.resource.service.assembler.ResourceInteractionMessageBuilder;
 import com.oriole.wisepen.resource.service.assembler.ResourceItemResponseAssembler;
 import com.oriole.wisepen.resource.service.IFavoriteService;
 import lombok.RequiredArgsConstructor;
@@ -52,6 +54,7 @@ public class FavoriteServiceImpl implements IFavoriteService {
     private final CustomResourceItemRepository customResourceItemRepository;
     private final ResourceItemRepository resourceItemRepository;
     private final ResourceItemResponseAssembler resourceItemResponseAssembler;
+    private final IResourceEventPublisher resourceEventPublisher;
 
     @Override
     @Transactional
@@ -104,6 +107,9 @@ public class FavoriteServiceImpl implements IFavoriteService {
             // 增加收藏次数（收藏夹与资源收藏计数）
             customFavoriteCollectionRepository.updateItemCount(collectionIds, 1);
             customResourceItemRepository.updateFavoriteCount(resourceId, 1);
+            if (!targetResource.getOwnerId().equals(userId)) {
+                resourceEventPublisher.publishUserMessage(ResourceInteractionMessageBuilder.favorite(targetResource, userId));
+            }
             log.info("resource favorite created. resourceId={} userId={} collectionCount={}", resourceId, userId, collectionIds.size());
             return;
         }
