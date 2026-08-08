@@ -29,7 +29,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.time.LocalDateTime;
 import java.util.*;
 
 @Slf4j
@@ -288,7 +287,8 @@ public abstract class VersionServiceImpl<VT extends VersionBundleBaseEntity<VT>,
             throw new ServiceException(AIResourceError.AI_RESOURCE_ASSET_NOT_READY);
         }
         draft.setStatus(VersionStatus.PUBLISHED);
-        aiResourceBaseRepository.updateVersionByResourceId(resourceId, draftVersion, LocalDateTime.now());
+        resourceEntity.setVersion(draftVersion);
+        aiResourceBaseRepository.save(resourceEntity);
         versionBundleBaseRepository.save(draft);
 
         // 新草案是 version + 1，直接新建

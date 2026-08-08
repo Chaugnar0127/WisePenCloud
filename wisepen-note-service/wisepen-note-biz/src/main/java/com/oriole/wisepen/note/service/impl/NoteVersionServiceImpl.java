@@ -26,7 +26,6 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-import java.time.LocalDateTime;
 import java.util.*;
 
 @Slf4j
@@ -54,8 +53,6 @@ public class NoteVersionServiceImpl implements INoteVersionService {
         BeanUtils.copyProperties(msg, noteVersionEntity, "type","data");
         noteVersionRepository.save(noteVersionEntity);
 
-        // 更新最后修改时间
-        noteInfo.setUpdateTime(LocalDateTime.now());
         noteInfo.setVersion(noteVersionEntity.getVersion());
         if (authors != null && !authors.isEmpty()) {
             // 将现有的作者和当前的作者合并，利用 CollUtil.distinct 自动去重

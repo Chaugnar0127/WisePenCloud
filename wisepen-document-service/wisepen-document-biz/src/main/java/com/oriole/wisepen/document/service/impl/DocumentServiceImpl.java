@@ -48,7 +48,6 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -430,7 +429,8 @@ public class DocumentServiceImpl implements IDocumentService {
         DocumentVersionEntity versionEntity = documentVersionRepository.findById(documentId)
                 .orElseThrow(() -> new ServiceException(DocumentError.DOCUMENT_NOT_FOUND));
         DocumentStatusEnum from = versionEntity.getDocumentStatus() != null ? versionEntity.getDocumentStatus().getStatus() : null;
-        documentVersionRepository.updateStatusById(documentId, status);
+        versionEntity.setDocumentStatus(status);
+        documentVersionRepository.save(versionEntity);
         log.info("document status changed. documentId={} resourceId={} version={} from={} to={}",
                 documentId, versionEntity.getResourceId(), versionEntity.getVersion(), from, status.getStatus());
     }
@@ -439,7 +439,8 @@ public class DocumentServiceImpl implements IDocumentService {
     public void saveConversionAndParseResult(String documentId, String previewObjectKey, DocumentPdfMetaEntity meta, DocumentContentEntity content) {
         DocumentVersionEntity entity = documentVersionRepository.findById(documentId)
                 .orElseThrow(() -> new ServiceException(DocumentError.DOCUMENT_NOT_FOUND));
-        documentVersionRepository.updatePreviewObjectKeyById(documentId, previewObjectKey);
+        entity.setPreviewObjectKey(previewObjectKey);
+        documentVersionRepository.save(entity);
 
         content.setDocumentId(documentId);
         content.setVersion(entity.getVersion());
@@ -460,6 +461,8 @@ public class DocumentServiceImpl implements IDocumentService {
         }
 
         this.updateStatus(documentId, new DocumentStatus(DocumentStatusEnum.REGISTERING_RES));
+        versionEntity = documentVersionRepository.findById(documentId)
+                .orElseThrow(() -> new ServiceException(DocumentError.DOCUMENT_NOT_FOUND));
 
         DocumentInfoEntity infoEntity = null;
         String resourceId = versionEntity.getResourceId();
@@ -467,7 +470,8 @@ public class DocumentServiceImpl implements IDocumentService {
             infoEntity = documentInfoRepository.findByResourceId(resourceId)
                     .orElseThrow(() -> new ServiceException(DocumentError.DOCUMENT_NOT_FOUND));
             // 更新 DocumentInfoEntity 的版本号
-            documentInfoRepository.updateVersionByResourceId(infoEntity.getResourceId(), infoEntity.getVersion() + 1, LocalDateTime.now());
+            infoEntity.setVersion(infoEntity.getVersion() + 1);
+            documentInfoRepository.save(infoEntity);
         } else { // 首次上传文档
             // 向 resource 服务注册资源
             try {
@@ -490,7 +494,8 @@ public class DocumentServiceImpl implements IDocumentService {
             infoEntity = DocumentInfoEntity.builder().resourceId(resourceId).version(1).build();
             documentInfoRepository.save(infoEntity);
             // 更新 ResourceId
-            documentVersionRepository.updateResourceIdById(documentId, resourceId);
+            versionEntity.setResourceId(resourceId);
+            documentVersionRepository.save(versionEntity);
         }
 
         this.updateStatus(documentId, new DocumentStatus(DocumentStatusEnum.READY));
@@ -585,7 +590,8 @@ public class DocumentServiceImpl implements IDocumentService {
                 throw new ServiceException(DocumentError.DOCUMENT_REGISTER_RESOURCE_FAILED, e.getMessage());
             }
 
-            documentVersionRepository.updateResourceIdById(targetDocumentId, resourceId);
+            targetVersion.setResourceId(resourceId);
+            documentVersionRepository.save(targetVersion);
 
             // 新建 DocumentInfoEntity
             DocumentInfoEntity targetInfo = DocumentInfoEntity.builder().resourceId(resourceId).version(1).build();
