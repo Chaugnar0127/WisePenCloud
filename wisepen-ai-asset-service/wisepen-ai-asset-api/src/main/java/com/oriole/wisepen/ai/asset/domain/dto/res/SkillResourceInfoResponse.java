@@ -10,5 +10,5 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 public class SkillResourceInfoResponse {
     ResourceItemResponse resourceInfo;
-    SkillInfoResponse skillInfo;
+    AIResourceMetaInfoResponse skillInfo;
 }

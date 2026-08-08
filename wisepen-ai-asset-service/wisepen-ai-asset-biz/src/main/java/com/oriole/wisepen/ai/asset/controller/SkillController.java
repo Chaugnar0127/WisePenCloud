@@ -8,7 +8,7 @@ import com.oriole.wisepen.ai.asset.domain.dto.req.AIResourceCreateRequest;
 import com.oriole.wisepen.ai.asset.domain.dto.req.AIResourceUpdateRequest;
 import com.oriole.wisepen.ai.asset.domain.dto.req.AIResourceVersionPublishRequest;
 import com.oriole.wisepen.ai.asset.domain.dto.res.AssetUploadInitResponse;
-import com.oriole.wisepen.ai.asset.domain.dto.res.SkillInfoResponse;
+import com.oriole.wisepen.ai.asset.domain.dto.res.AIResourceMetaInfoResponse;
 import com.oriole.wisepen.ai.asset.domain.dto.res.SkillResourceInfoResponse;
 import com.oriole.wisepen.ai.asset.domain.dto.res.SkillVersionBundleInfoResponse;
 import com.oriole.wisepen.ai.asset.domain.entity.SkillVersionBundleEntity;
@@ -140,7 +140,7 @@ public class SkillController {
         ResourceItemResponse resourceInfo = remoteResourceService.getResourceInfo(new ResourceInfoGetReqDTO(
                 resourceId, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap(), targetVersion
         )).getData();
-        SkillInfoResponse skillInfo = BeanUtil.copyProperties(skillService.getAIResourceInfo(resourceId), SkillInfoResponse.class);
+        AIResourceMetaInfoResponse skillInfo = BeanUtil.copyProperties(skillService.getAIResourceInfo(resourceId), AIResourceMetaInfoResponse.class);
         SkillResourceInfoResponse skillResourceInfoResponse = SkillResourceInfoResponse.builder()
                 .resourceInfo(resourceInfo)
                 .skillInfo(skillInfo)

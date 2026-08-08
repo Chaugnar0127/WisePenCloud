@@ -2,7 +2,7 @@ package com.oriole.wisepen.ai.asset.controller;
 
 import cn.hutool.core.bean.BeanUtil;
 import com.oriole.wisepen.ai.asset.domain.dto.req.*;
-import com.oriole.wisepen.ai.asset.domain.dto.res.AgentInfoResponse;
+import com.oriole.wisepen.ai.asset.domain.dto.res.AIResourceMetaInfoResponse;
 import com.oriole.wisepen.ai.asset.domain.dto.res.AgentResourceInfoResponse;
 import com.oriole.wisepen.ai.asset.domain.dto.res.AgentVersionBundleInfoResponse;
 import com.oriole.wisepen.ai.asset.domain.dto.res.AssetUploadInitResponse;
@@ -129,7 +129,7 @@ public class AgentController {
         ResourceItemResponse resourceInfo = remoteResourceService.getResourceInfo(new ResourceInfoGetReqDTO(
                 resourceId, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap(), targetVersion
         )).getData();
-        AgentInfoResponse agentInfo = BeanUtil.copyProperties(agentService.getAIResourceInfo(resourceId), AgentInfoResponse.class);
+        AIResourceMetaInfoResponse agentInfo = BeanUtil.copyProperties(agentService.getAIResourceInfo(resourceId), AIResourceMetaInfoResponse.class);
         AgentResourceInfoResponse agentResourceInfoResponse = AgentResourceInfoResponse.builder()
                 .resourceInfo(resourceInfo)
                 .agentInfo(agentInfo)

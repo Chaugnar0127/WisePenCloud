@@ -12,5 +12,5 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 public class AgentResourceInfoResponse {
     ResourceItemResponse resourceInfo;
-    AgentInfoResponse agentInfo;
+    AIResourceMetaInfoResponse agentInfo;
 }
