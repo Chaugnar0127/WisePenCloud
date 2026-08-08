@@ -81,10 +81,10 @@ public class FileUploadedConsumer {
 
         // 用 OSS 回传的真实 size 覆盖
         entity.getUploadMeta().setSize(msg.getSize());
-        documentVersionRepository.save(entity);
+        entity = documentVersionRepository.save(entity);
 
         // 推进状态机
-        documentService.updateStatus(entity.getDocumentId(), new DocumentStatus(DocumentStatusEnum.UPLOADED));
+        documentService.updateStatus(entity, new DocumentStatus(DocumentStatusEnum.UPLOADED));
         eventPublisher.publishParseTask(
                 DocumentParseTaskMessage.builder()
                         .documentId(entity.getDocumentId())

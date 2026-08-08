@@ -265,7 +265,7 @@ public class DocumentServiceImpl implements IDocumentService {
         }
         switch (entity.getDocumentStatus().getStatus()) {
             case FAILED:
-                this.updateStatus(documentId, new DocumentStatus(DocumentStatusEnum.UPLOADED));
+                entity = this.updateStatus(entity, new DocumentStatus(DocumentStatusEnum.UPLOADED));
                 eventPublisher.publishParseTask(
                         DocumentParseTaskMessage.builder()
                                 .documentId(entity.getDocumentId())
@@ -428,11 +428,17 @@ public class DocumentServiceImpl implements IDocumentService {
     public void updateStatus(String documentId, DocumentStatus status) {
         DocumentVersionEntity versionEntity = documentVersionRepository.findById(documentId)
                 .orElseThrow(() -> new ServiceException(DocumentError.DOCUMENT_NOT_FOUND));
+        updateStatus(versionEntity, status);
+    }
+
+    @Override
+    public DocumentVersionEntity updateStatus(DocumentVersionEntity versionEntity, DocumentStatus status) {
         DocumentStatusEnum from = versionEntity.getDocumentStatus() != null ? versionEntity.getDocumentStatus().getStatus() : null;
         versionEntity.setDocumentStatus(status);
-        documentVersionRepository.save(versionEntity);
+        DocumentVersionEntity saved = documentVersionRepository.save(versionEntity);
         log.info("document status changed. documentId={} resourceId={} version={} from={} to={}",
-                documentId, versionEntity.getResourceId(), versionEntity.getVersion(), from, status.getStatus());
+                versionEntity.getDocumentId(), versionEntity.getResourceId(), versionEntity.getVersion(), from, status.getStatus());
+        return saved;
     }
 
     @Override
@@ -460,9 +466,7 @@ public class DocumentServiceImpl implements IDocumentService {
             return;
         }
 
-        this.updateStatus(documentId, new DocumentStatus(DocumentStatusEnum.REGISTERING_RES));
-        versionEntity = documentVersionRepository.findById(documentId)
-                .orElseThrow(() -> new ServiceException(DocumentError.DOCUMENT_NOT_FOUND));
+        versionEntity = this.updateStatus(versionEntity, new DocumentStatus(DocumentStatusEnum.REGISTERING_RES));
 
         DocumentInfoEntity infoEntity = null;
         String resourceId = versionEntity.getResourceId();
@@ -495,10 +499,10 @@ public class DocumentServiceImpl implements IDocumentService {
             documentInfoRepository.save(infoEntity);
             // 更新 ResourceId
             versionEntity.setResourceId(resourceId);
-            documentVersionRepository.save(versionEntity);
+            versionEntity = documentVersionRepository.save(versionEntity);
         }
 
-        this.updateStatus(documentId, new DocumentStatus(DocumentStatusEnum.READY));
+        versionEntity = this.updateStatus(versionEntity, new DocumentStatus(DocumentStatusEnum.READY));
 
         String readyContent = documentContentRepository.findById(documentId)
                 .map(DocumentServiceImpl::getSearchText)
