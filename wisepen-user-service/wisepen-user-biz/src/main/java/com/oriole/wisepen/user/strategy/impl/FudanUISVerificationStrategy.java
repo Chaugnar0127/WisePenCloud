@@ -13,6 +13,7 @@ import com.oriole.wisepen.user.api.enums.DegreeLevel;
 import com.oriole.wisepen.user.api.enums.GenderType;
 import com.oriole.wisepen.user.api.enums.Status;
 import com.oriole.wisepen.user.api.enums.UserVerificationMode;
+import com.oriole.wisepen.user.cache.RedisCacheManager;
 import com.oriole.wisepen.user.domain.entity.UserEntity;
 import com.oriole.wisepen.user.domain.entity.UserProfileEntity;
 import com.oriole.wisepen.user.exception.UserError;
@@ -37,6 +38,7 @@ public class FudanUISVerificationStrategy implements UserVerificationStrategy {
     private final UserProfileMapper userProfileMapper;
     private final RemoteFudanExtensionService remoteFudanExtensionService;
     private final KafkaUserEventPublisher kafkaUserEventPublisher;
+    private final RedisCacheManager redisCacheManager;
 
     @Override
     public UserVerificationMode getMode() {
@@ -143,6 +145,7 @@ public class FudanUISVerificationStrategy implements UserVerificationStrategy {
         userProfileEntity.setUserId(userId);
         userProfileMapper.updateById(userProfileEntity);
 
+        redisCacheManager.updateUserStatusInSession(userId, Status.NORMAL);
         log.info("fudan uis verify succeeded. userId={} campusNo={}", userId, campusNo);
         return VerificationResultDTO.success();
     }

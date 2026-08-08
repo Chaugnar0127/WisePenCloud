@@ -325,6 +325,8 @@ public class UserServiceImpl implements IUserService {
     public void updateUserInfoAdmin(UserInfoAdminUpdateRequest req) {
         Long userId = req.getUserId();
         UserEntity userEntity = userMapper.selectById(userId);
+        boolean authContextChanged = (req.getIdentityType() != null && !req.getIdentityType().equals(userEntity.getIdentityType()))
+                || (req.getStatus() != null && !req.getStatus().equals(userEntity.getStatus()));
 
         // 唯一性校验 username
         if (req.getUsername() != null && !req.getUsername().equals(userEntity.getUsername())) {
@@ -362,6 +364,9 @@ public class UserServiceImpl implements IUserService {
 
         BeanUtil.copyProperties(req, userEntity);
         userMapper.updateById(userEntity);
+        if (authContextChanged) {
+            redisCacheManager.deleteSessionsByUserId(userId);
+        }
     }
 
     @Override

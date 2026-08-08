@@ -6,8 +6,9 @@ import cn.hutool.core.util.StrUtil;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.domain.enums.IdentityType;
 import com.oriole.wisepen.user.api.constant.GroupDashboardMetricConstants;
+import com.oriole.wisepen.user.api.enums.Status;
+import com.oriole.wisepen.user.domain.dto.EmailVerificationTicket;
 import lombok.RequiredArgsConstructor;
-import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
@@ -52,26 +53,41 @@ public class RedisCacheManager {
 		return counters;
 	}
 
-    public String setEmailVerificationCode(String email, Long userId) {
+    public String setEmailVerificationCode(String email, Long userId, String emailDomain, String university) {
         // 生成6位数字 token
         String token = RandomUtil.randomNumbers(6);
         String redisKey = REDIS_EMAIL_VERIFY_TOKEN_PREFIX + token;
 
-		String redisValue = userId + ":" + email;
-		stringRedisTemplate.opsForValue().set(redisKey, redisValue, 15, TimeUnit.MINUTES);
+		Map<String, Object> redisValue = new HashMap<>();
+		redisValue.put("userId", userId);
+		redisValue.put("email", email);
+		redisValue.put("emailDomain", emailDomain);
+		redisValue.put("university", university);
+		redisTemplate.opsForValue().set(redisKey, redisValue, 15, TimeUnit.MINUTES);
 
         return token;
     }
 
-    public ImmutablePair<Long, String> getEmailVerificationUser(String token) {
+    public EmailVerificationTicket getEmailVerificationTicket(String token) {
         String redisKey = REDIS_EMAIL_VERIFY_TOKEN_PREFIX + token;
-		String redisValue = stringRedisTemplate.opsForValue().get(redisKey);
+		Object redisValue = redisTemplate.opsForValue().get(redisKey);
         redisTemplate.delete(redisKey); // 立即删除
-		if (StrUtil.isBlank(redisValue)) {
+		if (!(redisValue instanceof Map<?, ?> ticketMap)) {
 			return null;
 		}
-		String[] parts = redisValue.split(":", 2);
-		return ImmutablePair.of(Long.parseLong(parts[0]), parts[1]);
+		Object userId = ticketMap.get("userId");
+		Object email = ticketMap.get("email");
+		Object emailDomain = ticketMap.get("emailDomain");
+		Object university = ticketMap.get("university");
+		if (userId == null || email == null || emailDomain == null || university == null) {
+			return null;
+		}
+		return EmailVerificationTicket.builder()
+				.userId(Long.parseLong(userId.toString()))
+				.email(email.toString())
+				.emailDomain(emailDomain.toString())
+				.university(university.toString())
+				.build();
     }
 
 	public String setPwdResetToken(Long userId){
@@ -86,11 +102,12 @@ public class RedisCacheManager {
 		return  StrUtil.isNotBlank(userId) ? Long.parseLong(userId) : null;
 	}
 
-	public String setSession(Long userId, IdentityType identityType, Map<String, Integer> groupRoleMap) {
+	public String setSession(Long userId, IdentityType identityType, Status status, Map<String, Integer> groupRoleMap) {
 		// 构建 Session 上下文数据
 		Map<String, Object> sessionData = new HashMap<>();
 		sessionData.put("userId", userId);
 		sessionData.put("identityType", identityType.getCode());
+		sessionData.put("status", status.getCode());
 		sessionData.put("groupRoleMap", groupRoleMap);
 
 		String sessionId = stringRedisTemplate.opsForValue().get(REDIS_SESSION_TO_USER_PREFIX + userId);
@@ -119,6 +136,19 @@ public class RedisCacheManager {
 		// 删除 session 和 user->session 映射
 		redisTemplate.delete(REDIS_SESSION_PREFIX + sessionId);
 		stringRedisTemplate.delete(REDIS_SESSION_TO_USER_PREFIX + userId);
+	}
+
+	public void updateUserStatusInSession(Long userId, Status status) {
+		String sessionId = stringRedisTemplate.opsForValue().get(REDIS_SESSION_TO_USER_PREFIX + userId);
+		if (StrUtil.isBlank(sessionId)) return;
+
+		@SuppressWarnings("unchecked")
+		Map<String, Object> sessionData = (Map<String, Object>) redisTemplate.opsForValue().get(REDIS_SESSION_PREFIX + sessionId);
+		if (sessionData == null) return;
+
+		sessionData.put("status", status.getCode());
+		redisTemplate.opsForValue().set(REDIS_SESSION_PREFIX + sessionId, sessionData,
+				SESSION_TIMEOUT_DAYS, TimeUnit.DAYS);
 	}
 
 	public void updateGroupRoleMapInSession(Long userId, Long groupId, GroupRoleType groupRoleType) {
