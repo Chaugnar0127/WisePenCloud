@@ -1,7 +1,6 @@
 package com.oriole.wisepen.ai.asset.controller;
 
 import cn.hutool.core.bean.BeanUtil;
-import com.oriole.wisepen.ai.asset.domain.base.AIResourceInfoBase;
 import com.oriole.wisepen.ai.asset.domain.dto.req.AIResourceForkRequest;
 import com.oriole.wisepen.ai.asset.domain.dto.req.AssetDeleteRequest;
 import com.oriole.wisepen.ai.asset.domain.dto.req.AssetUploadInitRequest;
@@ -9,6 +8,7 @@ import com.oriole.wisepen.ai.asset.domain.dto.req.AIResourceCreateRequest;
 import com.oriole.wisepen.ai.asset.domain.dto.req.AIResourceUpdateRequest;
 import com.oriole.wisepen.ai.asset.domain.dto.req.AIResourceVersionPublishRequest;
 import com.oriole.wisepen.ai.asset.domain.dto.res.AssetUploadInitResponse;
+import com.oriole.wisepen.ai.asset.domain.dto.res.SkillInfoResponse;
 import com.oriole.wisepen.ai.asset.domain.dto.res.SkillResourceInfoResponse;
 import com.oriole.wisepen.ai.asset.domain.dto.res.SkillVersionBundleInfoResponse;
 import com.oriole.wisepen.ai.asset.domain.entity.SkillVersionBundleEntity;
@@ -130,7 +130,7 @@ public class SkillController {
                     - 约束：当前用户必须已登录，且必须通过资源服务的资源详情权限校验；Market 来源查看必须传当前上架 offerVersion；目标技能资产必须存在。
                     - 处理：通过资源服务获取资源详情和当前用户动作集合，再读取技能主档信息并组合响应；不读取版本文件快照。
                     - 失败：未登录 -> PermissionError.NOT_LOGIN；资源不存在 -> ResourceError.RESOURCE_NOT_FOUND；资源无查看权限 -> ResourceError.RESOURCE_PERMISSION_DENIED；技能不存在 -> AIResourceError.AI_RESOURCE_NOT_FOUND。
-                    - 响应：返回资源信息与技能资产信息。
+                    - 响应：返回资源信息、业务更新时间与技能资产信息。
                     """
     )
     @PostMapping("/getSkillInfo")
@@ -140,8 +140,12 @@ public class SkillController {
         ResourceItemResponse resourceInfo = remoteResourceService.getResourceInfo(new ResourceInfoGetReqDTO(
                 resourceId, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap(), targetVersion
         )).getData();
-        AIResourceInfoBase skillInfo = skillService.getAIResourceInfo(resourceId);
-        SkillResourceInfoResponse skillResourceInfoResponse = SkillResourceInfoResponse.builder().resourceInfo(resourceInfo).skillInfo(skillInfo).build();
+        SkillInfoResponse skillInfo = BeanUtil.copyProperties(skillService.getAIResourceInfo(resourceId), SkillInfoResponse.class);
+        SkillResourceInfoResponse skillResourceInfoResponse = SkillResourceInfoResponse.builder()
+                .resourceInfo(resourceInfo)
+                .skillInfo(skillInfo)
+                .updateTime(skillInfo.getUpdateTime())
+                .build();
         return R.ok(skillResourceInfoResponse);
     }
 

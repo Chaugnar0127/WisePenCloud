@@ -5,6 +5,8 @@ import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
+import java.time.LocalDateTime;
+
 @Data
 @SuperBuilder
 @NoArgsConstructor
@@ -12,4 +14,5 @@ import lombok.experimental.SuperBuilder;
 public class SkillResourceInfoResponse {
     ResourceItemResponse resourceInfo;
     AIResourceInfoBase skillInfo;
+    private LocalDateTime updateTime;
 }

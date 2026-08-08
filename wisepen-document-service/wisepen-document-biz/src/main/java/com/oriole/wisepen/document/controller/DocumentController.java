@@ -24,12 +24,10 @@ import com.oriole.wisepen.document.service.IDocumentPreviewService;
 import com.oriole.wisepen.document.service.IDocumentService;
 import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionReqDTO;
 import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionResDTO;
-import com.oriole.wisepen.resource.domain.dto.ResourceCreateReqDTO;
 import com.oriole.wisepen.resource.domain.dto.ResourceInfoGetReqDTO;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
 import com.oriole.wisepen.resource.enums.ResourceAccessRole;
 import com.oriole.wisepen.resource.enums.ResourceAction;
-import com.oriole.wisepen.resource.enums.ResourceType;
 import com.oriole.wisepen.resource.feign.RemoteResourceService;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
 import com.oriole.wisepen.user.api.feign.RemoteUserService;
@@ -40,7 +38,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.util.StringUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -241,7 +238,7 @@ public class DocumentController {
                     - 约束：当前用户必须已登录，且必须通过资源服务的资源详情权限校验；Market 来源查看必须传当前上架 offerVersion；目标文档信息必须存在。
                     - 处理：通过资源服务获取资源详情和当前用户可执行动作，再读取文档信息并组合响应；不刷新文档状态，不触发解析或重试。
                     - 失败：未登录 -> PermissionError.NOT_LOGIN；资源不存在 -> ResourceError.RESOURCE_NOT_FOUND；资源无查看权限 -> ResourceError.RESOURCE_PERMISSION_DENIED；文档不存在 -> DocumentError.DOCUMENT_NOT_FOUND。
-                    - 响应：返回资源信息与文档信息组合结果。
+                    - 响应：返回资源信息、业务更新时间与文档信息组合结果。
                     """
     )
     @GetMapping("/getDocInfo")
@@ -270,6 +267,7 @@ public class DocumentController {
         DocumentInfoResponse documentInfoResponse = DocumentInfoResponse.builder()
                 .resourceInfo(resourceInfo)
                 .documentVersionInfo(documentVersionInfo)
+                .updateTime(documentInfo.getUpdateTime())
                 .authorsDisplay(authorsDisplay)
                 .build();
         return R.ok(documentInfoResponse);
