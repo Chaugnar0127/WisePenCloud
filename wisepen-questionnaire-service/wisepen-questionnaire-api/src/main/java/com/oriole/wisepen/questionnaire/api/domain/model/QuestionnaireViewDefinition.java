@@ -1,8 +1,9 @@
 package com.oriole.wisepen.questionnaire.api.domain.model;
 
+import com.oriole.wisepen.questionnaire.api.constant.QuestionnaireValidationMsg;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -18,6 +19,7 @@ import java.util.List;
 public class QuestionnaireViewDefinition {
     private String title;
     private String description;
+    @Valid
     private List<QuestionnairePageDefinition> pages;
     private String completionMessage;
     private SubmissionPolicy submissionPolicy;
@@ -27,9 +29,12 @@ public class QuestionnaireViewDefinition {
     @NoArgsConstructor
     @AllArgsConstructor
     public static class QuestionnairePageDefinition {
+        @NotNull(message = QuestionnaireValidationMsg.PAGE_NUMBER_NOT_NULL)
+        @Min(value = 1, message = QuestionnaireValidationMsg.PAGE_NUMBER_MIN)
         private Integer pageNumber;
         private String title;
         private String description;
+        @Valid
         private List<QuestionnaireColumnItem> items;
     }
 

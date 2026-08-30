@@ -12,6 +12,7 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class QuestionnaireColumnItem {
+    @NotBlank(message = QuestionnaireValidationMsg.COLUMN_ID_NOT_BLANK)
     private String columnId;
 
     private String title;

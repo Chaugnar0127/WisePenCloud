@@ -8,6 +8,8 @@ public interface QuestionnaireValidationMsg {
     String COLUMNS_NOT_EMPTY = "表格列不能为空";
     String PAGES_NOT_EMPTY = "问卷页面不能为空";
     String PAGE_ID_NOT_BLANK = "页面ID不能为空";
+    String PAGE_NUMBER_NOT_NULL = "页面序号不能为空";
+    String PAGE_NUMBER_MIN = "页面序号必须大于0";
     String COLUMN_ITEMS_NOT_EMPTY = "页面字段不能为空";
     String COLUMN_ID_NOT_BLANK = "字段ID不能为空";
     String COLUMN_NAME_NOT_BLANK = "字段名称不能为空";

@@ -9,6 +9,7 @@ import com.oriole.wisepen.questionnaire.api.domain.dto.req.QuestionnaireDraftUpd
 import com.oriole.wisepen.questionnaire.api.domain.dto.req.QuestionnaireSubmissionListRequest;
 import com.oriole.wisepen.questionnaire.api.domain.dto.req.QuestionnaireSubmitRequest;
 import com.oriole.wisepen.questionnaire.api.domain.dto.res.QuestionnaireDefinitionResponse;
+import com.oriole.wisepen.questionnaire.api.domain.dto.res.QuestionnaireInfoResponse;
 import com.oriole.wisepen.questionnaire.api.domain.dto.res.QuestionnaireSubmissionResponse;
 import com.oriole.wisepen.questionnaire.api.domain.model.QuestionnaireColumnItem;
 import com.oriole.wisepen.questionnaire.api.domain.model.QuestionnaireViewDefinition;
@@ -53,6 +54,7 @@ import java.util.stream.Collectors;
 public class QuestionnaireService {
     private static final int FIRST_DRAFT_VERSION = 1;
     private static final int MAX_PAGE_SIZE = 100;
+    private static final Integer SUCCESS_CODE = 200;
 
     private final TableRepository tableRepository;
     private final TableVersionRepository tableVersionRepository;
@@ -70,7 +72,10 @@ public class QuestionnaireService {
                 .mountTargetTagId(request.getMountTargetTagId())
                 .preview(request.getDescription())
                 .build());
-        String resourceId = createdResource == null ? null : createdResource.getData();
+        if (resourceCallFailed(createdResource)) {
+            throw new ServiceException(TableError.TABLE_REGISTER_RESOURCE_FAILED);
+        }
+        String resourceId = createdResource.getData();
         if (!StringUtils.hasText(resourceId)) {
             throw new ServiceException(TableError.TABLE_REGISTER_RESOURCE_FAILED);
         }
@@ -135,11 +140,14 @@ public class QuestionnaireService {
         }
         if (tableChanged) {
             tableRepository.save(table);
-            remoteResourceService.updateAttributes(ResourceUpdateReqDTO.builder()
+            R<Void> updatedResource = remoteResourceService.updateAttributes(ResourceUpdateReqDTO.builder()
                     .resourceId(request.getResourceId())
                     .resourceName(table.getTitle())
                     .preview(table.getDescription())
                     .build());
+            if (resourceCallFailed(updatedResource)) {
+                throw new ServiceException(TableError.TABLE_SYNC_RESOURCE_FAILED);
+            }
         }
     }
 
@@ -197,6 +205,19 @@ public class QuestionnaireService {
                 .description(table.getDescription())
                 .columns(tableVersion.getColumns())
                 .viewDefinition(view.getDefinition())
+                .build();
+    }
+
+    public QuestionnaireInfoResponse getQuestionnaireInfo(String resourceId) {
+        TableEntity table = tableRepository.findById(resourceId)
+                .orElseThrow(() -> new ServiceException(TableError.TABLE_NOT_FOUND));
+        return QuestionnaireInfoResponse.builder()
+                .resourceId(table.getResourceId())
+                .version(table.getVersion())
+                .draftVersion(table.getVersion() + 1)
+                .title(table.getTitle())
+                .description(table.getDescription())
+                .updateTime(table.getUpdateTime())
                 .build();
     }
 
@@ -397,15 +418,6 @@ public class QuestionnaireService {
         return response;
     }
 
-    public boolean isDraftVersion(String resourceId, Integer version) {
-        if (version == null) {
-            return false;
-        }
-        return tableVersionRepository.findByResourceIdAndVersion(resourceId, version)
-                .map(item -> item.getStatus() == TableVersionStatus.DRAFT)
-                .orElse(false);
-    }
-
     private void validateTableDefinition(List<TableColumn> columns) {
         if (columns == null || columns.isEmpty()) {
             throw new ServiceException(TableError.TABLE_COLUMN_INVALID);
@@ -526,5 +538,9 @@ public class QuestionnaireService {
             return map.isEmpty();
         }
         return false;
+    }
+
+    private boolean resourceCallFailed(R<?> response) {
+        return response == null || !SUCCESS_CODE.equals(response.getCode());
     }
 }

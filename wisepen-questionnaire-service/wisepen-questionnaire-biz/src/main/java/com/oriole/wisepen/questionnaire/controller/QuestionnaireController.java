@@ -14,11 +14,14 @@ import com.oriole.wisepen.questionnaire.api.domain.dto.req.QuestionnaireSubmissi
 import com.oriole.wisepen.questionnaire.api.domain.dto.req.QuestionnaireSubmitRequest;
 import com.oriole.wisepen.questionnaire.api.domain.dto.req.QuestionnaireVersionRequest;
 import com.oriole.wisepen.questionnaire.api.domain.dto.res.QuestionnaireDefinitionResponse;
+import com.oriole.wisepen.questionnaire.api.domain.dto.res.QuestionnaireInfoResponse;
 import com.oriole.wisepen.questionnaire.api.domain.dto.res.QuestionnaireSubmissionResponse;
 import com.oriole.wisepen.questionnaire.exception.TableError;
 import com.oriole.wisepen.questionnaire.service.QuestionnaireService;
 import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionReqDTO;
 import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionResDTO;
+import com.oriole.wisepen.resource.domain.dto.ResourceInfoGetReqDTO;
+import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
 import com.oriole.wisepen.resource.enums.ResourceAccessRole;
 import com.oriole.wisepen.resource.enums.ResourceAction;
 import com.oriole.wisepen.resource.feign.RemoteResourceService;
@@ -26,9 +29,11 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "问卷", description = "问卷设计、发布、填写和答卷查询")
@@ -66,7 +71,7 @@ public class QuestionnaireController {
                     - 请求：resourceId 指定问卷资源；columns 是完整草稿字段列表；viewDefinition 是完整问卷视图定义；title 和 description 可选。
                     - 约束：当前用户必须拥有目标资源 EDIT 动作；只能更新当前草稿版本。
                     - 处理：覆盖保存 table.version + 1 对应的 DRAFT 表结构和同版本唯一问卷视图；不发布版本，不修改已发布版本。
-                    - 失败：未登录 -> PermissionError.NOT_LOGIN；无 EDIT 权限 -> TableError.QUESTIONNAIRE_PERMISSION_DENIED；问卷不存在 -> TableError.TABLE_NOT_FOUND；当前版本不是草稿 -> TableError.TABLE_VERSION_STATUS_INVALID。
+                    - 失败：未登录 -> PermissionError.NOT_LOGIN；无 EDIT 权限 -> TableError.QUESTIONNAIRE_PERMISSION_DENIED；问卷不存在 -> TableError.TABLE_NOT_FOUND；当前版本不是草稿 -> TableError.TABLE_VERSION_STATUS_INVALID；资源属性同步失败 -> TableError.TABLE_SYNC_RESOURCE_FAILED。
                     - 响应：成功时返回空结果。
                     """
     )
@@ -100,6 +105,29 @@ public class QuestionnaireController {
     }
 
     @Operation(
+            summary = "获取问卷信息",
+            description = """
+                    - 用途：获取问卷资源详情、当前发布版本和草稿版本号，用于问卷详情页展示。
+                    - 请求：resourceId 指定问卷资源；targetVersion 可选，用于 Market 版本限定权限裁决。
+                    - 约束：当前用户必须已登录，且必须通过资源服务的资源详情权限校验；Market 来源查看必须传当前上架 offerVersion；目标问卷必须存在。
+                    - 处理：通过资源服务获取资源详情和当前用户可执行动作，再读取问卷主档并组合响应；不返回问卷视图、表结构或答卷。
+                    - 失败：未登录 -> PermissionError.NOT_LOGIN；资源不存在 -> ResourceError.RESOURCE_NOT_FOUND；资源无查看权限 -> ResourceError.RESOURCE_PERMISSION_DENIED；问卷不存在 -> TableError.TABLE_NOT_FOUND。
+                    - 响应：返回资源信息、当前发布版本、草稿版本号和问卷基础信息。
+                    """
+    )
+    @CheckRole
+    @GetMapping("/getQuestionnaireInfo")
+    public R<QuestionnaireInfoResponse> getQuestionnaireInfo(@RequestParam String resourceId,
+                                                             @RequestParam(value = "targetVersion", required = false) Integer targetVersion) {
+        ResourceItemResponse resourceInfo = remoteResourceService.getResourceInfo(new ResourceInfoGetReqDTO(
+                resourceId, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap(), targetVersion
+        )).getData();
+        QuestionnaireInfoResponse questionnaireInfo = questionnaireService.getQuestionnaireInfo(resourceId);
+        questionnaireInfo.setResourceInfo(resourceInfo);
+        return R.ok(questionnaireInfo);
+    }
+
+    @Operation(
             summary = "获取问卷",
             description = """
                     - 用途：获取用户可填写的问卷定义。
@@ -112,11 +140,11 @@ public class QuestionnaireController {
     )
     @PostMapping("/getQuestionnaire")
     public R<QuestionnaireDefinitionResponse> getQuestionnaire(@Validated @RequestBody QuestionnaireVersionRequest request) {
-        QuestionnaireDefinitionResponse definition = questionnaireService.getQuestionnaire(request.getResourceId(), request.getVersion());
         if (SecurityContextHolder.getUserId() != null) {
             assertHasAction(request.getResourceId(), request.getVersion(), ResourceAction.VIEW);
-            return R.ok(definition);
+            return R.ok(questionnaireService.getQuestionnaire(request.getResourceId(), request.getVersion()));
         }
+        QuestionnaireDefinitionResponse definition = questionnaireService.getQuestionnaire(request.getResourceId(), request.getVersion());
         if (definition.getViewDefinition() == null || definition.getViewDefinition().getSubmissionPolicy() == null
                 || !Boolean.TRUE.equals(definition.getViewDefinition().getSubmissionPolicy().getAnonymousAllowed())) {
             throw new ServiceException(TableError.QUESTIONNAIRE_PERMISSION_DENIED);
@@ -205,9 +233,14 @@ public class QuestionnaireController {
             }
             return R.ok(questionnaireService.getTable(request.getResourceId(), null, false));
         }
-        boolean draftVersion = questionnaireService.isDraftVersion(request.getResourceId(), request.getVersion());
-        assertHasAction(request.getResourceId(), request.getVersion(), draftVersion ? ResourceAction.EDIT : ResourceAction.VIEW);
-        return R.ok(questionnaireService.getTable(request.getResourceId(), request.getVersion(), draftVersion));
+        ResourceCheckPermissionResDTO permission = getPermission(request.getResourceId(), request.getVersion());
+        if (hasAction(permission, ResourceAction.EDIT)) {
+            return R.ok(questionnaireService.getTable(request.getResourceId(), request.getVersion(), true));
+        }
+        if (!hasAction(permission, ResourceAction.VIEW)) {
+            throw new ServiceException(TableError.QUESTIONNAIRE_PERMISSION_DENIED);
+        }
+        return R.ok(questionnaireService.getTable(request.getResourceId(), request.getVersion(), false));
     }
 
     private ResourceCheckPermissionResDTO getPermission(String resourceId, Integer targetVersion) {

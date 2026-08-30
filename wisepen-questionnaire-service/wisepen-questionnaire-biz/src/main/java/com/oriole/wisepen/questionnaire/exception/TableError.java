@@ -17,6 +17,7 @@ public enum TableError implements IResult {
     TABLE_NOT_FOUND(10111, new ResultKey(BusinessDomain.QUESTIONNAIRE, QuestionnaireSubject.TABLE, ErrorReason.NOT_FOUND), "表格不存在"),
     TABLE_ALREADY_EXISTS(10112, new ResultKey(BusinessDomain.QUESTIONNAIRE, QuestionnaireSubject.TABLE, ErrorReason.ALREADY_EXISTS), "表格已存在"),
     TABLE_REGISTER_RESOURCE_FAILED(10113, new ResultKey(BusinessDomain.QUESTIONNAIRE, QuestionnaireSubject.TABLE, ErrorReason.EXTERNAL_FAILED), "问卷资源注册失败"),
+    TABLE_SYNC_RESOURCE_FAILED(10114, new ResultKey(BusinessDomain.QUESTIONNAIRE, QuestionnaireSubject.TABLE, ErrorReason.EXTERNAL_FAILED), "问卷资源属性同步失败"),
     TABLE_VERSION_NOT_FOUND(10211, new ResultKey(BusinessDomain.QUESTIONNAIRE, QuestionnaireSubject.TABLE_VERSION, ErrorReason.NOT_FOUND), "表格版本不存在"),
     TABLE_VERSION_STATUS_INVALID(10213, new ResultKey(BusinessDomain.QUESTIONNAIRE, QuestionnaireSubject.TABLE_VERSION, ErrorReason.STATE_INVALID), "表格版本状态非法"),
     QUESTIONNAIRE_VIEW_NOT_FOUND(10311, new ResultKey(BusinessDomain.QUESTIONNAIRE, QuestionnaireSubject.QUESTIONNAIRE_VIEW, ErrorReason.NOT_FOUND), "问卷视图不存在"),
