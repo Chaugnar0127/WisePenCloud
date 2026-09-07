@@ -58,11 +58,11 @@ public class KafkaMediaEventPublisher {
     public void publishJitPlaybackTask(MediaJitPlaybackTaskMessage message) {
         try {
             reliablePublisher.publish(TOPIC_MEDIA_JIT_PLAYBACK, message.getSessionId(), message, message.getSessionId());
-            log.debug("media jit playback event publish requested. topic={} mediaId={}",
-                    TOPIC_MEDIA_JIT_PLAYBACK, message.getMediaId());
+            log.debug("media jit playback event publish requested. topic={} sessionId={} mediaId={}",
+                    TOPIC_MEDIA_JIT_PLAYBACK, message.getSessionId(), message.getMediaId());
         } catch (Exception e) {
-            log.error("media jit playback event publish request failed. topic={} mediaId={}",
-                    TOPIC_MEDIA_JIT_PLAYBACK, message.getMediaId(), e);
+            log.error("media jit playback event publish request failed. topic={} sessionId={} mediaId={}",
+                    TOPIC_MEDIA_JIT_PLAYBACK, message.getSessionId(), message.getMediaId(), e);
         }
     }
 

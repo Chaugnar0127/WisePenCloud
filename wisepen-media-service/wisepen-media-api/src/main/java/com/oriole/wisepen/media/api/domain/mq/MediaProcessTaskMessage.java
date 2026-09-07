@@ -6,9 +6,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.io.Serial;
-import java.io.Serializable;
-
 /**
  * 媒体处理任务消息。
  */
@@ -16,10 +13,7 @@ import java.io.Serializable;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class MediaProcessTaskMessage implements Serializable {
-
-    @Serial
-    private static final long serialVersionUID = 1L;
+public class MediaProcessTaskMessage {
 
     private String mediaId;
 

@@ -5,18 +5,12 @@ import com.oriole.wisepen.resource.enums.ResourceType;
 import lombok.Builder;
 import lombok.Data;
 
-import java.io.Serial;
-import java.io.Serializable;
-
 /**
  * 媒体无水印播放响应
  */
 @Data
 @Builder
-public class MediaPlaybackResponse implements Serializable {
-
-    @Serial
-    private static final long serialVersionUID = 1L;
+public class MediaPlaybackResponse {
 
     private String resourceId;
 

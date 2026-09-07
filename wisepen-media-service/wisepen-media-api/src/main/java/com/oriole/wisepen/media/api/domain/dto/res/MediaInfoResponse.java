@@ -4,15 +4,10 @@ import com.oriole.wisepen.media.api.domain.base.MediaStatus;
 import com.oriole.wisepen.resource.enums.ResourceType;
 import lombok.Data;
 
-import java.io.Serial;
-import java.io.Serializable;
 import java.time.LocalDateTime;
 
 @Data
-public class MediaInfoResponse implements Serializable {
-
-    @Serial
-    private static final long serialVersionUID = 1L;
+public class MediaInfoResponse {
 
     private String mediaId;
 

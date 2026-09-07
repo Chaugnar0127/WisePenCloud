@@ -6,18 +6,12 @@ import com.oriole.wisepen.media.api.enums.WatermarkSessionStatus;
 import lombok.Builder;
 import lombok.Data;
 
-import java.io.Serial;
-import java.io.Serializable;
-
 /**
  * 媒体预览或播放会话响应。
  */
 @Data
 @Builder
-public class MediaPlaybackSessionResponse implements Serializable {
-
-    @Serial
-    private static final long serialVersionUID = 1L;
+public class MediaPlaybackSessionResponse {
 
     /** 水印播放会话 ID；音频源文件播放授权可能为空。 */
     private String sessionId;

@@ -4,15 +4,9 @@ import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
 import lombok.Builder;
 import lombok.Data;
 
-import java.io.Serial;
-import java.io.Serializable;
-
 @Data
 @Builder
-public class MediaDetailResponse implements Serializable {
-
-    @Serial
-    private static final long serialVersionUID = 1L;
+public class MediaDetailResponse {
 
     private ResourceItemResponse resourceInfo;
 
