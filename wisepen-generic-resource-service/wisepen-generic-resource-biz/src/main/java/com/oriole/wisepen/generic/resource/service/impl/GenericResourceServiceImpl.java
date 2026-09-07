@@ -39,6 +39,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static com.oriole.wisepen.common.core.util.LogIdUtils.summarizeIds;
+import static org.apache.poi.xdgf.util.Util.sanitizeFilename;
 
 @Slf4j
 @Service
@@ -79,6 +80,8 @@ public class GenericResourceServiceImpl implements IGenericResourceService {
                     .isNeedCallback(true)
                     .build()).getData();
         } catch (Exception e) {
+            log.warn("generic resource upload init failed. genericResourceId={} dependency=storageService",
+                    genericResourceId, e);
             throw new ServiceException(GenericResourceError.GENERIC_RESOURCE_UPLOAD_URL_APPLY_FAILED, e.getMessage());
         }
         if (uploadInitRespDTO == null || !StringUtils.hasText(uploadInitRespDTO.getObjectKey())) {
@@ -182,10 +185,23 @@ public class GenericResourceServiceImpl implements IGenericResourceService {
             throw new ServiceException(GenericResourceError.GENERIC_RESOURCE_NOT_READY);
         }
 
-        String downloadFilename = buildDownloadFilename(entity);
-        String contentDisposition = ContentDisposition.attachment()
-                .filename(sanitizeDownloadFilename(downloadFilename), StandardCharsets.UTF_8)
-                .build().toString();
+        String downloadFilename = StringUtils.hasText(entity.getResourceName())
+                ? entity.getResourceName().trim()
+                : "";
+        if (StringUtils.hasText(downloadFilename)) {
+            String extension = entity.getExtension();
+            if (StringUtils.hasText(extension) && !"unknown".equalsIgnoreCase(extension)) {
+                String suffix = "." + extension.trim();
+                if (!StringUtils.endsWithIgnoreCase(downloadFilename, suffix)) {
+                    downloadFilename = downloadFilename + suffix;
+                }
+            }
+        }
+        String contentDisposition = StringUtils.hasText(downloadFilename)
+                ? ContentDisposition.attachment()
+                .filename(sanitizeFilename(downloadFilename), StandardCharsets.UTF_8)
+                .build().toString()
+                : ContentDisposition.attachment().build().toString();
 
         String downloadUrl;
         try {
@@ -317,25 +333,4 @@ public class GenericResourceServiceImpl implements IGenericResourceService {
         }
     }
 
-    private static String buildDownloadFilename(GenericResourceInfoEntity entity) {
-        String filename = StringUtils.hasText(entity.getResourceName())
-                ? entity.getResourceName().trim()
-                : "generic-resource";
-        String extension = entity.getExtension();
-        if (!StringUtils.hasText(extension) || "unknown".equalsIgnoreCase(extension)) {
-            return filename;
-        }
-        String suffix = "." + extension.trim();
-        return filename.toLowerCase(Locale.ROOT).endsWith(suffix.toLowerCase(Locale.ROOT))
-                ? filename
-                : filename + suffix;
-    }
-
-    private static String sanitizeDownloadFilename(String filename) {
-        if (!StringUtils.hasText(filename)) {
-            return "generic-resource";
-        }
-        String sanitized = filename.trim().replaceAll("[\\r\\n\\t\\\\/:*?\"<>|]", "_");
-        return StringUtils.hasText(sanitized) ? sanitized : "generic-resource";
-    }
 }
