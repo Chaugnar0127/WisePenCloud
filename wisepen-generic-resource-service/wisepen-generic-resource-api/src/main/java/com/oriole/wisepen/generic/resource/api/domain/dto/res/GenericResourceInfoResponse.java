@@ -2,18 +2,16 @@ package com.oriole.wisepen.generic.resource.api.domain.dto.res;
 
 import com.oriole.wisepen.generic.resource.api.enums.GenericResourceStatusEnum;
 import com.oriole.wisepen.resource.enums.ResourceType;
-import lombok.Builder;
+import lombok.AllArgsConstructor;
 import lombok.Data;
-
-import java.io.Serial;
-import java.io.Serializable;
+import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 
 @Data
-@Builder
-public class GenericResourceInfoResponse implements Serializable {
-
-    @Serial
-    private static final long serialVersionUID = 1L;
+@SuperBuilder
+@NoArgsConstructor
+@AllArgsConstructor
+public class GenericResourceInfoResponse {
 
     private String resourceId;
     private String resourceName;

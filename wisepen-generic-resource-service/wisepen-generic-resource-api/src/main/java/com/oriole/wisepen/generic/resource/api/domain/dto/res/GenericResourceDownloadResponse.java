@@ -4,18 +4,12 @@ import com.oriole.wisepen.resource.enums.ResourceType;
 import lombok.Builder;
 import lombok.Data;
 
-import java.io.Serial;
-import java.io.Serializable;
-
 /**
  * 通用资源下载响应
  */
 @Data
 @Builder
-public class GenericResourceDownloadResponse implements Serializable {
-
-    @Serial
-    private static final long serialVersionUID = 1L;
+public class GenericResourceDownloadResponse {
 
     private String resourceId;
     private String resourceName;

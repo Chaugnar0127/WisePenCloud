@@ -7,18 +7,12 @@ import jakarta.validation.constraints.Positive;
 import lombok.Builder;
 import lombok.Data;
 
-import java.io.Serial;
-import java.io.Serializable;
-
 /**
  * 通用资源上传初始化请求
  */
 @Data
 @Builder
-public class GenericResourceUploadInitRequest implements Serializable {
-
-    @Serial
-    private static final long serialVersionUID = 1L;
+public class GenericResourceUploadInitRequest {
 
     @NotBlank(message = GenericResourceValidationMsg.FILENAME_EMPTY)
     private String filename;
