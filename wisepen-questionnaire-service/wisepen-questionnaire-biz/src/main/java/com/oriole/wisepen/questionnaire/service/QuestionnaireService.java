@@ -64,15 +64,20 @@ public class QuestionnaireService {
 
     @Transactional
     public String createQuestionnaire(QuestionnaireCreateRequest request, Long userId, Map<Long, GroupRoleType> groupRoles) {
-        R<String> createdResource = remoteResourceService.createResource(ResourceCreateReqDTO.builder()
-                .resourceName(request.getTitle())
-                .resourceType(ResourceType.QUESTIONNAIRE)
-                .ownerId(userId.toString())
-                .ownerGroupRoles(groupRoles)
-                .mountTargetTagId(request.getMountTargetTagId())
-                .preview(request.getDescription())
-                .build());
-        if (resourceCallFailed(createdResource)) {
+        R<String> createdResource;
+        try {
+            createdResource = remoteResourceService.createResource(ResourceCreateReqDTO.builder()
+                    .resourceName(request.getTitle())
+                    .resourceType(ResourceType.QUESTIONNAIRE)
+                    .ownerId(userId.toString())
+                    .ownerGroupRoles(groupRoles)
+                    .mountTargetTagId(request.getMountTargetTagId())
+                    .preview(request.getDescription())
+                    .build());
+        } catch (Exception e) {
+            throw new ServiceException(TableError.TABLE_REGISTER_RESOURCE_FAILED, e.getMessage());
+        }
+        if (createdResource == null || !SUCCESS_CODE.equals(createdResource.getCode())) {
             throw new ServiceException(TableError.TABLE_REGISTER_RESOURCE_FAILED);
         }
         String resourceId = createdResource.getData();
@@ -140,13 +145,17 @@ public class QuestionnaireService {
         }
         if (tableChanged) {
             tableRepository.save(table);
-            R<Void> updatedResource = remoteResourceService.updateAttributes(ResourceUpdateReqDTO.builder()
-                    .resourceId(request.getResourceId())
-                    .resourceName(table.getTitle())
-                    .preview(table.getDescription())
-                    .build());
-            if (resourceCallFailed(updatedResource)) {
-                throw new ServiceException(TableError.TABLE_SYNC_RESOURCE_FAILED);
+            try {
+                R<Void> updatedResource = remoteResourceService.updateAttributes(ResourceUpdateReqDTO.builder()
+                        .resourceId(request.getResourceId())
+                        .resourceName(table.getTitle())
+                        .preview(table.getDescription())
+                        .build());
+                if (updatedResource == null || !SUCCESS_CODE.equals(updatedResource.getCode())) {
+                    throw new ServiceException(TableError.TABLE_SYNC_RESOURCE_FAILED);
+                }
+            } catch (Exception e) {
+                throw new ServiceException(TableError.TABLE_SYNC_RESOURCE_FAILED, e.getMessage());
             }
         }
     }
@@ -446,10 +455,14 @@ public class QuestionnaireService {
             throw new ServiceException(TableError.QUESTIONNAIRE_VIEW_INVALID);
         }
         Set<String> columnIds = columns.stream().map(TableColumn::getColumnId).collect(Collectors.toSet());
+        Set<Integer> pageNumbers = new HashSet<>();
         Set<String> referencedColumnIds = new HashSet<>();
         for (QuestionnaireViewDefinition.QuestionnairePageDefinition page : definition.getPages()) {
             if (page == null || page.getPageNumber() == null || page.getPageNumber() < 1 || page.getItems() == null || page.getItems().isEmpty()) {
                 throw new ServiceException(TableError.QUESTIONNAIRE_VIEW_INVALID);
+            }
+            if (!pageNumbers.add(page.getPageNumber())) {
+                throw new ServiceException(TableError.QUESTIONNAIRE_VIEW_INVALID, "pageNumber duplicated in questionnaire view");
             }
             for (QuestionnaireColumnItem item : page.getItems()) {
                 if (item == null || !StringUtils.hasText(item.getColumnId())) {
@@ -525,22 +538,12 @@ public class QuestionnaireService {
     }
 
     private boolean isEmptyValue(Object value) {
-        if (value == null) {
-            return true;
-        }
-        if (value instanceof CharSequence text) {
-            return text.toString().trim().isEmpty();
-        }
-        if (value instanceof Collection<?> collection) {
-            return collection.isEmpty();
-        }
-        if (value instanceof Map<?, ?> map) {
-            return map.isEmpty();
-        }
-        return false;
-    }
-
-    private boolean resourceCallFailed(R<?> response) {
-        return response == null || !SUCCESS_CODE.equals(response.getCode());
+        return switch (value) {
+            case null -> true;
+            case CharSequence text -> text.toString().trim().isEmpty();
+            case Collection<?> collection -> collection.isEmpty();
+            case Map<?, ?> map -> map.isEmpty();
+            default -> false;
+        };
     }
 }

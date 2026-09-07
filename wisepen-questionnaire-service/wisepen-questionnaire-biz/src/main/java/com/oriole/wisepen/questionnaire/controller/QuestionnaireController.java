@@ -14,8 +14,10 @@ import com.oriole.wisepen.questionnaire.api.domain.dto.req.QuestionnaireSubmissi
 import com.oriole.wisepen.questionnaire.api.domain.dto.req.QuestionnaireSubmitRequest;
 import com.oriole.wisepen.questionnaire.api.domain.dto.req.QuestionnaireVersionRequest;
 import com.oriole.wisepen.questionnaire.api.domain.dto.res.QuestionnaireDefinitionResponse;
+import com.oriole.wisepen.questionnaire.api.domain.dto.res.QuestionnaireDetailResponse;
 import com.oriole.wisepen.questionnaire.api.domain.dto.res.QuestionnaireInfoResponse;
 import com.oriole.wisepen.questionnaire.api.domain.dto.res.QuestionnaireSubmissionResponse;
+import com.oriole.wisepen.questionnaire.api.constant.QuestionnaireValidationMsg;
 import com.oriole.wisepen.questionnaire.exception.TableError;
 import com.oriole.wisepen.questionnaire.service.QuestionnaireService;
 import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionReqDTO;
@@ -28,6 +30,8 @@ import com.oriole.wisepen.resource.feign.RemoteResourceService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Min;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -39,6 +43,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Tag(name = "问卷", description = "问卷设计、发布、填写和答卷查询")
 @RestController
 @RequestMapping("/questionnaire")
+@Validated
 @RequiredArgsConstructor
 public class QuestionnaireController {
     private final QuestionnaireService questionnaireService;
@@ -117,14 +122,16 @@ public class QuestionnaireController {
     )
     @CheckRole
     @GetMapping("/getQuestionnaireInfo")
-    public R<QuestionnaireInfoResponse> getQuestionnaireInfo(@RequestParam String resourceId,
-                                                             @RequestParam(value = "targetVersion", required = false) Integer targetVersion) {
+    public R<QuestionnaireDetailResponse> getQuestionnaireInfo(@RequestParam @NotBlank(message = QuestionnaireValidationMsg.RESOURCE_ID_NOT_BLANK) String resourceId,
+                                                               @RequestParam(value = "targetVersion", required = false) @Min(1) Integer targetVersion) {
         ResourceItemResponse resourceInfo = remoteResourceService.getResourceInfo(new ResourceInfoGetReqDTO(
                 resourceId, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap(), targetVersion
         )).getData();
         QuestionnaireInfoResponse questionnaireInfo = questionnaireService.getQuestionnaireInfo(resourceId);
-        questionnaireInfo.setResourceInfo(resourceInfo);
-        return R.ok(questionnaireInfo);
+        return R.ok(QuestionnaireDetailResponse.builder()
+                .resourceInfo(resourceInfo)
+                .questionnaireInfo(questionnaireInfo)
+                .build());
     }
 
     @Operation(
