@@ -45,19 +45,13 @@ public abstract class TableColumn {
 
     protected abstract void validateNonEmptyValue(Object value);
 
-    private boolean isEmptyValue(Object value) {
-        if (value == null) {
-            return true;
-        }
-        if (value instanceof CharSequence text) {
-            return text.toString().trim().isEmpty();
-        }
-        if (value instanceof Collection<?> collection) {
-            return collection.isEmpty();
-        }
-        if (value instanceof Map<?, ?> map) {
-            return map.isEmpty();
-        }
-        return false;
+    protected boolean isEmptyValue(Object value) {
+        return switch (value) {
+            case null -> true;
+            case CharSequence text -> text.toString().trim().isEmpty();
+            case Collection<?> collection -> collection.isEmpty();
+            case Map<?, ?> map -> map.isEmpty();
+            default -> false;
+        };
     }
 }

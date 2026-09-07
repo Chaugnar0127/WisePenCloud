@@ -6,6 +6,7 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
@@ -35,6 +36,13 @@ public class ResourceColumn extends TableColumn {
 
     @Override
     protected void validateNonEmptyValue(Object value) {
+        getResourceIds(value);
+    }
+
+    public List<String> getResourceIds(Object value) {
+        if (isEmptyValue(value)) {
+            return List.of();
+        }
         if (Boolean.TRUE.equals(multiple)) {
             if (!(value instanceof Collection<?> resourceIds)) {
                 throw new IllegalArgumentException("value must be resourceId collection");
@@ -42,17 +50,19 @@ public class ResourceColumn extends TableColumn {
             if (maxResources != null && resourceIds.size() > maxResources) {
                 throw new IllegalArgumentException("resource count must be less than or equal to maxResources");
             }
+            List<String> selectedResourceIds = new ArrayList<>();
             for (Object resourceId : resourceIds) {
-                validateResourceId(resourceId);
+                selectedResourceIds.add(parseResourceId(resourceId));
             }
-            return;
+            return selectedResourceIds;
         }
-        validateResourceId(value);
+        return List.of(parseResourceId(value));
     }
 
-    private void validateResourceId(Object resourceId) {
+    private String parseResourceId(Object resourceId) {
         if (!(resourceId instanceof CharSequence text) || text.toString().trim().isEmpty()) {
             throw new IllegalArgumentException("resourceId must be text");
         }
+        return text.toString();
     }
 }

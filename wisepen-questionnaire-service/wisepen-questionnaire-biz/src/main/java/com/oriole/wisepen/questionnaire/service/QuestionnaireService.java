@@ -1,7 +1,6 @@
 package com.oriole.wisepen.questionnaire.service;
 
 import com.oriole.wisepen.common.core.domain.PageR;
-import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.questionnaire.api.domain.dto.req.QuestionnaireCreateRequest;
@@ -13,6 +12,7 @@ import com.oriole.wisepen.questionnaire.api.domain.dto.res.QuestionnaireInfoResp
 import com.oriole.wisepen.questionnaire.api.domain.dto.res.QuestionnaireSubmissionResponse;
 import com.oriole.wisepen.questionnaire.api.domain.model.QuestionnaireColumnItem;
 import com.oriole.wisepen.questionnaire.api.domain.model.QuestionnaireViewDefinition;
+import com.oriole.wisepen.questionnaire.api.domain.model.column.ResourceColumn;
 import com.oriole.wisepen.questionnaire.api.domain.model.column.TableColumn;
 import com.oriole.wisepen.questionnaire.api.enums.SubmissionStatus;
 import com.oriole.wisepen.questionnaire.api.enums.TableVersionStatus;
@@ -26,6 +26,7 @@ import com.oriole.wisepen.questionnaire.repository.TableRepository;
 import com.oriole.wisepen.questionnaire.repository.TableRowRepository;
 import com.oriole.wisepen.questionnaire.repository.TableVersionRepository;
 import com.oriole.wisepen.resource.domain.dto.ResourceCreateReqDTO;
+import com.oriole.wisepen.resource.domain.dto.ResourceItemInfoResDTO;
 import com.oriole.wisepen.resource.domain.dto.ResourceUpdateReqDTO;
 import com.oriole.wisepen.resource.enums.ResourceType;
 import com.oriole.wisepen.resource.feign.RemoteResourceService;
@@ -54,7 +55,6 @@ import java.util.stream.Collectors;
 public class QuestionnaireService {
     private static final int FIRST_DRAFT_VERSION = 1;
     private static final int MAX_PAGE_SIZE = 100;
-    private static final Integer SUCCESS_CODE = 200;
 
     private final TableRepository tableRepository;
     private final TableVersionRepository tableVersionRepository;
@@ -64,25 +64,18 @@ public class QuestionnaireService {
 
     @Transactional
     public String createQuestionnaire(QuestionnaireCreateRequest request, Long userId, Map<Long, GroupRoleType> groupRoles) {
-        R<String> createdResource;
+        String resourceId;
         try {
-            createdResource = remoteResourceService.createResource(ResourceCreateReqDTO.builder()
+            resourceId = remoteResourceService.createResource(ResourceCreateReqDTO.builder()
                     .resourceName(request.getTitle())
                     .resourceType(ResourceType.QUESTIONNAIRE)
                     .ownerId(userId.toString())
                     .ownerGroupRoles(groupRoles)
                     .mountTargetTagId(request.getMountTargetTagId())
                     .preview(request.getDescription())
-                    .build());
+                    .build()).getData();
         } catch (Exception e) {
             throw new ServiceException(TableError.TABLE_REGISTER_RESOURCE_FAILED, e.getMessage());
-        }
-        if (createdResource == null || !SUCCESS_CODE.equals(createdResource.getCode())) {
-            throw new ServiceException(TableError.TABLE_REGISTER_RESOURCE_FAILED);
-        }
-        String resourceId = createdResource.getData();
-        if (!StringUtils.hasText(resourceId)) {
-            throw new ServiceException(TableError.TABLE_REGISTER_RESOURCE_FAILED);
         }
 
         tableRepository.save(TableEntity.builder()
@@ -131,7 +124,16 @@ public class QuestionnaireService {
                         .resourceId(request.getResourceId())
                         .tableVersion(draftVersion)
                         .build());
-        view.setDefinition(request.getViewDefinition());
+        QuestionnaireViewDefinition draftDefinition = request.getViewDefinition();
+        if (draftDefinition != null) {
+            if (!StringUtils.hasText(draftDefinition.getTitle()) && StringUtils.hasText(request.getTitle())) {
+                draftDefinition.setTitle(request.getTitle());
+            }
+            if (draftDefinition.getDescription() == null && request.getDescription() != null) {
+                draftDefinition.setDescription(request.getDescription());
+            }
+        }
+        view.setDefinition(draftDefinition);
         questionnaireViewRepository.save(view);
 
         boolean tableChanged = false;
@@ -146,14 +148,11 @@ public class QuestionnaireService {
         if (tableChanged) {
             tableRepository.save(table);
             try {
-                R<Void> updatedResource = remoteResourceService.updateAttributes(ResourceUpdateReqDTO.builder()
+                remoteResourceService.updateAttributes(ResourceUpdateReqDTO.builder()
                         .resourceId(request.getResourceId())
                         .resourceName(table.getTitle())
                         .preview(table.getDescription())
                         .build());
-                if (updatedResource == null || !SUCCESS_CODE.equals(updatedResource.getCode())) {
-                    throw new ServiceException(TableError.TABLE_SYNC_RESOURCE_FAILED);
-                }
             } catch (Exception e) {
                 throw new ServiceException(TableError.TABLE_SYNC_RESOURCE_FAILED, e.getMessage());
             }
@@ -178,7 +177,7 @@ public class QuestionnaireService {
 
         draft.setStatus(TableVersionStatus.PUBLISHED);
         tableVersionRepository.save(draft);
-        tableRepository.updateVersionByResourceId(resourceId, draftVersion);
+        tableRepository.updateVersionByResourceId(resourceId, draftVersion, LocalDateTime.now());
 
         int nextDraftVersion = draftVersion + 1;
         tableVersionRepository.save(TableVersionEntity.builder()
@@ -407,8 +406,8 @@ public class QuestionnaireService {
         TableVersionEntity projectionVersion = tableVersionRepository.findByResourceIdAndVersion(request.getResourceId(), projectionVersionNumber)
                 .orElseThrow(() -> new ServiceException(TableError.TABLE_VERSION_NOT_FOUND));
 
-        Page<TableRowEntity> page = tableRowRepository.findByResourceId(
-                request.getResourceId(), pageRequest(request.getPage(), request.getSize()));
+        Page<TableRowEntity> page = tableRowRepository.findByResourceIdAndStatus(
+                request.getResourceId(), SubmissionStatus.SUBMITTED, pageRequest(request.getPage(), request.getSize()));
         PageR<QuestionnaireSubmissionResponse> response = new PageR<>(page.getTotalElements(), page.getNumber() + 1, page.getSize());
         response.addAll(page.getContent().stream()
                 .map(row -> QuestionnaireSubmissionResponse.builder()
@@ -490,6 +489,12 @@ public class QuestionnaireService {
     private void validateSubmissionValues(List<TableColumn> columns, Map<String, Object> values, SubmissionStatus status) {
         Map<String, TableColumn> columnMap = columns.stream()
                 .collect(Collectors.toMap(TableColumn::getColumnId, Function.identity()));
+        validateSubmissionColumnValues(columns, values, status, columnMap);
+        validateResourceColumnValues(columns, values);
+    }
+
+    private void validateSubmissionColumnValues(List<TableColumn> columns, Map<String, Object> values, SubmissionStatus status,
+                                                Map<String, TableColumn> columnMap) {
         for (String columnId : values.keySet()) {
             if (!columnMap.containsKey(columnId)) {
                 throw new ServiceException(TableError.SUBMISSION_VALUE_INVALID);
@@ -500,16 +505,68 @@ public class QuestionnaireService {
                 for (TableColumn column : columns) {
                     column.validateValue(values.get(column.getColumnId()));
                 }
-                return;
-            }
-            for (Map.Entry<String, Object> entry : values.entrySet()) {
-                if (isEmptyValue(entry.getValue())) {
-                    continue;
+            } else {
+                for (Map.Entry<String, Object> entry : values.entrySet()) {
+                    if (isEmptyValue(entry.getValue())) {
+                        continue;
+                    }
+                    columnMap.get(entry.getKey()).validateValue(entry.getValue());
                 }
-                columnMap.get(entry.getKey()).validateValue(entry.getValue());
             }
         } catch (IllegalArgumentException e) {
             throw new ServiceException(TableError.SUBMISSION_VALUE_INVALID, e.getMessage());
+        }
+    }
+
+    private void validateResourceColumnValues(List<TableColumn> columns, Map<String, Object> values) {
+        Map<ResourceColumn, List<String>> resourceIdsByColumn = new LinkedHashMap<>();
+        Set<String> resourceIds = new HashSet<>();
+        for (TableColumn column : columns) {
+            if (!(column instanceof ResourceColumn resourceColumn)) {
+                continue;
+            }
+            if (resourceColumn.getAllowedResourceTypes() == null || resourceColumn.getAllowedResourceTypes().isEmpty()) {
+                continue;
+            }
+            List<String> selectedResourceIds = resourceColumn.getResourceIds(values.get(column.getColumnId()));
+            if (selectedResourceIds.isEmpty()) {
+                continue;
+            }
+            resourceIdsByColumn.put(resourceColumn, selectedResourceIds);
+            resourceIds.addAll(selectedResourceIds);
+        }
+        if (resourceIds.isEmpty()) {
+            return;
+        }
+
+        List<ResourceItemInfoResDTO> resourceInfos;
+        try {
+            resourceInfos = remoteResourceService.listResourceBaseInfo(new ArrayList<>(resourceIds)).getData();
+        } catch (Exception e) {
+            throw new ServiceException(TableError.SUBMISSION_VALUE_INVALID, e.getMessage());
+        }
+
+        Map<String, ResourceItemInfoResDTO> resourceInfoMap = resourceInfos.stream()
+                .collect(Collectors.toMap(ResourceItemInfoResDTO::getResourceId, Function.identity(), (first, ignored) -> first));
+
+        for (Map.Entry<ResourceColumn, List<String>> entry : resourceIdsByColumn.entrySet()) {
+            ResourceColumn resourceColumn = entry.getKey();
+            for (String resourceId : entry.getValue()) {
+                ResourceItemInfoResDTO resourceInfo = resourceInfoMap.get(resourceId);
+                if (resourceInfo == null) {
+                    throw new ServiceException(TableError.SUBMISSION_VALUE_INVALID);
+                }
+                boolean matched = false;
+                for (String allowedResourceType : resourceColumn.getAllowedResourceTypes()) {
+                    if (resourceInfo.getResourceType() == ResourceType.fromExtension(allowedResourceType)) {
+                        matched = true;
+                        break;
+                    }
+                }
+                if (!matched) {
+                    throw new ServiceException(TableError.SUBMISSION_VALUE_INVALID);
+                }
+            }
         }
     }
 

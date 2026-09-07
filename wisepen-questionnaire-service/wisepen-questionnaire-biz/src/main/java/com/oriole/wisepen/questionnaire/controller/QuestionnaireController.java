@@ -116,7 +116,7 @@ public class QuestionnaireController {
                     - 请求：resourceId 指定问卷资源；targetVersion 可选，用于 Market 版本限定权限裁决。
                     - 约束：当前用户必须已登录，且必须通过资源服务的资源详情权限校验；Market 来源查看必须传当前上架 offerVersion；目标问卷必须存在。
                     - 处理：通过资源服务获取资源详情和当前用户可执行动作，再读取问卷主档并组合响应；不返回问卷视图、表结构或答卷。
-                    - 失败：未登录 -> PermissionError.NOT_LOGIN；资源不存在 -> ResourceError.RESOURCE_NOT_FOUND；资源无查看权限 -> ResourceError.RESOURCE_PERMISSION_DENIED；问卷不存在 -> TableError.TABLE_NOT_FOUND。
+                    - 失败：未登录 -> PermissionError.NOT_LOGIN；资源不可访问 -> TableError.QUESTIONNAIRE_PERMISSION_DENIED；问卷不存在 -> TableError.TABLE_NOT_FOUND。
                     - 响应：返回资源信息、当前发布版本、草稿版本号和问卷基础信息。
                     """
     )
@@ -127,6 +127,9 @@ public class QuestionnaireController {
         ResourceItemResponse resourceInfo = remoteResourceService.getResourceInfo(new ResourceInfoGetReqDTO(
                 resourceId, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap(), targetVersion
         )).getData();
+        if (resourceInfo == null) {
+            throw new ServiceException(TableError.QUESTIONNAIRE_PERMISSION_DENIED);
+        }
         QuestionnaireInfoResponse questionnaireInfo = questionnaireService.getQuestionnaireInfo(resourceId);
         return R.ok(QuestionnaireDetailResponse.builder()
                 .resourceInfo(resourceInfo)
@@ -164,7 +167,7 @@ public class QuestionnaireController {
             description = """
                     - 用途：提交或保存当前用户的问卷答卷。
                     - 请求：resourceId 指定问卷资源；version 可选，未传时使用当前已发布版本；status 为空时按 SUBMITTED；values 按 columnId 传值。
-                    - 约束：登录用户必须拥有目标资源 VIEW 动作；未登录提交时目标问卷必须允许 anonymousAllowed；目标版本必须是 PUBLISHED；提交内容必须符合字段定义和提交策略。
+                    - 约束：登录用户必须拥有目标资源 VIEW 动作；未登录提交时目标问卷必须允许 anonymousAllowed；目标版本必须是 PUBLISHED；提交内容必须符合字段定义和提交策略；配置 allowedResourceTypes 的 RESOURCE 字段会校验资源存在和类型。
                     - 处理：保存答卷原始 values、提交时 tableVersion 和当前用户 ID；匿名答卷 userId 为空，不能保存草稿或用于本人查询。
                     - 失败：无 VIEW 权限 -> TableError.QUESTIONNAIRE_PERMISSION_DENIED；提交策略不允许 -> TableError.SUBMISSION_NOT_ALLOWED；答卷内容非法 -> TableError.SUBMISSION_VALUE_INVALID。
                     - 响应：返回按提交版本投影后的答卷。
@@ -183,10 +186,10 @@ public class QuestionnaireController {
     @Operation(
             summary = "查询我的答卷",
             description = """
-                    - 用途：当前用户查询自己在指定问卷下的答卷。
+                    - 用途：当前用户查询自己在指定问卷下保存或提交过的答卷。
                     - 请求：resourceId 指定问卷资源；version 可选，作为答卷显示投影版本；page 和 size 控制分页。
                     - 约束：当前用户必须拥有目标资源 VIEW 动作；只返回当前登录用户自己的答卷。
-                    - 处理：分页查询 userId 等于当前用户的答卷，默认按当前已发布版本投影显示。
+                    - 处理：分页查询 userId 等于当前用户的草稿和已提交答卷，默认按当前已发布版本投影显示。
                     - 失败：未登录 -> PermissionError.NOT_LOGIN；无 VIEW 权限 -> TableError.QUESTIONNAIRE_PERMISSION_DENIED；投影版本不存在 -> TableError.TABLE_VERSION_NOT_FOUND。
                     - 响应：返回分页答卷列表。
                     """
@@ -201,10 +204,10 @@ public class QuestionnaireController {
     @Operation(
             summary = "查询全部答卷",
             description = """
-                    - 用途：问卷设计者分页查看指定问卷下的全部答卷结果。
+                    - 用途：问卷设计者分页查看指定问卷下的已提交答卷结果。
                     - 请求：resourceId 指定问卷资源；version 可选，作为答卷显示投影版本；page 和 size 控制分页。
                     - 约束：当前用户必须拥有目标资源 EDIT 动作。
-                    - 处理：分页查询该问卷全部答卷，默认按当前已发布版本投影显示；不会导出文件。
+                    - 处理：分页查询该问卷已提交答卷，默认按当前已发布版本投影显示；不会返回用户草稿，不会导出文件。
                     - 失败：未登录 -> PermissionError.NOT_LOGIN；无 EDIT 权限 -> TableError.QUESTIONNAIRE_PERMISSION_DENIED；投影版本不存在 -> TableError.TABLE_VERSION_NOT_FOUND。
                     - 响应：返回分页答卷列表。
                     """
@@ -220,7 +223,7 @@ public class QuestionnaireController {
             summary = "获取表结构",
             description = """
                     - 用途：获取问卷底层表结构和对应问卷视图。
-                    - 请求：resourceId 指定问卷资源；version 可选，未传时返回当前已发布版本。
+                    - 请求：resourceId 指定问卷资源；version 可选，未传且有 EDIT 动作时返回当前草稿，否则返回当前已发布版本。
                     - 约束：读取已发布版本需要 VIEW 动作；读取草稿版本需要 EDIT 动作。
                     - 处理：返回目标版本字段结构和同版本问卷视图；不修改草稿或发布状态。
                     - 失败：未登录 -> PermissionError.NOT_LOGIN；无所需权限 -> TableError.QUESTIONNAIRE_PERMISSION_DENIED；版本不存在 -> TableError.TABLE_VERSION_NOT_FOUND。

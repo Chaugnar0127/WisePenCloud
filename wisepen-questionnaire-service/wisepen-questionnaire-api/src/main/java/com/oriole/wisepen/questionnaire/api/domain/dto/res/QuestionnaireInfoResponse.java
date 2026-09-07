@@ -1,6 +1,5 @@
 package com.oriole.wisepen.questionnaire.api.domain.dto.res;
 
-import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;

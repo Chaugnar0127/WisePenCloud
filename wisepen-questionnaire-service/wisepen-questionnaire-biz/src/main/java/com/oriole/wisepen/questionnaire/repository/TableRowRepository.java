@@ -15,5 +15,7 @@ public interface TableRowRepository extends MongoRepository<TableRowEntity, Stri
 
     Page<TableRowEntity> findByResourceId(String resourceId, Pageable pageable);
 
+    Page<TableRowEntity> findByResourceIdAndStatus(String resourceId, SubmissionStatus status, Pageable pageable);
+
     Optional<TableRowEntity> findFirstByResourceIdAndUserIdAndTableVersionAndStatusOrderByUpdateTimeDesc(String resourceId, Long userId, Integer tableVersion, SubmissionStatus status);
 }

@@ -22,7 +22,8 @@ import java.util.Map;
 @Document(collection = "questionnaire_table_rows")
 @CompoundIndexes({
         @CompoundIndex(name = "idx_questionnaire_row_resource_user", def = "{'resourceId': 1, 'userId': 1, 'updateTime': -1}"),
-        @CompoundIndex(name = "idx_questionnaire_row_resource_version_user", def = "{'resourceId': 1, 'tableVersion': 1, 'userId': 1}")
+        @CompoundIndex(name = "idx_questionnaire_row_resource_version_user", def = "{'resourceId': 1, 'tableVersion': 1, 'userId': 1}"),
+        @CompoundIndex(name = "idx_questionnaire_row_resource_status", def = "{'resourceId': 1, 'status': 1, 'updateTime': -1}")
 })
 public class TableRowEntity {
     @Id
