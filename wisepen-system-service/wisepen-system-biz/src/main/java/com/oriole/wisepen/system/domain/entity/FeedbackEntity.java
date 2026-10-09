@@ -18,6 +18,8 @@ public class FeedbackEntity {
     private Long userId;
     private String content;
     private String contact;
+    @TableField("image_url")
+    private String imageUrl;
     private String browser;
     private FeedbackType type;
     private FeedbackStatus status;

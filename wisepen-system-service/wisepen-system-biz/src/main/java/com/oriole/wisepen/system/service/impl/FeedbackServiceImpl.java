@@ -23,6 +23,7 @@ public class FeedbackServiceImpl implements FeedbackService {
     @Override
     public void createFeedback(Long userId, FeedbackRequest feedbackRequest) {
         FeedbackEntity feedbackEntity = BeanUtil.copyProperties(feedbackRequest, FeedbackEntity.class);
+        feedbackEntity.setUserId(userId);
         // 业务默认值赋值
         feedbackEntity.setStatus(FeedbackStatus.PENDING);
         feedbackMapper.insert(feedbackEntity);
