@@ -7,12 +7,14 @@ import com.oriole.wisepen.common.core.domain.enums.IdentityType;
 import com.oriole.wisepen.common.core.domain.enums.UserStatus;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.extension.fudan.domain.dto.FudanUISTaskResultDTO;
-import com.oriole.wisepen.extension.fudan.domain.mq.FudanUISAuthRequestMessage;
+import com.oriole.wisepen.extension.fudan.domain.dto.req.FudanUISAuthSubmitRequest;
 import com.oriole.wisepen.extension.fudan.enums.FudanUISTaskState;
 import com.oriole.wisepen.extension.fudan.feign.RemoteFudanExtensionService;
 import com.oriole.wisepen.user.api.domain.dto.VerificationResultDTO;
+import com.oriole.wisepen.user.api.domain.mq.UserTaskCompleteMessage;
 import com.oriole.wisepen.user.api.enums.DegreeLevel;
 import com.oriole.wisepen.user.api.enums.GenderType;
+import com.oriole.wisepen.user.api.enums.UserTaskCode;
 import com.oriole.wisepen.user.api.enums.UserVerificationMode;
 import com.oriole.wisepen.user.cache.RedisCacheManager;
 import com.oriole.wisepen.user.domain.entity.UserEntity;
@@ -21,6 +23,7 @@ import com.oriole.wisepen.user.exception.UserError;
 import com.oriole.wisepen.user.mapper.UserMapper;
 import com.oriole.wisepen.user.mapper.UserProfileMapper;
 import com.oriole.wisepen.user.mq.KafkaUserEventPublisher;
+import com.oriole.wisepen.user.service.IUserInviteService;
 import com.oriole.wisepen.user.strategy.UserVerificationStrategy;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +46,7 @@ public class FudanUISVerificationStrategy implements UserVerificationStrategy {
     private final RemoteFudanExtensionService remoteFudanExtensionService;
     private final KafkaUserEventPublisher kafkaUserEventPublisher;
     private final RedisCacheManager redisCacheManager;
+    private final IUserInviteService userInviteService;
 
     @Override
     public UserVerificationMode getMode() {
@@ -54,7 +58,7 @@ public class FudanUISVerificationStrategy implements UserVerificationStrategy {
         return Arrays.asList(
                 "username", "realName", "campusNo", "email", "mobile", "userStatus",
                 "sex", "university", "college", "major",
-                "className", "enrollmentYear", "degreeLevel"
+                "className", "enrollmentYear", "degreeLevel", "inviteCode"
         );
     }
 
@@ -66,12 +70,16 @@ public class FudanUISVerificationStrategy implements UserVerificationStrategy {
         String uisAccount = (String) payload.get("uisAccount");
         String uisPassword = (String) payload.get("uisPassword");
 
-        FudanUISAuthRequestMessage message = FudanUISAuthRequestMessage.builder()
+        FudanUISAuthSubmitRequest request = FudanUISAuthSubmitRequest.builder()
                 .userId(userId)
                 .account(uisAccount)
                 .password(uisPassword)
                 .build();
-        kafkaUserEventPublisher.publishUisAuthRequest(userId, message);
+
+        R<Void> submitted = remoteFudanExtensionService.submitTask(request);
+        if (submitted == null || !Integer.valueOf(200).equals(submitted.getCode())) {
+            throw new ServiceException(UserError.VERIFICATION_FUDAN_UIS_REQUEST_FAILED);
+        }
     }
 
     @Override
@@ -90,7 +98,8 @@ public class FudanUISVerificationStrategy implements UserVerificationStrategy {
         }
         FudanUISTaskResultDTO dto = res.getData();
 
-        if (dto.getState() == FudanUISTaskState.PENDING.getCode()) {
+        if (dto.getState() == FudanUISTaskState.QUEUED.getCode()
+                || dto.getState() == FudanUISTaskState.PENDING.getCode()) {
             return VerificationResultDTO.pending();
         }
 
@@ -190,9 +199,26 @@ public class FudanUISVerificationStrategy implements UserVerificationStrategy {
         }
 
         redisCacheManager.updateUserStatusInSession(userId, UserStatus.NORMAL);
+
         if (teacherProfile) {
+            // 修改教师认证身份
             redisCacheManager.updateUserIdentityTypeInSession(userId, IdentityType.TEACHER);
+            kafkaUserEventPublisher.publishUserTaskComplete(UserTaskCompleteMessage.builder()
+                    .userId(userId)
+                    .taskCode(UserTaskCode.TEACHER_VERIFICATION)
+                    .operatorId(userId)
+                    .meta("[复旦专属]教师认证赠送")
+                    .build());
+        } else {
+            kafkaUserEventPublisher.publishUserTaskComplete(UserTaskCompleteMessage.builder()
+                    .userId(userId)
+                    .taskCode(UserTaskCode.STUDENT_VERIFICATION)
+                    .operatorId(userId)
+                    .meta("[复旦专属]学生认证赠送")
+                    .build());
         }
+        userInviteService.rewardInviterAfterVerification(userId);
+
         log.info("fudan uis verify succeeded. userId={} campusNo={} teacherProfile={}",
                 userId, campusNo, teacherProfile);
         return VerificationResultDTO.success();

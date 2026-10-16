@@ -1,6 +1,5 @@
 package com.oriole.wisepen.extension.fudan.consumer;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.microsoft.playwright.*;
 import com.microsoft.playwright.options.LoadState;
@@ -33,7 +32,8 @@ public class UISAuthRequestConsumer {
     private final RedisCacheManager redisCacheManager;
     private final ObjectMapper objectMapper;
 
-    @KafkaListener(topics = MqTopicConstants.FUDAN_UIS_AUTH_REQ, groupId = "wisepen-extension-fudan-uis-auth-group")
+    @KafkaListener(topics = MqTopicConstants.FUDAN_UIS_AUTH_REQ,
+            groupId = "wisepen-extension-fudan-uis-auth-group", concurrency = "5", properties = "max.poll.records=1")
     @AsyncListener(operation = @AsyncOperation(
             channelName = MqTopicConstants.FUDAN_UIS_AUTH_REQ,
             description = "消费复旦 UIS 认证请求，驱动浏览器完成 UIS 登录流程并把任务状态写入 Redis。",
@@ -52,7 +52,7 @@ public class UISAuthRequestConsumer {
 
     private void runScraper(Long uid, String account, String password) {
         redisCacheManager.setUisTaskStatus(uid, FudanUISTaskResultDTO.of(FudanUISTaskState.PENDING));
-        log.debug("uis auth task changed. userId={} from=NEW to=PENDING", uid);
+        log.info("uis auth task changed. userId={} from=QUEUED to=PENDING", uid);
 
         try (Playwright playwright = Playwright.create()) {
             Browser browser = playwright.chromium().launch(new BrowserType.LaunchOptions()
@@ -96,12 +96,12 @@ public class UISAuthRequestConsumer {
 
             } catch (TimeoutError e) {
                 redisCacheManager.setUisTaskStatus(uid, FudanUISTaskResultDTO.of(FudanUISTaskState.FAILED_TIMEOUT));
-                log.error("uis auth task changed. userId={} from=WAITING_SCAN to=FAILED_TIMEOUT reason=\"scan timeout\"", uid, e);
+                log.error("uis auth task changed. userId={} from=WAITING_SCAN to=FAILED_TIMEOUT", uid, e);
             }
 
         } catch (Exception e) {
             redisCacheManager.setUisTaskStatus(uid, FudanUISTaskResultDTO.of(FudanUISTaskState.FAILED_ERROR));
-            log.error("uis auth task changed. userId={} from=PENDING to=FAILED_ERROR", uid, e);
+            log.error("uis auth task changed. userId={} to=FAILED_ERROR", uid, e);
         }
     }
 
