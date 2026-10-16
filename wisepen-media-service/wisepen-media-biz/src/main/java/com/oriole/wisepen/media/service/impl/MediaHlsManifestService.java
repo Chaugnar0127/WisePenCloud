@@ -15,6 +15,7 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -30,6 +31,7 @@ public class MediaHlsManifestService {
     private static final long MANIFEST_CACHE_WAIT_MILLIS = 100L;
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .followRedirects(HttpClient.Redirect.NORMAL)
+            .connectTimeout(Duration.ofSeconds(10))
             .build();
 
     private final RemoteStorageService remoteStorageService;
@@ -104,14 +106,18 @@ public class MediaHlsManifestService {
             }
         } catch (Exception e) {
             log.warn("media hls manifest build failed. manifestObjectKey={}", manifestObjectKey, e);
-            throw new ServiceException(MediaError.MEDIA_PLAYBACK_FAILED, e.getMessage());
+            throw new ServiceException(MediaError.MEDIA_PLAYBACK_FAILED);
         }
     }
 
     private String buildSignedManifest(String manifestObjectKey) throws Exception {
         // 下载 index.m3u8
         String manifestUrl = remoteStorageService.getDownloadUrl(manifestObjectKey, null, null).getData();
-        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(manifestUrl)).GET().build();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(manifestUrl))
+                .timeout(Duration.ofMillis(mediaProperties.getHttpRequestTimeoutMs()))
+                .GET()
+                .build();
         HttpResponse<String> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() / 100 != 2) {
             throw new IllegalStateException("媒体 HLS manifest 下载失败 StatusCode=" + response.statusCode());

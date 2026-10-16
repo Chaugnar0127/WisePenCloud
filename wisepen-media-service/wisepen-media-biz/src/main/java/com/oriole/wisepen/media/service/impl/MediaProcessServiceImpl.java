@@ -26,7 +26,6 @@ import com.oriole.wisepen.resource.feign.RemoteResourceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
 import java.io.IOException;
@@ -52,6 +51,7 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
 
     private static final HttpClient HTTP_CLIENT = HttpClient.newBuilder()
             .followRedirects(HttpClient.Redirect.NORMAL)
+            .connectTimeout(Duration.ofSeconds(10))
             .build();
 
     private final MediaInfoRepository mediaInfoRepository;
@@ -66,23 +66,35 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
         // 消费异步处理消息时重新读取媒体记录，避免使用消息里的过期状态做决策
         String mediaId = message.getMediaId();
         MediaInfoEntity entity = mediaInfoRepository.findById(mediaId)
-                .orElseThrow(() -> new ServiceException(MediaError.MEDIA_NOT_FOUND));
+                .orElse(null);
+        if (entity == null) {
+            log.debug("media process skipped because media was deleted. mediaId={}", mediaId);
+            return;
+        }
         MediaStatusEnum status = entity.getMediaStatus() != null ? entity.getMediaStatus().getStatus() : null;
 
         // 资源注册阶段失败或超时时，重试只补注册资源，不重复下载和转码源文件
-        if (status == MediaStatusEnum.REGISTERING_RES || status == MediaStatusEnum.REGISTERING_RES_TIMEOUT) {
+        if (status == MediaStatusEnum.REGISTERING_RES_TIMEOUT) {
             finalizeToReady(mediaId);
+            return;
+        }
+        if (status == MediaStatusEnum.REGISTERING_RES) {
+            log.debug("media process skipped because resource registration is in progress. mediaId={}", mediaId);
             return;
         }
 
         // 只有 UPLOADED 状态允许进入处理，防止重复消费消息导致重复封装或覆盖产物
         if (status != MediaStatusEnum.UPLOADED) {
-            log.info("media process skipped because status mismatched. mediaId={} status={}",
+            log.debug("media process skipped because status mismatched. mediaId={} status={}",
                     entity.getMediaId(), status);
             return;
         }
 
-        updateStatus(mediaId, new MediaStatus(MediaStatusEnum.PROCESSING));
+        if (mediaInfoRepository.updateStatusIfCurrent(
+                mediaId, MediaStatusEnum.UPLOADED, new MediaStatus(MediaStatusEnum.PROCESSING)) == 0) {
+            log.debug("media process claim lost because status changed. mediaId={}", mediaId);
+            return;
+        }
 
         // processing 读取媒体元数据并生成基础产物：图片预览、视频源 HLS 与封面；音频只读取音频流元数据
         MediaPackagingResult packagingResult;
@@ -111,7 +123,11 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
     public void updateStatus(String mediaId, MediaStatus status) {
         // 先读取旧状态只用于日志追踪；状态流转约束由调用方业务流程保证
         MediaInfoEntity entity = mediaInfoRepository.findById(mediaId)
-                .orElseThrow(() -> new ServiceException(MediaError.MEDIA_NOT_FOUND));
+                .orElse(null);
+        if (entity == null) {
+            log.debug("media status update skipped because media was deleted. mediaId={}", mediaId);
+            return;
+        }
         MediaStatusEnum from = entity.getMediaStatus() != null ? entity.getMediaStatus().getStatus() : null;
         mediaInfoRepository.updateStatusById(mediaId, status);
         log.info("media status changed. mediaId={} resourceId={} from={} to={}",
@@ -122,7 +138,11 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
     public void prepareProcessRetry(String mediaId) {
         // 资源注册阶段、终态和失败态不回拨；这些状态有各自的重试或出口语义
         MediaInfoEntity entity = mediaInfoRepository.findById(mediaId)
-                .orElseThrow(() -> new ServiceException(MediaError.MEDIA_NOT_FOUND));
+                .orElse(null);
+        if (entity == null) {
+            log.debug("media failure marking skipped because media was deleted. mediaId={}", mediaId);
+            return;
+        }
         MediaStatusEnum status = entity.getMediaStatus() != null ? entity.getMediaStatus().getStatus() : null;
         if (status == MediaStatusEnum.REGISTERING_RES
                 || status == MediaStatusEnum.REGISTERING_RES_TIMEOUT
@@ -135,8 +155,10 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
                 || status == MediaStatusEnum.UPLOADING
                 || status == MediaStatusEnum.UPLOADED
                 || status == MediaStatusEnum.PROCESSING) {
-            if (status != MediaStatusEnum.UPLOADED) {
-                updateStatus(mediaId, new MediaStatus(MediaStatusEnum.UPLOADED));
+            if (status != MediaStatusEnum.UPLOADED
+                    && mediaInfoRepository.updateStatusIfCurrent(
+                    mediaId, status, new MediaStatus(MediaStatusEnum.UPLOADED)) == 0) {
+                log.debug("media process retry preparation skipped because status changed. mediaId={}", mediaId);
             }
         }
     }
@@ -145,7 +167,11 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
     public void markProcessFailed(String mediaId, String errorMessage) {
         // 终态不再覆盖，避免晚到的失败消息污染已经完成或已记录失败的任务
         MediaInfoEntity entity = mediaInfoRepository.findById(mediaId)
-                .orElseThrow(() -> new ServiceException(MediaError.MEDIA_NOT_FOUND));
+                .orElse(null);
+        if (entity == null) {
+            log.debug("media failure marking skipped because media was deleted. mediaId={}", mediaId);
+            return;
+        }
         MediaStatusEnum status = entity.getMediaStatus() != null ? entity.getMediaStatus().getStatus() : null;
         if (status == MediaStatusEnum.READY
                 || status == MediaStatusEnum.FAILED
@@ -154,16 +180,22 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
         }
         // 注册资源失败保留为可补偿的 REGISTERING_RES_TIMEOUT，而不是普通 FAILED
         if (status == MediaStatusEnum.REGISTERING_RES) {
-            updateStatus(mediaId, new MediaStatus(MediaStatusEnum.REGISTERING_RES_TIMEOUT, errorMessage));
+            if (mediaInfoRepository.updateStatusIfCurrent(mediaId, status,
+                    new MediaStatus(MediaStatusEnum.REGISTERING_RES_TIMEOUT, errorMessage)) == 0) {
+                log.debug("media failure marking skipped because status changed. mediaId={}", mediaId);
+            }
             return;
         }
         // 探测、封装等媒体处理失败进入普通失败态
-        updateStatus(mediaId, new MediaStatus(errorMessage));
+        if (mediaInfoRepository.updateStatusIfCurrent(mediaId, status, new MediaStatus(errorMessage)) == 0) {
+            log.debug("media failure marking skipped because status changed. mediaId={}", mediaId);
+        }
     }
 
     private MediaPackagingResult packageImage(MediaInfoEntity mediaInfo) {
         // 图片生成独立预览图，不把源文件暴露给预览链路
         File sourceFile = null;
+        String previewObjectKey = null;
         Path previewPath = null;
         try {
             String downloadUrl = remoteStorageService.getDownloadUrl(mediaInfo.getSourceObjectKey(), null, null).getData();
@@ -173,9 +205,9 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
 
             previewPath = Files.createTempFile(Paths.get(mediaProperties.getCachePath()), mediaInfo.getMediaId() + "_preview_", ".jpg");
             runFfmpegToImagePreview(sourceFile.toPath(), previewPath);
-            String previewObjectKey = uploadFile(previewPath,
-                    StorageSceneEnum.PRIVATE_MEDIA.getPrefix() + "/" + mediaInfo.getMediaId() + "/preview.jpg",
-                    mediaInfo.getMediaId());
+            previewObjectKey = StorageSceneEnum.PRIVATE_MEDIA.getPrefix()
+                    + "/" + mediaInfo.getMediaId() + "/preview.jpg";
+            previewObjectKey = uploadFile(previewPath, previewObjectKey, mediaInfo.getMediaId());
 
             return new MediaPackagingResult(
                     null,
@@ -185,9 +217,8 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
                     imageSize.width(),
                     imageSize.height());
         } catch (Exception e) {
-            log.warn("media image packaging failed. mediaId={} objectKey={}",
-                    mediaInfo.getMediaId(), mediaInfo.getSourceObjectKey(), e);
-            throw new ServiceException(MediaError.MEDIA_PROCESS_FAILED, e.getMessage());
+            deleteProducedObjects(previewObjectKey);
+            throw new ServiceException(MediaError.MEDIA_PROCESS_FAILED);
         } finally {
             // 清理本地缓存
             if (sourceFile != null) {
@@ -211,6 +242,8 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
     private MediaPackagingResult packageVideo(MediaInfoEntity mediaInfo) {
         // 视频处理会产生多个中间文件，使用独立 workDir 便于最后整体清理
         Path workDir = null;
+        File sourceFile = null;
+        List<String> uploadedObjectKeys = new ArrayList<>();
         try {
             Path cacheRoot = Paths.get(mediaProperties.getCachePath());
             Files.createDirectories(cacheRoot);
@@ -219,7 +252,7 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
             // 把源视频下载到缓存目录
             String sourceUrl = remoteStorageService.getDownloadUrl(mediaInfo.getSourceObjectKey(), null, null).getData();
             String sourceExtension = getSourceExtension(mediaInfo);
-            File sourceFile = downloadSourceFile(sourceUrl, mediaInfo.getMediaId(), sourceExtension);
+            sourceFile = downloadSourceFile(sourceUrl, mediaInfo.getMediaId(), sourceExtension);
             Path sourcePath = workDir.resolve(sourceFile.getName());
             Files.move(sourceFile.toPath(), sourcePath);
 
@@ -235,7 +268,10 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
             List<String> hlsObjectKeys = new ArrayList<>();
             try (var stream = Files.list(hlsDir)) {
                 for (Path file : stream.filter(Files::isRegularFile).toList()) {
-                    hlsObjectKeys.add(uploadFile(file, hlsPrefix + "/" + file.getFileName(), mediaInfo.getMediaId()));
+                    String objectKey = hlsPrefix + "/" + file.getFileName();
+                    uploadedObjectKeys.add(objectKey);
+                    uploadFile(file, objectKey, mediaInfo.getMediaId());
+                    hlsObjectKeys.add(objectKey);
                 }
             }
 
@@ -244,7 +280,9 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
             try {
                 // 封面
                 runFfmpegToPoster(sourcePath, posterPath);
-                previewObjectKey = uploadFile(posterPath, hlsPrefix + "/poster.jpg", mediaInfo.getMediaId());
+                previewObjectKey = hlsPrefix + "/poster.jpg";
+                uploadedObjectKeys.add(previewObjectKey);
+                previewObjectKey = uploadFile(posterPath, previewObjectKey, mediaInfo.getMediaId());
             } catch (Exception e) {
                 log.warn("media poster generation failed. mediaId={}", mediaInfo.getMediaId(), e);
             }
@@ -258,10 +296,16 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
                     probe.width(),
                     probe.height());
         } catch (Exception e) {
-            log.warn("media video packaging failed. mediaId={} objectKey={}",
-                    mediaInfo.getMediaId(), mediaInfo.getSourceObjectKey(), e);
-            throw new ServiceException(MediaError.MEDIA_PROCESS_FAILED, e.getMessage());
+            deleteProducedObjects(uploadedObjectKeys);
+            throw new ServiceException(MediaError.MEDIA_PROCESS_FAILED);
         } finally {
+            if (sourceFile != null) {
+                try {
+                    Files.deleteIfExists(sourceFile.toPath());
+                } catch (Exception e) {
+                    log.warn("media cache file delete failed. path={}", sourceFile, e);
+                }
+            }
             // 视频处理目录包含源文件、HLS 分片和封面临时文件，需要递归清理
             if (workDir != null) {
                 try (var paths = Files.walk(workDir)) {
@@ -295,9 +339,7 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
                     null,
                     null);
         } catch (Exception e) {
-            log.warn("media audio probe failed. mediaId={} objectKey={}",
-                    mediaInfo.getMediaId(), mediaInfo.getSourceObjectKey(), e);
-            throw new ServiceException(MediaError.MEDIA_PROCESS_FAILED, e.getMessage());
+            throw new ServiceException(MediaError.MEDIA_PROCESS_FAILED);
         } finally {
             // 音频探测完成后删除临时源文件
             if (sourceFile != null) {
@@ -317,8 +359,18 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
         Files.createDirectories(dir);
         Path target = Files.createTempFile(dir, mediaId + "_source_", "." + extension);
 
-        HttpRequest request = HttpRequest.newBuilder().uri(URI.create(url)).GET().build();
-        HttpResponse<Path> response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofFile(target));
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .timeout(Duration.ofMillis(mediaProperties.getHttpRequestTimeoutMs()))
+                .GET()
+                .build();
+        HttpResponse<Path> response;
+        try {
+            response = HTTP_CLIENT.send(request, HttpResponse.BodyHandlers.ofFile(target));
+        } catch (Exception e) {
+            Files.deleteIfExists(target);
+            throw e;
+        }
         if (response.statusCode() / 100 != 2) {
             Files.deleteIfExists(target);
             throw new IllegalStateException("媒体源文件下载失败 StatusCode=" + response.statusCode());
@@ -441,7 +493,7 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
                 try {
                     return new String(process.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
                 } catch (IOException e) {
-                    return e.getMessage();
+                    return "";
                 }
             });
             boolean finished = process.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS);
@@ -456,7 +508,7 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
             }
             return output;
         } catch (Exception e) {
-            throw new ServiceException(MediaError.MEDIA_PROCESS_FAILED, e.getMessage());
+            throw new ServiceException(MediaError.MEDIA_PROCESS_FAILED);
         }
     }
 
@@ -477,6 +529,7 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
                 // 非秒传场景由媒体服务直接 PUT 产物；不需要上传回调再次驱动媒体流程
                 HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create(uploadInitResp.getPutUrl()))
+                        .timeout(Duration.ofMillis(mediaProperties.getHttpRequestTimeoutMs()))
                         .header("Content-Type", "application/octet-stream")
                         .PUT(HttpRequest.BodyPublishers.ofFile(file))
                         .build();
@@ -488,7 +541,7 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
             // 返回存储服务确认后的 objectKey，避免调用方依赖本地拼接结果
             return uploadInitResp.getObjectKey();
         } catch (Exception e) {
-            throw new ServiceException(MediaError.MEDIA_PROCESS_FAILED, e.getMessage());
+            throw new ServiceException(MediaError.MEDIA_PROCESS_FAILED);
         }
     }
 
@@ -501,17 +554,27 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
     }
 
     @Override
-    @Transactional
     public void finalizeToReady(String mediaId) {
         // finalize 可被正常处理和注册补偿重试共同调用，因此保持幂等
         MediaInfoEntity entity = mediaInfoRepository.findById(mediaId)
                 .orElseThrow(() -> new ServiceException(MediaError.MEDIA_NOT_FOUND));
-        if (entity.getMediaStatus() != null && entity.getMediaStatus().getStatus() == MediaStatusEnum.READY) {
+        MediaStatusEnum currentStatus = entity.getMediaStatus() != null ? entity.getMediaStatus().getStatus() : null;
+        if (currentStatus == MediaStatusEnum.READY) {
+            return;
+        }
+        if (currentStatus != MediaStatusEnum.PROCESSING
+                && currentStatus != MediaStatusEnum.REGISTERING_RES_TIMEOUT) {
+            log.debug("media resource registration skipped because status is not claimable. mediaId={} status={}",
+                    mediaId, currentStatus);
             return;
         }
 
         // 进入资源注册阶段后，如果远程资源服务失败，会留下 REGISTERING_RES_TIMEOUT 供重试
-        updateStatus(mediaId, new MediaStatus(MediaStatusEnum.REGISTERING_RES));
+        if (mediaInfoRepository.updateStatusIfCurrent(
+                mediaId, currentStatus, new MediaStatus(MediaStatusEnum.REGISTERING_RES)) == 0) {
+            log.debug("media resource registration claim lost. mediaId={}", mediaId);
+            return;
+        }
         String resourceId = entity.getResourceId();
         if (StrUtil.isBlank(resourceId)) {
             try {
@@ -531,21 +594,42 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
                         .size(entity.getSize())
                         .build()).getData();
             } catch (Exception e) {
-                log.error("media resource register failed. mediaId={}", mediaId, e);
-                updateStatus(mediaId, new MediaStatus(MediaStatusEnum.REGISTERING_RES_TIMEOUT));
-                throw new ServiceException(MediaError.MEDIA_REGISTER_RESOURCE_FAILED, e.getMessage());
+                if (mediaInfoRepository.updateStatusIfCurrent(
+                        mediaId, MediaStatusEnum.REGISTERING_RES,
+                        new MediaStatus(MediaStatusEnum.REGISTERING_RES_TIMEOUT)) == 0) {
+                    log.debug("media resource registration failure ignored because status changed. mediaId={}", mediaId);
+                }
+                throw new ServiceException(MediaError.MEDIA_REGISTER_RESOURCE_FAILED);
             }
-            mediaInfoRepository.updateResourceIdById(mediaId, resourceId);
+            if (mediaInfoRepository.updateResourceIdIfCurrent(
+                    mediaId, MediaStatusEnum.REGISTERING_RES, resourceId) == 0) {
+                log.debug("media resource registration result ignored because status changed. mediaId={}", mediaId);
+                return;
+            }
         }
 
         // 资源 ID 存在后才能对外宣告媒体 READY，并发布 ready 事件给下游服务
-        updateStatus(mediaId, new MediaStatus(MediaStatusEnum.READY));
-        eventPublisher.publishReadyEvent(MediaReadyMessage.builder()
-                .resourceId(resourceId)
-                .mediaId(mediaId)
-                .resourceType(entity.getResourceType())
-                .build());
-        log.info("media ready finalized. mediaId={} resourceId={}", mediaId, resourceId);
+        if (mediaInfoRepository.updateStatusIfCurrent(
+                mediaId, MediaStatusEnum.REGISTERING_RES, new MediaStatus(MediaStatusEnum.READY)) > 0) {
+            eventPublisher.publishReadyEvent(MediaReadyMessage.builder()
+                    .resourceId(resourceId)
+                    .mediaId(mediaId)
+                    .resourceType(entity.getResourceType())
+                    .build());
+            log.info("media ready finalized. mediaId={} resourceId={}", mediaId, resourceId);
+        }
+    }
+
+    private void deleteProducedObjects(String objectKey) {
+        if (StrUtil.isNotBlank(objectKey)) {
+            eventPublisher.publishFileDeleteEvent(List.of(objectKey));
+        }
+    }
+
+    private void deleteProducedObjects(List<String> objectKeys) {
+        if (objectKeys != null && !objectKeys.isEmpty()) {
+            eventPublisher.publishFileDeleteEvent(objectKeys);
+        }
     }
 
     private record ImageSize(Integer width, Integer height) {

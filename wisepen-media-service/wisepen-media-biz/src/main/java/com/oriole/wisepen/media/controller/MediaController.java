@@ -31,7 +31,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -43,7 +42,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-@Slf4j
 @Tag(name = "媒体处理", description = "图片、视频和音频上传、处理状态、播放会话与下载")
 @RestController
 @RequestMapping("/media")
@@ -264,7 +262,7 @@ public class MediaController {
                     - 用途：获取媒体资源详情和媒体处理信息，用于媒体详情页展示。
                     - 请求：resourceId 指定媒体资源。
                     - 约束：当前用户必须通过资源服务的资源详情权限校验；目标媒体信息必须存在。
-                    - 处理：通过资源服务获取资源详情和当前用户可执行动作，再读取媒体处理信息并补充封面图 URL；不刷新媒体状态，不触发处理或重试。
+                    - 处理：通过资源服务获取资源详情和当前用户可执行动作，再读取媒体处理信息；不刷新媒体状态，不触发处理或重试。
                     - 失败：资源不存在 -> ResourceError.RESOURCE_NOT_FOUND；资源无查看权限 -> ResourceError.RESOURCE_PERMISSION_DENIED；媒体不存在 -> MediaError.MEDIA_NOT_FOUND。
                     - 响应：返回资源详情和媒体处理信息组合结果。
                     """

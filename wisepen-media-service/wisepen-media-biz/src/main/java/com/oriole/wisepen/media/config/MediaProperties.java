@@ -48,6 +48,15 @@ public class MediaProperties {
      */
     private long maxTimeoutMs = 3_600_000L;
 
+    /** 处理任务超过该时长仍未更新时允许 GC 重新排队。 */
+    private long processingTimeoutMs = 3_600_000L;
+
+    /** GC 每次最多扫描的媒体数量。 */
+    private int gcBatchSize = 500;
+
+    /** 源文件、产物和 manifest HTTP 请求超时时间。 */
+    private long httpRequestTimeoutMs = 120_000L;
+
     /**
      * FFmpeg 可执行文件路径。
      */
