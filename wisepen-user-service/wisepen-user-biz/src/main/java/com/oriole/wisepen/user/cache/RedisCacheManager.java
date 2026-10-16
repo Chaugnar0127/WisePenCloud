@@ -91,9 +91,9 @@ public class RedisCacheManager {
 	}
 
 	public Long getPwdResetUser(String token){
-		String userId = stringRedisTemplateDB0.opsForValue().get(REDIS_PWD_RESET_TOKEN_PREFIX + token);
+		Object userId = redisTemplate.opsForValue().get(REDIS_PWD_RESET_TOKEN_PREFIX + token);
 		redisTemplate.delete(REDIS_PWD_RESET_TOKEN_PREFIX + token); // 立即删除
-		return  StrUtil.isNotBlank(userId) ? Long.parseLong(userId) : null;
+		return userId != null ? Long.parseLong(userId.toString()) : null;
 	}
 
 	public String setSession(Long userId, IdentityType identityType, UserStatus userStatus, Map<String, Integer> groupRoleMap) {
