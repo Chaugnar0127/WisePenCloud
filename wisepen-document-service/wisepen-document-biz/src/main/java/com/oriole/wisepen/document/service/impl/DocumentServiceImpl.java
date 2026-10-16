@@ -40,7 +40,7 @@ import com.oriole.wisepen.file.storage.api.feign.RemoteStorageService;
 import com.oriole.wisepen.resource.domain.dto.ResourceCreateReqDTO;
 import com.oriole.wisepen.resource.enums.ResourceType;
 import com.oriole.wisepen.resource.feign.RemoteResourceService;
-import lombok.RequiredArgsConstructor;
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
@@ -49,6 +49,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -124,12 +125,14 @@ public class DocumentServiceImpl implements IDocumentService {
         return resourceId;
     }
 
+    @WithSpan("document.upload.initialize")
     public DocumentUploadInitResponse initUploadDocument(DocumentUploadInitRequest request, Long uploaderId,
                                                           Map<Long, GroupRoleType> uploaderGroupRoles)  {
         // 普通上传新增版本，检查编辑状态
         return initUploadDocument(request, uploaderId, uploaderGroupRoles, true, true);
     }
 
+    @WithSpan("document.upload.initialize")
     public DocumentUploadInitResponse initUploadDocumentByOnlyOffice(DocumentUploadInitRequest request, Long uploaderId, Boolean isVersioned)  {
         // OnlyOffice 回调上传不检查编辑状态，是否新增版本由调用方决定
         return initUploadDocument(request, uploaderId, null, isVersioned, false);
@@ -467,7 +470,7 @@ public class DocumentServiceImpl implements IDocumentService {
             infoEntity = documentInfoRepository.findByResourceId(resourceId)
                     .orElseThrow(() -> new ServiceException(DocumentError.DOCUMENT_NOT_FOUND));
             // 更新 DocumentInfoEntity 的版本号
-            documentInfoRepository.updateVersionByResourceId(infoEntity.getResourceId(), infoEntity.getVersion() + 1);
+            documentInfoRepository.updateVersionByResourceId(infoEntity.getResourceId(), infoEntity.getVersion() + 1, LocalDateTime.now());
         } else { // 首次上传文档
             // 向 resource 服务注册资源
             try {

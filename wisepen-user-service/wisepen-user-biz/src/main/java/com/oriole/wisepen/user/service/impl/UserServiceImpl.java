@@ -17,7 +17,6 @@ import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.system.api.domain.dto.MailSendDTO;
 import com.oriole.wisepen.system.api.feign.RemoteMailService;
 import com.oriole.wisepen.user.api.config.UserProperties;
-import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
 import com.oriole.wisepen.user.api.domain.base.UserInfoBase;
 import com.oriole.wisepen.user.api.domain.base.UserProfileBase;
 import com.oriole.wisepen.user.api.domain.dto.req.*;
@@ -31,6 +30,7 @@ import com.oriole.wisepen.user.domain.entity.UserWalletEntity;
 import com.oriole.wisepen.user.exception.UserError;
 import com.oriole.wisepen.user.mapper.GroupMemberMapper;
 import com.oriole.wisepen.user.mapper.UserWalletsMapper;
+import com.oriole.wisepen.user.service.IUserInviteService;
 import com.oriole.wisepen.user.service.IUserService;
 import com.oriole.wisepen.user.mapper.UserMapper;
 import com.oriole.wisepen.user.mapper.UserProfileMapper;
@@ -40,6 +40,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.thymeleaf.TemplateEngine;
 import org.thymeleaf.context.Context;
 
@@ -56,6 +57,7 @@ public class UserServiceImpl implements IUserService {
     private final GroupMemberMapper groupMemberMapper;
     private final UserWalletsMapper userWalletsMapper;
     private final RedisCacheManager redisCacheManager;
+    private final IUserInviteService userInviteService;
 
     private final TemplateEngine templateEngine;
     private final RemoteMailService remoteMailService;
@@ -70,37 +72,6 @@ public class UserServiceImpl implements IUserService {
         return userMapper.selectOne(Wrappers.<UserEntity>lambdaQuery()
                 .and(w -> w.eq(UserEntity::getUsername, account).or().eq(UserEntity::getCampusNo, account))
                 .last("LIMIT 1"));
-    }
-
-    @Override
-    public Map<Long, UserDisplayBase> getUserDisplayInfoByIds(Set<Long> userIds) {
-        return getUserDisplayInfoByIds(userIds, false);
-    }
-
-    @Override
-    public Map<Long, UserDisplayBase> getUserDisplayInfoByIds(Set<Long> userIds, boolean includePrivateFields) {
-        if (CollectionUtils.isEmpty(userIds)) {
-            return Collections.emptyMap();
-        }
-        List<UserEntity> userList = userMapper.selectBatchIds(userIds);
-
-        if (CollectionUtils.isEmpty(userList)) {
-            return Collections.emptyMap();
-        }
-
-        return userList.stream().filter(Objects::nonNull).collect(Collectors.toMap(
-                UserEntity::getUserId,
-                user -> {
-                    UserDisplayBase response = BeanUtil.copyProperties(user, UserDisplayBase.class);
-                    if (!includePrivateFields) {
-                        response.setRealName(null);
-                        response.setCampusNo(null);
-                        response.setEmail(null);
-                        response.setMobile(null);
-                    }
-                    return response;
-                },
-                (existing, replacement) -> existing));
     }
 
     @Override
@@ -157,6 +128,7 @@ public class UserServiceImpl implements IUserService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void register(AuthRegisterRequest req) {
         // 校验用户名是否存在
         if (userMapper
@@ -179,12 +151,15 @@ public class UserServiceImpl implements IUserService {
         // 新建档案
         UserProfileEntity userProfile = UserProfileEntity.builder()
                 .userId(user.getUserId())
+                .inviteCode(userInviteService.generateInviteCode())
                 .build();
         userProfileMapper.insert(userProfile);
 
         UserWalletEntity userWallets = UserWalletEntity.builder().userId(user.getUserId())
                 .tokenBalance(0).tokenUsed(0).coinBalance(0).build();
         userWalletsMapper.insert(userWallets);
+
+        userInviteService.bindAtRegistration(user.getUserId(), req.getInviteCode());
     }
 
     @Override
@@ -287,6 +262,7 @@ public class UserServiceImpl implements IUserService {
 
         UserVerificationStrategy strategy = strategyFactory.getStrategy(userEntity.getVerificationMode());
         List<String> readonlyFields = strategy.getReadonlyFields();
+        readonlyFields.add("inviteCode");
 
         CopyOptions copyOptions = CopyOptions.create()
                 .setIgnoreNullValue(true)
@@ -308,7 +284,9 @@ public class UserServiceImpl implements IUserService {
 
     @Override
     public void updateProfileAdmin(UserProfileAdminUpdateRequest req) {
-        UserProfileEntity userProfileEntity = BeanUtil.copyProperties(req, UserProfileEntity.class);
+        UserProfileEntity userProfileEntity = new UserProfileEntity();
+        BeanUtil.copyProperties(req, userProfileEntity,
+                CopyOptions.create().setIgnoreProperties("inviteCode"));
         userProfileMapper.updateById(userProfileEntity);
     }
 

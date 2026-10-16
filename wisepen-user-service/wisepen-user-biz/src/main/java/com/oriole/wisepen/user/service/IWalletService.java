@@ -13,6 +13,8 @@ import com.oriole.wisepen.user.api.domain.mq.TokenConsumptionMessage;
 import com.oriole.wisepen.user.api.enums.WalletTransactionType;
 import com.oriole.wisepen.user.api.enums.TokenTransferType;
 
+import java.util.List;
+
 public interface IWalletService {
 
     // 消耗 Token
@@ -22,7 +24,7 @@ public interface IWalletService {
     void changeGroupTokenBalance(Long groupId, Long operator, Integer changedToken, WalletTransactionType type, String Meta);
 
     // 改变个人 Token 余额
-    void changeUserTokenBalance(Long groupId, Long operator, Integer changedToken, WalletTransactionType type, String Meta);
+    void changeUserTokenBalance(Long userId, Long operator, String traceId, Integer changedToken, WalletTransactionType type, String Meta);
 
     // 更新组成员 Token 配额
     void updateGroupMemberTokenLimit(GroupMemberTokenLimitUpdateRequest req);
@@ -31,10 +33,10 @@ public interface IWalletService {
     void updateGroupTokenUsed(Long groupId, Integer usedToken);
 
     // 更新组成员 Token 用量
-    Integer updateGroupMemberTokenUsed(Long groupId, Long userId, String traceId, Integer tokenBill, String BillMeta);
+    Integer updateGroupMemberTokenUsed(Long groupId, Long userId, String traceId, Integer tokenBill, String BillMeta, String billingDetail);
 
     // 更新个人 Token 用量
-    void updateUserTokenUsed(Long userId, String traceId, Integer tokenBill, String billMeta);
+    void updateUserTokenUsed(Long userId, String traceId, Integer tokenBill, String billMeta, String billingDetail);
 
     // 转移 Token（仅限小组所有者）
     void transferTokenBetweenGroupAndUser(Long userId, WalletTransferTokenRequest req);
@@ -48,7 +50,7 @@ public interface IWalletService {
     PageR<WalletTransactionRecordResponse> listTransactions(
             WalletPayerType payerType,
             Long payerId,
-            WalletTransactionType walletTransactionType,
+            List<WalletTransactionType> walletTransactionTypes,
             WalletBusinessType walletBusinessType,
             Integer page, Integer size
     );
