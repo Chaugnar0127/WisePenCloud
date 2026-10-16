@@ -7,6 +7,7 @@ import io.github.springwolf.core.asyncapi.annotations.AsyncListener;
 import io.github.springwolf.core.asyncapi.annotations.AsyncMessage;
 import io.github.springwolf.core.asyncapi.annotations.AsyncOperation;
 import io.github.springwolf.plugins.kafka.asyncapi.annotations.KafkaAsyncOperationBinding;
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -30,6 +31,7 @@ public class FileUploadedConsumer {
             message = @AsyncMessage(name = "FileUploadedMessage", title = "文件上传完成事件")
     ))
     @KafkaAsyncOperationBinding(groupId = "wisepen-media-upload-callback-group")
+    @WithSpan("media.upload.consume")
     public void onFileUploaded(String payload) throws Exception {
         FileUploadedMessage message = objectMapper.readValue(payload, FileUploadedMessage.class);
         log.info("media file upload event received. topic={} objectKey={} scene={}",

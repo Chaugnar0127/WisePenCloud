@@ -27,6 +27,7 @@ import com.oriole.wisepen.media.repository.MediaWatermarkSessionRepository;
 import com.oriole.wisepen.media.service.IMediaProcessService;
 import com.oriole.wisepen.media.service.IMediaService;
 import com.oriole.wisepen.resource.enums.ResourceType;
+import io.opentelemetry.instrumentation.annotations.WithSpan;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ContentDisposition;
@@ -54,6 +55,7 @@ public class MediaServiceImpl implements IMediaService {
     private final IMediaProcessService mediaProcessService;
 
     @Override
+    @WithSpan("media.upload.initialize")
     public MediaUploadInitResponse initUploadMedia(MediaUploadInitRequest request, Long uploaderId,
                                                    Map<Long, GroupRoleType> uploaderGroupRoles) {
         String extension = StrUtil.trim(request.getExtension()).toLowerCase(Locale.ROOT);
