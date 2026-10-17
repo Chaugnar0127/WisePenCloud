@@ -178,22 +178,24 @@ public class FudanUISAuthTaskService {
     private VerifiedIdentityClaimsDTO toVerifiedIdentityClaims(Map<String, String> profile) {
         if (profile == null) return null;
 
-        boolean teacher = StrUtil.isNotBlank(readProfile(profile, "职工号"))
+        boolean isTeacher = StrUtil.isNotBlank(readProfile(profile, "职工号"))
                 || StrUtil.isNotBlank(readProfile(profile, "参加工作年月"));
+
+        String campusNo = readProfile(profile, "学号", "职工号");
 
         return VerifiedIdentityClaimsDTO.builder()
                 .realName(readProfile(profile, "姓名"))
-                .campusNo(readProfile(profile, "学号", "职工号"))
-                .identityType(teacher ? IdentityType.TEACHER : IdentityType.STUDENT)
+                .campusNo(campusNo)
+                .identityType(isTeacher ? IdentityType.TEACHER : IdentityType.STUDENT)
                 .universityName(UNIVERSITY_NAME)
                 .college(readProfile(profile, "院系", "所属院系", "院系部门"))
-                .major(teacher ? null : readProfile(profile, "专业"))
-                .className(teacher ? null : readProfile(profile, "班级"))
-                .enrollmentYear(teacher ? null : parseYear(readProfile(profile, "年级", "入学时间")))
+                .major(isTeacher ? null : readProfile(profile, "专业"))
+                .className(isTeacher ? null : readProfile(profile, "班级"))
+                .enrollmentYear(isTeacher ? null : parseYear(readProfile(profile, "年级", "入学时间")))
                 .degreeLevel(parseDegreeLevel(readProfile(profile, "培养层次", "学生类别", "学历")))
                 .gender(parseGender(readProfile(profile, "性别")))
-                .academicTitle(teacher ? readProfile(profile, "专技职务") : null)
-                .email(readProfile(profile, "电子信箱", "电子邮件", "复旦邮箱"))
+                .academicTitle(isTeacher ? readProfile(profile, "专技职务") : null)
+                .email(parseEmail(readProfile(profile, "电子信箱", "电子邮件", "复旦邮箱"), isTeacher, campusNo))
                 .mobile(parseMobile(readProfile(profile, "手机号码", "联系电话")))
                 .build();
     }
@@ -205,6 +207,18 @@ public class FudanUISAuthTaskService {
             if (StrUtil.isNotBlank(value)) return value.trim();
         }
         return null;
+    }
+
+    private String parseEmail(String value, boolean isTeacher, String campusNo) {
+        if (StrUtil.isNotBlank(value)) {
+            return value;
+        }
+        // UIS 未提供邮箱时，按学号补全
+        if (!isTeacher && StrUtil.isNotBlank(campusNo)) {
+            return campusNo + "@m.fudan.edu.cn";
+        } else {
+            return campusNo + "@fudan.edu.cn";
+        }
     }
 
     private String parseMobile(String value) { // UIS可能存在多个手机号码
