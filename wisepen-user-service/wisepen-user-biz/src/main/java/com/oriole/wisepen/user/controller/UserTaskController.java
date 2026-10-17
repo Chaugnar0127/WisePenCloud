@@ -2,8 +2,6 @@ package com.oriole.wisepen.user.controller;
 
 import com.oriole.wisepen.common.core.context.SecurityContextHolder;
 import com.oriole.wisepen.common.core.domain.R;
-import com.oriole.wisepen.common.core.domain.enums.BusinessType;
-import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.common.security.annotation.CheckLogin;
 import com.oriole.wisepen.user.api.domain.dto.res.UserTaskCheckInResponse;
 import com.oriole.wisepen.user.api.domain.dto.res.UserTaskStatusResponse;
@@ -66,28 +64,4 @@ public class UserTaskController {
         ));
     }
 
-    @Operation(
-            summary = "完成新手教程",
-            description = """
-                    - 用途：记录当前用户已完成 WisePen 新手教程，用于同步一次性教程任务状态。
-                    - 请求：无需请求参数，目标用户来自当前认证上下文。
-                    - 约束：当前用户必须已登录；任务必须已启用。
-                    - 处理：首次提交写入无奖励的任务完成记录；检测到已有记录时不新增记录；不会产生钱包流水或奖励通知。
-                    - 失败：未登录 -> PermissionError.NOT_LOGIN。
-                    - 响应：已完成或本次完成时返回 true；任务未启用时返回 false。
-                    """
-    )
-    @Log(title = "完成新手教程", businessType = BusinessType.INSERT,
-            isSaveRequestData = false, isSaveResponseData = false)
-    @CheckLogin
-    @PostMapping("/completeOnboardingTutorial")
-    public R<Boolean> completeOnboardingTutorial() {
-        Long userId = SecurityContextHolder.getUserId();
-        return R.ok((Boolean) userTaskService.complete(
-                userId,
-                UserTaskCode.ONBOARDING_TUTORIAL,
-                userId,
-                null
-        ));
-    }
 }
