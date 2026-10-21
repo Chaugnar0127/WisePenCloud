@@ -8,6 +8,7 @@ import com.aliyun.oss.OSSException;
 import com.aliyun.oss.common.utils.BinaryUtil;
 import com.aliyun.oss.model.GeneratePresignedUrlRequest;
 import com.aliyun.oss.model.ObjectMetadata;
+import com.aliyun.oss.model.OSSObject;
 import com.aliyun.oss.model.ResponseHeaderOverrides;
 import com.aliyun.sts20150401.Client;
 import com.aliyun.sts20150401.models.AssumeRoleRequest;
@@ -24,9 +25,9 @@ import com.oriole.wisepen.file.storage.domain.entity.StorageConfigEntity;
 import com.oriole.wisepen.file.storage.exception.FileStorageError;
 import com.oriole.wisepen.file.storage.strategy.StorageProvider;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -151,13 +152,29 @@ public class AliyunOssProvider implements StorageProvider {
     }
 
     @Override
-    public void uploadSmallFile(MultipartFile file, String objectKey) {
-        try (InputStream inputStream = file.getInputStream()) {
-            // 代理直传，适合图床等轻量级场景
+    public void uploadSmallFile(byte[] content, String objectKey) {
+        try (InputStream inputStream = new ByteArrayInputStream(content)) {
             ossClient.putObject(config.getBucketName(), objectKey, inputStream);
         } catch (Exception e) {
             log.error("aliyun oss small file upload failed. objectKey={}", objectKey, e);
             throw new ServiceException(FileStorageError.STORAGE_PROVIDER_UPLOAD_FILE_FAILED);
+        }
+    }
+
+    @Override
+    public byte[] getSmallFileContent(String objectKey, long maxSize) {
+        try (OSSObject object = ossClient.getObject(config.getBucketName(), objectKey);
+             InputStream inputStream = object.getObjectContent()) {
+            byte[] content = inputStream.readNBytes(Math.toIntExact(maxSize + 1));
+            if (content.length > maxSize) {
+                throw new ServiceException(FileStorageError.FILE_SIZE_ABOVE_UPPER_BOUND);
+            }
+            return content;
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("aliyun oss small file read failed. objectKey={}", objectKey, e);
+            throw new ServiceException(FileStorageError.STORAGE_PROVIDER_READ_FILE_FAILED);
         }
     }
 

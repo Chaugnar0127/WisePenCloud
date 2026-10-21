@@ -32,6 +32,16 @@ public interface IStorageService {
     StorageRecordDTO uploadSmallFileProxy(MultipartFile file, StorageSceneEnum scene, String bizTag);
 
     /**
+     * 内部业务服务代理上传小文件内容。
+     */
+    StorageRecordDTO uploadSmallFile(byte[] content, String extension, StorageSceneEnum scene, String bizTag);
+
+    /**
+     * 内部业务服务读取小文件内容。
+     */
+    byte[] getSmallFileContent(String objectKey);
+
+    /**
      * 获取带自定义响应头的单文件的私有下载链接
      *
      * @param objectKey                  文件对象相对路径

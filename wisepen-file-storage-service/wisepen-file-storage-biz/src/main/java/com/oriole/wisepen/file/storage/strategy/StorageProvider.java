@@ -1,10 +1,8 @@
 package com.oriole.wisepen.file.storage.strategy;
 import com.oriole.wisepen.file.storage.api.domain.base.StorageRecordBase;
 import com.oriole.wisepen.file.storage.api.domain.base.UploadUrlBase;
-import com.oriole.wisepen.file.storage.api.domain.dto.StorageRecordDTO;
 import com.oriole.wisepen.file.storage.api.domain.dto.StsTokenDTO;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.web.multipart.MultipartFile;
 
 public interface StorageProvider {
 
@@ -62,12 +60,20 @@ public interface StorageProvider {
     void deleteObject(String objectKey);
 
     /**
-     * 代理上传小文件 (图床模式)
+     * 代理上传小文件
      *
-     * @param file      字节流
+     * @param content   文件内容
      * @param objectKey 目标路径
      */
-    void uploadSmallFile(MultipartFile file, String objectKey);
+    void uploadSmallFile(byte[] content, String objectKey);
+
+    /**
+     * 读取有大小上限的小文件内容
+     *
+     * @param objectKey 目标路径
+     * @param maxSize   最大允许读取的字节数
+     */
+    byte[] getSmallFileContent(String objectKey, long maxSize);
 
     /**
      * 校验云厂商异步回调请求的真实性（防伪造回调）
