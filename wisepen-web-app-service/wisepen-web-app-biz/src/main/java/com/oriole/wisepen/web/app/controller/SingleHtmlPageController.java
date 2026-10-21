@@ -93,8 +93,8 @@ public class SingleHtmlPageController {
                     """
     )
     @Log(title = "初始化 Single HTML Page 上传", businessType = BusinessType.INSERT)
-    @PostMapping("/initUploadSingleHtmlPage")
-    public R<SingleHtmlPageUploadInitResponse> initUploadSingleHtmlPage(
+    @PostMapping("/uploadSingleHtmlPage")
+    public R<SingleHtmlPageUploadInitResponse> uploadSingleHtmlPage(
             @Valid @RequestBody SingleHtmlPageUploadInitRequest request) {
         Long userId = SecurityContextHolder.getUserId();
         Map<Long, GroupRoleType> groupRoles = SecurityContextHolder.getGroupRoleMap();
