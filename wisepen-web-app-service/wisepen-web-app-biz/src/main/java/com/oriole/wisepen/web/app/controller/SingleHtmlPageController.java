@@ -5,6 +5,7 @@ import com.oriole.wisepen.common.core.context.SecurityContextHolder;
 import com.oriole.wisepen.common.core.domain.PageR;
 import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.common.core.domain.enums.BusinessType;
+import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.common.security.annotation.CheckRole;
@@ -45,6 +46,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
 
 @Tag(name = "Single HTML Page", description = "Single HTML Page 信息、版本和内容访问")
 @RestController
@@ -94,18 +96,16 @@ public class SingleHtmlPageController {
     @PostMapping("/initUploadSingleHtmlPage")
     public R<SingleHtmlPageUploadInitResponse> initUploadSingleHtmlPage(
             @Valid @RequestBody SingleHtmlPageUploadInitRequest request) {
-        ResourceCheckPermissionResDTO permission = remoteResourceService.checkResPermission(
-                ResourceCheckPermissionReqDTO.builder()
-                        .resourceId(request.getResourceId())
-                        .userId(SecurityContextHolder.getUserId())
-                        .groupRoles(SecurityContextHolder.getGroupRoleMap())
-                        .build()
-        ).getData();
-        if (permission == null || permission.getAllowedActions() == null
-                || !permission.getAllowedActions().contains(ResourceAction.EDIT)) {
-            throw new ServiceException(WebAppError.SINGLE_HTML_PAGE_PERMISSION_DENIED);
+        Long userId = SecurityContextHolder.getUserId();
+        Map<Long, GroupRoleType> groupRoles = SecurityContextHolder.getGroupRoleMap();
+        if (request.getResourceId() != null) { // 更新现有版本
+            ResourceCheckPermissionResDTO permission = remoteResourceService.checkResPermission(ResourceCheckPermissionReqDTO.builder()
+                    .resourceId(request.getResourceId()).userId(userId).groupRoles(groupRoles).build()).getData();
+            if (permission == null || permission.getAllowedActions() == null || !permission.getAllowedActions().contains(ResourceAction.EDIT)) {
+                throw new ServiceException(WebAppError.SINGLE_HTML_PAGE_PERMISSION_DENIED);
+            }
         }
-        return R.ok(singleHtmlPageService.initUploadSingleHtmlPage(request, SecurityContextHolder.getUserId()));
+        return R.ok(singleHtmlPageService.initUploadSingleHtmlPage(request, userId, groupRoles));
     }
 
     @Operation(

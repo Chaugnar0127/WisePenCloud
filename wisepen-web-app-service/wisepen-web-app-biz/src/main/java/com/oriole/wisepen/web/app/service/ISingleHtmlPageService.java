@@ -19,7 +19,7 @@ public interface ISingleHtmlPageService {
                                 Map<Long, GroupRoleType> ownerGroupRoles);
 
     SingleHtmlPageUploadInitResponse initUploadSingleHtmlPage(
-            SingleHtmlPageUploadInitRequest request, Long uploaderUserId);
+            SingleHtmlPageUploadInitRequest request, Long uploaderUserId, Map<Long, GroupRoleType> uploaderGroupRoles);
 
     void finalizeToReady(String singleHtmlPageId);
 

@@ -18,7 +18,6 @@ import static com.oriole.wisepen.web.app.constant.WebAppValidationMsg.RESOURCE_I
 @NoArgsConstructor
 @AllArgsConstructor
 public class SingleHtmlPageUploadInitRequest {
-    @NotBlank(message = RESOURCE_ID_NOT_BLANK)
     private String resourceId;
 
     @NotBlank(message = FILENAME_NOT_BLANK)

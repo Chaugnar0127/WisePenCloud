@@ -86,7 +86,7 @@ public class SingleHtmlPageServiceImpl implements ISingleHtmlPageService {
 
     @Override
     public SingleHtmlPageUploadInitResponse initUploadSingleHtmlPage(
-            SingleHtmlPageUploadInitRequest request, Long uploaderUserId) {
+            SingleHtmlPageUploadInitRequest request, Long uploaderUserId, Map<Long, GroupRoleType> uploaderGroupRoles) {
         String extension = FileUtil.extName(request.getFilename()).toLowerCase();
         if (!"html".equals(extension) && !"htm".equals(extension)) {
             throw new ServiceException(WebAppError.SINGLE_HTML_PAGE_FILE_TYPE_INVALID);
@@ -95,7 +95,10 @@ public class SingleHtmlPageServiceImpl implements ISingleHtmlPageService {
             throw new ServiceException(WebAppError.SINGLE_HTML_PAGE_CONTENT_TOO_LARGE);
         }
 
-        SingleHtmlPageEntity singleHtmlPageEntity = getSingleHtmlPageInfo(request.getResourceId());
+        SingleHtmlPageEntity singleHtmlPageEntity = null;
+        if (request.getResourceId() != null) { // 如果 ResourceId 不为空，则说明不是首次上传
+            singleHtmlPageEntity = getSingleHtmlPageInfo(request.getResourceId());
+        }
 
         String singleHtmlPageId = IdUtil.fastSimpleUUID();
         UploadInitRespDTO upload;
@@ -117,6 +120,7 @@ public class SingleHtmlPageServiceImpl implements ISingleHtmlPageService {
         SingleHtmlPageUploadMeta meta = SingleHtmlPageUploadMeta.builder()
                 .filename(request.getFilename())
                 .uploaderId(uploaderUserId)
+                .uploaderGroupRoles(uploaderGroupRoles)
                 .expectedSize(request.getExpectedSize())
                 .expectedMd5(request.getMd5())
                 .mountTargetTagId(request.getMountTargetTagId())
