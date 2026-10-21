@@ -51,25 +51,26 @@ public enum ResourceType {
 
     private final String extension;
 
-    private static final Map<String, ResourceType> EXT_MAP = new HashMap<>();
+    private static final Map<String, ResourceType> TYPE_MAP = new HashMap<>();
 
     static {
         for (ResourceType item : values()) {
-            EXT_MAP.put(item.extension, item);
+            TYPE_MAP.put(item.value.toLowerCase(), item);
+            TYPE_MAP.put(item.extension.toLowerCase(), item);
         }
     }
 
     /**
-     * 根据扩展名（大小写不敏感）查找对应枚举值。
+     * 根据资源类型值或扩展名（大小写不敏感）查找对应枚举值。
      *
-     * @param ext 扩展名或类型标识字符串，如 "docx"、"PDF"、"note"
+     * @param value 资源类型值或扩展名，如 "SINGLE_HTML_PAGE"、"html"、"docx"
      * @return 对应枚举值
      */
     @JsonCreator
-    public static ResourceType fromExtension(String ext) {
-        if (ext == null) {
+    public static ResourceType fromExtension(String value) {
+        if (value == null) {
             return null;
         }
-        return EXT_MAP.get(ext.trim().toLowerCase());
+        return TYPE_MAP.get(value.trim().toLowerCase());
     }
 }
