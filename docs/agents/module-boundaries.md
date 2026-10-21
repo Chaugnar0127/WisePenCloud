@@ -21,6 +21,7 @@
 - `wisepen-file-storage-service`：对象存储配置、上传凭证、上传回调、小文件代理上传、存储记录和文件删除事件。
 - `wisepen-note-service`：笔记主档、协同笔记版本、笔记操作日志、笔记快照消费和笔记资源信息组合。
 - `wisepen-ai-asset-service`：技能资产主档、技能版本、技能文件上传、技能发布和技能相关资源联动。
+- `wisepen-web-app-service`：可运行 Web 资源主档、Single HTML Page 内容与版本，以及未来 Web 项目的构建和部署运行时。
 - `wisepen-fudan-extension-service`：复旦 UIS 等学校扩展能力、认证任务和相关异步消息。
 - `wisepen-docs-service`：API 文档聚合或文档站点相关能力。
 

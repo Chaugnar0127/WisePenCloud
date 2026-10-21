@@ -199,6 +199,28 @@ services:
         aliases:
           - ai-asset-service
 
+  web-app-service:
+    image: ${DOCKER_REGISTRY}/wisepencloud-web-app:${APP_VERSION}
+    container_name: wisepen-web-app-service
+    restart: always
+    environment:
+      - TZ=Asia/Shanghai
+      - SPRING_PROFILES_ACTIVE=prod
+      - SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR=nacos:8848
+      - SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR=nacos:8848
+      - OTEL_SERVICE_NAME=wisepen-web-app-service
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+      - OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+      - SPRING_CLOUD_INETUTILS_PREFERRED_NETWORKS=
+      - NACOS_USERNAME=${NACOS_USERNAME}
+      - NACOS_PASSWORD=${NACOS_PASSWORD}
+    volumes:
+      - ../logs/web-app:/logs
+    networks:
+      wisepen-net:
+        aliases:
+          - web-app-service
+
 networks:
   wisepen-net:
     external: true
