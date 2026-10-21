@@ -570,14 +570,14 @@ public class ResourceServiceImpl implements IResourceService {
                     ? tagRepository.findById(mountTargetTagId).orElse(null) : null;
 
             // mountTargetTag 为空时，获取个人的根目录
-            if (mountTargetTag == null) {
+            if (!StringUtils.hasText(mountTargetTagId)) {
                 String defaultPersonalTagName = ResourceConstants.ROOT_TAG_NAME;
                 switch (dto.getResourceType()){
                     case SINGLE_HTML_PAGE -> defaultPersonalTagName = ResourceConstants.PAGE_TAG_NAME;
                     case NOTE -> defaultPersonalTagName = ResourceConstants.NOTE_TAG_NAME;
                 }
                 // 确保老用户也拥有相关文件夹
-                if (defaultPersonalTagName != ResourceConstants.ROOT_TAG_NAME) {
+                if (!ResourceConstants.ROOT_TAG_NAME.equals(defaultPersonalTagName)) {
                     tagService.ensurePersonalSystemTags(personalGroupId);
                 }
                 mountTargetTagId = tagRepository.findByGroupIdAndParentIdAndTagName(
