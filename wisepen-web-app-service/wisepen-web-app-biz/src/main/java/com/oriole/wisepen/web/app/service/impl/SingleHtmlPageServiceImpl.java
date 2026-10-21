@@ -161,6 +161,7 @@ public class SingleHtmlPageServiceImpl implements ISingleHtmlPageService {
 
         SingleHtmlPageUploadInitResponse resp = BeanUtil.copyProperties(upload, SingleHtmlPageUploadInitResponse.class);
         resp.setSingleHtmlPageId(singleHtmlPageId);
+        resp.setVersion(versionEntity.getVersion());
 
         if (Boolean.TRUE.equals(upload.getFlashUploaded())) {
             // 如果触发秒传
