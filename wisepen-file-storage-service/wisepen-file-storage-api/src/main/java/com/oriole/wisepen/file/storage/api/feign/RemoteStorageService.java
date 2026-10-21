@@ -32,6 +32,21 @@ public interface RemoteStorageService {
     R<StorageRecordDTO> copyFile(@RequestBody CopyReqDTO req);
 
     /**
+     * 由内部业务服务代理上传小文件内容
+     */
+    @PostMapping(value = "/uploadSmallFile", consumes = "application/octet-stream")
+    R<StorageRecordDTO> uploadSmallFile(@RequestBody byte[] content,
+                                        @RequestParam("extension") String extension,
+                                        @RequestParam("scene") StorageSceneEnum scene,
+                                        @RequestParam("bizTag") String bizTag);
+
+    /**
+     * 由内部业务服务读取小文件内容
+     */
+    @GetMapping("/getSmallFileContent")
+    R<byte[]> getSmallFileContent(@RequestParam("objectKey") String objectKey);
+
+    /**
      * 获取单文件的防盗链下载 URL
      */
     @GetMapping("/getDownloadUrl")

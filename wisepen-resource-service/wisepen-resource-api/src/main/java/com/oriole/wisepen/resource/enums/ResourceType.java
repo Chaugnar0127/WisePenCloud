@@ -37,6 +37,9 @@ public enum ResourceType {
     /** 无扩展名的 Agent，由 AI资产 服务管理 */
     AGENT(32, "AGENT", "agent"),
 
+    /** 单文件 HTML 页面，由 Web App 服务管理 */
+    SINGLE_HTML_PAGE(41, "SINGLE_HTML_PAGE", "html"),
+
     /** 未知资源，兜底 */
     UNKNOWN(99, "UNKNOWN", "unknown");
 

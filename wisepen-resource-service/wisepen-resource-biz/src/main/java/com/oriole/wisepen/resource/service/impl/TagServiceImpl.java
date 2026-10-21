@@ -34,7 +34,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 import static com.oriole.wisepen.common.core.util.LogIdUtils.summarizeIds;
-import static com.oriole.wisepen.resource.constant.ResourceConstants.TAGS_TRASH_COLLECTION;
+import static com.oriole.wisepen.resource.constant.ResourceConstants.*;
 import static com.oriole.wisepen.resource.exception.ResourceError.CANNOT_SET_TAG_NODE_VISIBILITY;
 
 @Slf4j
@@ -177,43 +177,33 @@ public class TagServiceImpl implements ITagService {
     }
 
     private void ensurePersonalSystemTags(String groupId, List<TagEntity> allTags) {
-        if (groupId.startsWith(ResourceConstants.PERSONAL_GROUP_PREFIX)) {
-            boolean hasRoot = false;
-            boolean hasTrash = false;
-            boolean hasShared = false;
-
-            for (TagEntity tag : allTags) {
-                if ("0".equals(tag.getParentId())) {
-                    if (ResourceConstants.ROOT_TAG_NAME.equals(tag.getTagName())) hasRoot = true;
-                    if (ResourceConstants.TRASH_TAG_NAME.equals(tag.getTagName())) hasTrash = true;
-                    if (ResourceConstants.SHARED_TAG_NAME.equals(tag.getTagName())) hasShared = true;
-                }
-            }
-
-            boolean initialized = false;
-            if (!hasRoot) {
-                TagEntity entity = TagEntity.builder().groupId(groupId).ancestors(new ArrayList<>())
-                        .tagName(ResourceConstants.ROOT_TAG_NAME).parentId("0").isPath(true).build();
-                allTags.add(tagRepository.save(entity));
-                initialized = true;
-            }
-            if (!hasTrash) {
-                TagEntity entity = TagEntity.builder().groupId(groupId).ancestors(new ArrayList<>())
-                        .tagName(ResourceConstants.TRASH_TAG_NAME).parentId("0").isPath(true).build();
-                allTags.add(tagRepository.save(entity));
-                initialized = true;
-            }
-            if (!hasShared) {
-                TagEntity entity = TagEntity.builder().groupId(groupId).ancestors(new ArrayList<>())
-                        .tagName(ResourceConstants.SHARED_TAG_NAME).parentId("0").isPath(true).build();
-                allTags.add(tagRepository.save(entity));
-                initialized = true;
-            }
-
-            if (initialized) {
-                log.info("personal space created. groupId={} nodes=root,trash,shared", groupId);
-            }
+        if (!groupId.startsWith(ResourceConstants.PERSONAL_GROUP_PREFIX)) {
+            return;
         }
+
+        Set<String> existingSystemPathNames = allTags.stream()
+                .filter(tag -> "0".equals(tag.getParentId()))
+                .map(TagEntity::getTagName)
+                .collect(Collectors.toSet());
+
+        List<TagEntity> missingSystemPaths = (List<TagEntity>) ResourceConstants.PERSONAL_SYSTEM_PATH_TAG_NAMES.stream()
+                .filter(tagName -> !existingSystemPathNames.contains(tagName))
+                .map(tagName -> TagEntity.builder().groupId(groupId)
+                        .ancestors(new ArrayList<>()).tagName(tagName)
+                        .parentId("0").isPath(true).build())
+                .toList();
+
+        if (missingSystemPaths.isEmpty()) {
+            return;
+        }
+
+        List<TagEntity> savedSystemPaths = tagRepository.saveAll(missingSystemPaths);
+        allTags.addAll(savedSystemPaths);
+
+        log.info("personal system paths created. groupId={} count={} tagNames={}",
+                groupId,
+                savedSystemPaths.size(),
+                savedSystemPaths.stream().map(TagEntity::getTagName).toList());
     }
 
     // --- 更新 Tag (Update) ---
@@ -516,7 +506,7 @@ public class TagServiceImpl implements ITagService {
         }
         // 精准查出当前组位于根节点下的系统回收站
         TagEntity trashNode = tagRepository.findByGroupIdAndParentIdAndTagName(
-                groupId, "0", ResourceConstants.TRASH_TAG_NAME).orElse(null);
+                groupId, "0", TRASH_TAG_NAME).orElse(null);
 
         if (trashNode == null) {
             return TagType.NOT_IN_TRASH; // 回收站尚未初始化
@@ -532,9 +522,7 @@ public class TagServiceImpl implements ITagService {
     }
 
     private static boolean isSystemPathTagName(String tagName) {
-        return ResourceConstants.ROOT_TAG_NAME.equals(tagName)
-                || ResourceConstants.TRASH_TAG_NAME.equals(tagName)
-                || ResourceConstants.SHARED_TAG_NAME.equals(tagName);
+        return ResourceConstants.PERSONAL_SYSTEM_PATH_TAG_NAMES.contains(tagName);
     }
 
     // 内存组装树

@@ -21,6 +21,7 @@
         <module>wisepen-docs-service</module>
         <module>wisepen-resource-service</module>
         <module>wisepen-ai-asset-service</module>
+        <module>wisepen-web-app-service</module>
         <module>wisepen-file-storage-service</module>
         <module>wisepen-document-service</module>
         <module>wisepen-fudan-extension-service</module>

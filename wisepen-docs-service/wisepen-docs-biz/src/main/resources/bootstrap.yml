@@ -61,6 +61,9 @@ scalar:
     - title: AI 资产服务
       slug: ai-asset
       url: /docs/api/ai-asset
+    - title: Web App 服务
+      slug: web-app
+      url: /docs/api/web-app
     - title: AI 服务
       slug: chat
       url: /docs/api/chat
@@ -85,6 +88,9 @@ scalar:
     - title: Events - AI 资产服务
       slug: events-ai-asset
       url: /docs/asyncapi/ai-asset
+    - title: Events - Web App 服务
+      slug: events-web-app
+      url: /docs/asyncapi/web-app
 
 wisepen:
   openapi:
@@ -101,6 +107,7 @@ wisepen:
       fudan-extension: wisepen-fudan-extension-service
       note: wisepen-note-service
       ai-asset: wisepen-ai-asset-service
+      web-app: wisepen-web-app-service
       chat: wisepen-chat-service
     api-docs-paths:
       chat: /openapi.json
@@ -112,3 +119,4 @@ wisepen:
       fudan-extension: /springwolf/docs
       note: /springwolf/docs
       ai-asset: /springwolf/docs
+      web-app: /springwolf/docs

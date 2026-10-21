@@ -5,6 +5,7 @@ import cn.hutool.core.bean.copier.CopyOptions;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.CharsetUtil;
 import cn.hutool.core.util.IdUtil;
+import cn.hutool.crypto.digest.DigestUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HttpUtil;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
@@ -180,26 +181,54 @@ public class StorageServiceImpl implements IStorageService {
 
     @Override
     public StorageRecordDTO uploadSmallFileProxy(MultipartFile file, StorageSceneEnum scene, String bizTag) {
-        if (file.getSize() > storageProperties.getMaxSmallFileSize()) {
+        try {
+            return uploadSmallFile(file.getBytes(), FileUtil.extName(file.getOriginalFilename()), scene, bizTag);
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ServiceException(FileStorageError.STORAGE_PROVIDER_UPLOAD_FILE_FAILED);
+        }
+    }
+
+    @Override
+    public StorageRecordDTO uploadSmallFile(byte[] content, String extension, StorageSceneEnum scene, String bizTag) {
+        if (content == null || content.length == 0 || content.length > storageProperties.getMaxSmallFileSize()) {
             throw new ServiceException(FileStorageError.FILE_SIZE_ABOVE_UPPER_BOUND);
         }
+        if (StrUtil.isBlank(extension) || !extension.matches("[A-Za-z0-9]+")) {
+            throw new ServiceException(FileStorageError.CANNOT_SUPPORT_FILE_TYPE);
+        }
 
-        String extension = FileUtil.extName(file.getOriginalFilename()).toLowerCase();
-
-        String objectKey = buildObjectKey(scene.getPrefix(), bizTag, extension);
+        String objectKey = buildObjectKey(scene.getPrefix(), bizTag, extension.toLowerCase());
         StorageProvider provider = storageManager.getPrimaryProvider();
-        provider.uploadSmallFile(file, objectKey);
+        provider.uploadSmallFile(content, objectKey);
 
         StorageRecordEntity newRecord = StorageRecordEntity.builder()
-                .scene(scene).objectKey(objectKey).size(file.getSize()).configId(provider.getConfigId()).status(StorageStatusEnum.AVAILABLE)
+                .scene(scene)
+                .objectKey(objectKey)
+                .md5(DigestUtil.md5Hex(content))
+                .size((long) content.length)
+                .configId(provider.getConfigId())
+                .status(StorageStatusEnum.AVAILABLE)
                 .build();
         storageRecordMapper.insert(newRecord);
 
-        log.info("small file uploaded. objectKey={} size={} status={}", objectKey, file.getSize(), StorageStatusEnum.AVAILABLE);
+        log.info("small file uploaded. objectKey={} size={} status={}",
+                objectKey, content.length, StorageStatusEnum.AVAILABLE);
 
         StorageRecordDTO dto = BeanUtil.copyProperties(newRecord, StorageRecordDTO.class);
         dto.setDomain(provider.getDomain());
         return dto;
+    }
+
+    @Override
+    public byte[] getSmallFileContent(String objectKey) {
+        StorageRecordEntity record = getStorageRecordWithCompensateStatus(objectKey);
+        if (record.getSize() != null && record.getSize() > storageProperties.getMaxSmallFileSize()) {
+            throw new ServiceException(FileStorageError.FILE_SIZE_ABOVE_UPPER_BOUND);
+        }
+        StorageProvider provider = storageManager.getProvider(record.getConfigId());
+        return provider.getSmallFileContent(objectKey, storageProperties.getMaxSmallFileSize());
     }
 
     @Override
