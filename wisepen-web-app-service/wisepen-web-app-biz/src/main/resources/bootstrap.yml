@@ -50,4 +50,4 @@ springwolf:
     info:
       title: Web App 服务 Kafka Events
       version: 1.0.0
-      description: Single HTML Page 资源删除相关 Kafka 消息契约
+      description: Single HTML Page 文件上传完成与资源删除相关 Kafka 消息契约

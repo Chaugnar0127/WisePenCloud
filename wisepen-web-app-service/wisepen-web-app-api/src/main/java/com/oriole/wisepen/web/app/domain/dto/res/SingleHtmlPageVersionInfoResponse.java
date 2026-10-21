@@ -1,21 +1,23 @@
 package com.oriole.wisepen.web.app.domain.dto.res;
 
+import com.oriole.wisepen.web.app.domain.base.SingleHtmlPageVersionBase;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDateTime;
 
 @Data
-@Builder
+@EqualsAndHashCode(callSuper = true)
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class SingleHtmlPageVersionInfoResponse {
+public class SingleHtmlPageVersionInfoResponse extends SingleHtmlPageVersionBase {
+    private String singleHtmlPageId;
     private String resourceId;
     private Integer version;
-    private Long size;
-    private String contentHash;
-    private Long creatorUserId;
     private LocalDateTime createTime;
+    private LocalDateTime updateTime;
 }
