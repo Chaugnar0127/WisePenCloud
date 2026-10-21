@@ -16,7 +16,7 @@ public enum WebAppError implements IResult {
     SINGLE_HTML_PAGE_CONTENT_TOO_LARGE(10131, new ResultKey(BusinessDomain.WEB_APP, WebAppSubject.SINGLE_HTML_PAGE, ErrorReason.ABOVE_UPPER_BOUND), "Single HTML Page 内容超过大小限制"),
     SINGLE_HTML_PAGE_FILE_TYPE_INVALID(10132, new ResultKey(BusinessDomain.WEB_APP, WebAppSubject.SINGLE_HTML_PAGE, ErrorReason.INVALID), "Single HTML Page 文件类型不合法"),
     SINGLE_HTML_PAGE_CONTENT_READ_FAILED(10141, new ResultKey(BusinessDomain.WEB_APP, WebAppSubject.SINGLE_HTML_PAGE, ErrorReason.FAILED), "读取 Single HTML Page 内容失败"),
-    SINGLE_HTML_PAGE_REGISTER_FAILED(10142, new ResultKey(BusinessDomain.WEB_APP, WebAppSubject.SINGLE_HTML_PAGE, ErrorReason.FAILED), "注册 Single HTML Page 资源失败"),
+    SINGLE_HTML_PAGE_REGISTER_RESOURCE_FAILED(10142, new ResultKey(BusinessDomain.WEB_APP, WebAppSubject.SINGLE_HTML_PAGE, ErrorReason.FAILED), "注册 Single HTML Page 资源失败"),
     SINGLE_HTML_PAGE_UPLOAD_INIT_FAILED(10143, new ResultKey(BusinessDomain.WEB_APP, WebAppSubject.SINGLE_HTML_PAGE, ErrorReason.FAILED), "初始化 Single HTML Page 上传失败"),
 
     SINGLE_HTML_PAGE_VERSION_NOT_FOUND(10211, new ResultKey(BusinessDomain.WEB_APP, WebAppSubject.SINGLE_HTML_PAGE_VERSION, ErrorReason.NOT_FOUND), "Single HTML Page 版本不存在"),

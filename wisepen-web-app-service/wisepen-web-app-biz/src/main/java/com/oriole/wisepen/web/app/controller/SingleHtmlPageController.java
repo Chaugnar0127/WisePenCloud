@@ -68,7 +68,7 @@ public class SingleHtmlPageController {
                     - 请求：title 为页面资源标题；mountTargetTagId 可选，用于指定初始挂载路径。
                     - 约束：当前用户必须已登录；显式路径必须符合资源服务的个人或小组挂载权限。
                     - 处理：注册 SINGLE_HTML_PAGE 资源并创建 currentVersion=0 的页面主档；mountTargetTagId 为空时由资源服务挂载到个人 .Page 系统目录；不初始化上传，也不创建可访问版本。
-                    - 失败：资源注册失败 -> WebAppError.SINGLE_HTML_PAGE_REGISTER_FAILED。
+                    - 失败：资源注册失败 -> WebAppError.SINGLE_HTML_PAGE_REGISTER_RESOURCE_FAILED。
                     - 响应：返回新页面资源 ID。
                     """
     )

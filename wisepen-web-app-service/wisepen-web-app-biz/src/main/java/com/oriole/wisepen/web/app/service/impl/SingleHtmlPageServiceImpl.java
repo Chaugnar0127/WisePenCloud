@@ -38,6 +38,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -71,7 +72,7 @@ public class SingleHtmlPageServiceImpl implements ISingleHtmlPageService {
         } catch (Exception e) {
             log.warn("single HTML page resource register failed. ownerUserId={} dependency=resourceService",
                     ownerUserId, e);
-            throw new ServiceException(WebAppError.SINGLE_HTML_PAGE_REGISTER_FAILED, e.getMessage());
+            throw new ServiceException(WebAppError.SINGLE_HTML_PAGE_REGISTER_RESOURCE_FAILED, e.getMessage());
         }
 
         singleHtmlPageRepository.save(SingleHtmlPageEntity.builder()
@@ -166,7 +167,52 @@ public class SingleHtmlPageServiceImpl implements ISingleHtmlPageService {
 
     @Override
     public void finalizeToReady(String singleHtmlPageId) {
+        SingleHtmlPageVersionEntity versionEntity = singleHtmlPageVersionRepository.findById(singleHtmlPageId)
+                .orElseThrow(() -> new ServiceException(WebAppError.SINGLE_HTML_PAGE_VERSION_NOT_FOUND));
 
+        if (versionEntity.getSingleHtmlPageStatus() != null
+                && versionEntity.getSingleHtmlPageStatus() == SingleHtmlPageStatus.READY) {
+            return;
+        }
+
+        singleHtmlPageVersionRepository.updateStatusById(singleHtmlPageId, SingleHtmlPageStatus.REGISTERING_RES);
+
+        SingleHtmlPageEntity infoEntity;
+        String resourceId = versionEntity.getResourceId();
+        if (resourceId != null) { // 非首次上传 SingleHtmlPage
+            infoEntity = singleHtmlPageRepository.findByResourceId(resourceId)
+                    .orElseThrow(() -> new ServiceException(WebAppError.SINGLE_HTML_PAGE_NOT_FOUND));
+            // 更新 SingleHtmlPageEntity 的版本号
+            singleHtmlPageRepository.updateVersionByResourceId(
+                    infoEntity.getResourceId(), infoEntity.getCurrentVersion() + 1, LocalDateTime.now());
+        } else { // 首次上传 SingleHtmlPage
+            // 向 resource 服务注册资源
+            try {
+                resourceId = remoteResourceService.createResource(
+                        ResourceCreateReqDTO.builder()
+                                .resourceName(versionEntity.getUploadMeta().getFilename())
+                                .resourceType(ResourceType.SINGLE_HTML_PAGE)
+                                .ownerId(versionEntity.getUploadMeta().getUploaderId().toString())
+                                .ownerGroupRoles(versionEntity.getUploadMeta().getUploaderGroupRoles())
+                                .size(versionEntity.getUploadMeta().getExpectedSize())
+                                .mountTargetTagId(versionEntity.getUploadMeta().getMountTargetTagId())
+                                .build()
+                ).getData();
+            } catch (Exception e) {
+                log.error("single HTML page resource register failed. singleHtmlPageId={}", singleHtmlPageId, e);
+                singleHtmlPageVersionRepository.updateStatusById(
+                        singleHtmlPageId, SingleHtmlPageStatus.REGISTERING_RES_TIMEOUT);
+                throw new ServiceException(WebAppError.SINGLE_HTML_PAGE_REGISTER_RESOURCE_FAILED, e.getMessage());
+            }
+            // 新建 SingleHtmlPageEntity
+            infoEntity = SingleHtmlPageEntity.builder().resourceId(resourceId).currentVersion(1).build();
+            singleHtmlPageRepository.save(infoEntity);
+            // 更新版本记录的 ResourceId
+            singleHtmlPageVersionRepository.updateResourceIdById(singleHtmlPageId, resourceId);
+        }
+
+        singleHtmlPageVersionRepository.updateStatusById(singleHtmlPageId, SingleHtmlPageStatus.READY);
+        log.debug("single HTML page ready finalized. singleHtmlPageId={} resourceId={}", singleHtmlPageId, resourceId);
     }
 
     @Override
@@ -236,7 +282,7 @@ public class SingleHtmlPageServiceImpl implements ISingleHtmlPageService {
         getSingleHtmlPageInfo(resourceId);
         Pageable pageable = PageRequest.of(page - 1, size);
         Page<SingleHtmlPageVersionEntity> entityPage = singleHtmlPageVersionRepository
-                .findByResourceIdAndStatusOrderByVersionDesc(resourceId, SingleHtmlPageStatus.READY, pageable);
+                .findByResourceIdAndSingleHtmlPageStatusOrderByVersionDesc(resourceId, SingleHtmlPageStatus.READY, pageable);
         PageR<SingleHtmlPageVersionInfoResponse> response = new PageR<>(entityPage.getTotalElements(), page, size);
         response.addAll(entityPage.getContent().stream()
                 .map(entity -> BeanUtil.copyProperties(entity, SingleHtmlPageVersionInfoResponse.class))
@@ -246,7 +292,7 @@ public class SingleHtmlPageServiceImpl implements ISingleHtmlPageService {
 
     @Override
     public List<SingleHtmlPageVersionBase> listPending(Long uploaderId) {
-        List<SingleHtmlPageVersionEntity> entities = singleHtmlPageVersionRepository.findByUploadMetaUploaderIdAndStatusInOrderByCreateTimeDesc(
+        List<SingleHtmlPageVersionEntity> entities = singleHtmlPageVersionRepository.findByUploadMetaUploaderIdAndSingleHtmlPageStatusInOrderByCreateTimeDesc(
                 uploaderId,
                 List.of(SingleHtmlPageStatus.UPLOADING,
                         SingleHtmlPageStatus.UPLOADED,

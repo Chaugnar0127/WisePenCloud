@@ -10,8 +10,10 @@ import lombok.Getter;
 public enum SingleHtmlPageStatus {
     UPLOADING(0, "UPLOADING"),
     UPLOADED(1, "UPLOADED"),
-    READY(2, "READY"),
-    FAILED(-1, "FAILED");
+    REGISTERING_RES(3, "REGISTERING_RES"),
+    READY(4, "READY"),
+    REGISTERING_RES_TIMEOUT(-2, "REGISTERING_RES_TIMEOUT"),
+    FAILED(-3, "FAILED");
 
     private final int code;
 
