@@ -10,6 +10,7 @@ public enum BusinessDomain {
     DOCUMENT,
     NOTE,
     AI_RESOURCE,
+    WEB_APP,
     STORAGE,
     FUDAN_EXTENSION;
 

@@ -563,18 +563,28 @@ public class ResourceServiceImpl implements IResourceService {
 
         String personalGroupId = ResourceConstants.PERSONAL_GROUP_PREFIX + dto.getOwnerId();
 
-        String mountTargetTagID = dto.getMountTargetTagId();
-        // 获取 Tag 信息
-        TagEntity mountTargetTag = StringUtils.hasText(mountTargetTagID) ?
-                tagRepository.findById(mountTargetTagID).orElse(null) : null;
-        // mountTargetTag 为空时，获取个人的根目录
-        if (mountTargetTag == null) {
-            mountTargetTagID = tagRepository.findByGroupIdAndParentIdAndTagName(
-                    personalGroupId, "0", ResourceConstants.ROOT_TAG_NAME
-            ).orElseThrow(() -> new ServiceException(ResourceError.TAG_NODE_NOT_FOUND)).getTagId();
-        }
-
+        String mountTargetTagId = dto.getMountTargetTagId();
         try {
+            // 获取 Tag 信息
+            TagEntity mountTargetTag = StringUtils.hasText(mountTargetTagId)
+                    ? tagRepository.findById(mountTargetTagId).orElse(null) : null;
+
+            // mountTargetTag 为空时，获取个人的根目录
+            if (mountTargetTag == null) {
+                String defaultPersonalTagName = ResourceConstants.ROOT_TAG_NAME;
+                switch (dto.getResourceType()){
+                    case SINGLE_HTML_PAGE -> defaultPersonalTagName = ResourceConstants.PAGE_TAG_NAME;
+                    case NOTE -> defaultPersonalTagName = ResourceConstants.NOTE_TAG_NAME;
+                }
+                // 确保老用户也拥有相关文件夹
+                if (defaultPersonalTagName != ResourceConstants.ROOT_TAG_NAME) {
+                    tagService.ensurePersonalSystemTags(personalGroupId);
+                }
+                mountTargetTagId = tagRepository.findByGroupIdAndParentIdAndTagName(
+                        personalGroupId, "0", defaultPersonalTagName
+                ).orElseThrow(() -> new ServiceException(ResourceError.TAG_NODE_NOT_FOUND)).getTagId();
+            }
+
             if (mountTargetTag != null && !mountTargetTag.getGroupId().startsWith(ResourceConstants.PERSONAL_GROUP_PREFIX)) {
                 // 小组 Tag 需要先挂 个人.Shared 目录，再挂目标小组标签
                 String sharedTagId = tagRepository.findByGroupIdAndParentIdAndTagName(
@@ -587,14 +597,14 @@ public class ResourceServiceImpl implements IResourceService {
                     // 确定用户有权限挂载到对应位置
                     GroupRoleType groupRole = dto.getOwnerGroupRoles().get(Long.valueOf(mountTargetTag.getGroupId()));
                     // 挂载标签
-                    resourcePlacementService.mountResourcesToGroup(List.of(entity.getResourceId()), mountTargetTag.getGroupId(), dto.getOwnerId(), groupRole, mountTargetTagID);
+                    resourcePlacementService.mountResourcesToGroup(List.of(entity.getResourceId()), mountTargetTag.getGroupId(), dto.getOwnerId(), groupRole, mountTargetTagId);
                 } catch (Exception ignored) {
                     // 如果没有权限或出现其他错误，静默失败
                     // TODO: 给用户发送站内信
                 }
             } else {
                 // 个人 Tag 直接更新
-                resourcePlacementService.setPersonalResourcesPathTag(List.of(entity.getResourceId()), dto.getOwnerId(), mountTargetTagID);
+                resourcePlacementService.setPersonalResourcesPathTag(List.of(entity.getResourceId()), dto.getOwnerId(), mountTargetTagId);
             }
         } catch (Exception e) {
             // 创建资源失败，回滚
@@ -611,7 +621,7 @@ public class ResourceServiceImpl implements IResourceService {
                 EnumSet.of(UpsertField.RESOURCE_TYPE, UpsertField.RESOURCE_NAME, UpsertField.ACL)));
 
         log.info("resource created. resourceId={} ownerId={} resourceType={} mountTargetTagId={}",
-                entity.getResourceId(), dto.getOwnerId(), dto.getResourceType(), dto.getMountTargetTagId());
+                entity.getResourceId(), dto.getOwnerId(), dto.getResourceType(), mountTargetTagId);
         return entity.getResourceId();
     }
 
