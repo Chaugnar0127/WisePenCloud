@@ -14,5 +14,4 @@ public class SingleHtmlPageVersionBase {
     private SingleHtmlPageUploadMeta uploadMeta;
     private SingleHtmlPageStatus singleHtmlPageStatus;
     private Long size;
-    private String contentHash;
 }

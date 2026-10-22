@@ -3,7 +3,6 @@ package com.oriole.wisepen.web.app.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.IdUtil;
-import cn.hutool.crypto.digest.DigestUtil;
 import com.oriole.wisepen.common.core.domain.PageR;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.exception.ServiceException;
@@ -276,7 +275,7 @@ public class SingleHtmlPageServiceImpl implements ISingleHtmlPageService {
                     resourceId, versionEntity.getVersion(), versionEntity.getObjectKey(), e);
             throw new ServiceException(WebAppError.SINGLE_HTML_PAGE_CONTENT_READ_FAILED, e.getMessage());
         }
-        if (content == null || !Objects.equals(versionEntity.getContentHash(), DigestUtil.sha256Hex(content))) {
+        if (content == null) {
             throw new ServiceException(WebAppError.SINGLE_HTML_PAGE_CONTENT_READ_FAILED);
         }
         return new String(content, StandardCharsets.UTF_8);
