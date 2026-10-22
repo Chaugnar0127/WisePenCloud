@@ -212,7 +212,7 @@ public class DocumentController {
                     - 用途：为有查看权限的用户输出文档 PDF 预览流。
                     - 请求：resourceId 指定文档资源；targetVersion 可选，用于 Market 版本限定权限裁决；Range 请求头可用于分段读取。
                     - 约束：当前用户必须已登录，且必须是资源所有者或拥有 VIEW 动作；Market 来源预览必须传当前上架 offerVersion；文档必须已经处理完成并具备预览文件。
-                    - 处理：先通过资源服务校验权限，再读取文档预览元数据和对象存储下载地址；支持全量或 Range 响应，并在预览流尾部追加水印附录；不修改文档内容或资源权限。
+                    - 处理：先通过资源服务校验权限，再读取文档预览元数据和对象存储下载地址；资源所有者预览时直接返回无水印 PDF，其他有查看权限的用户预览时在流尾部追加水印附录；支持全量或 Range 响应，不修改文档内容或资源权限。
                     - 失败：未登录 -> PermissionError.NOT_LOGIN；资源无查看权限 -> DocumentError.DOCUMENT_PERMISSION_DENIED；文档不存在 -> DocumentError.DOCUMENT_NOT_FOUND；文档尚无可用版本 -> DocumentError.DOCUMENT_HAS_NO_VERSION；预览未就绪 -> DocumentError.DOCUMENT_PREVIEW_NOT_READY；预览元数据缺失 -> DocumentError.DOCUMENT_PREVIEW_META_NOT_FOUND；响应流写入失败 -> DocumentError.DOCUMENT_PREVIEW_FAILED。
                     - 响应：直接写出 application/pdf 预览流。
                     """
@@ -228,7 +228,8 @@ public class DocumentController {
         if (permission == null || permission.getAllowedActions() == null || !permission.getAllowedActions().contains(ResourceAction.VIEW)) {
             throw new ServiceException(DOCUMENT_PERMISSION_DENIED);
         }
-        documentPreviewService.handlePreviewRequest(request, response, resourceId, targetVersion, userId);
+        boolean watermarkRequired = permission.getResourceAccessRole() != ResourceAccessRole.OWNER;
+        documentPreviewService.handlePreviewRequest(request, response, resourceId, targetVersion, userId, watermarkRequired);
     }
 
     @Operation(
