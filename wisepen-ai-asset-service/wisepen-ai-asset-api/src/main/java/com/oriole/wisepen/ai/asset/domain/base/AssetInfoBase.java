@@ -17,4 +17,6 @@ public class AssetInfoBase {
     private AssetResourceType assetResourceType;
     private AssetUploadStatus uploadStatus;
     private Long size;
+    // 替换上传成功前，objectKey、assetResourceType、size 始终表示当前正式文件
+    private AssetPendingUploadBase pendingUpload;
 }
