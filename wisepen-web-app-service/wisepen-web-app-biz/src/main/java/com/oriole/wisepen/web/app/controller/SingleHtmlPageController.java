@@ -57,7 +57,7 @@ import java.util.Map;
 public class SingleHtmlPageController {
 
     private static final String CONTENT_SECURITY_POLICY = "sandbox allow-scripts; default-src 'none'; "
-            + "script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; "
+            + "script-src 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src data: blob:; "
             + "connect-src 'none'; form-action 'none'; base-uri 'none'; frame-ancestors 'self'";
 
     private final ISingleHtmlPageService singleHtmlPageService;
