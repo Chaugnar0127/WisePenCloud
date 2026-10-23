@@ -234,7 +234,7 @@ public class TagServiceImpl implements ITagService {
         }
 
         // 禁止改名为系统级保留节点 Tag
-        if (isSystemPathTagName(newName)) {
+        if (newName != null && isSystemPathTagName(newName)) {
             throw new ServiceException(ResourceError.CANNOT_USE_RESERVED_TAG_PATH_NODE_NAME);
         }
 
