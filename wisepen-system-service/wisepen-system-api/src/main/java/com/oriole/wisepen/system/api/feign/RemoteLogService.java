@@ -14,10 +14,10 @@ import java.time.LocalDateTime;
 @FeignClient(contextId = "remoteLogService", value = "wisepen-system-service")
 public interface RemoteLogService {
 
-    @PostMapping("/system/log/saveLog")
+    @PostMapping("/internal/system/log/saveLog")
     R<Boolean> saveLog(@RequestBody SysOperLogDTO sysOperLog);
 
-    @PostMapping("/system/log/listLogs")
+    @PostMapping("/internal/system/log/listLogs")
     R<PageR<SysOperLogResponse>> listLogs(@RequestParam String operUrl, @RequestParam Long operUserId, @RequestParam LocalDateTime startTime, @RequestParam LocalDateTime endTime,
                                           @RequestParam Integer status, @RequestParam int page, @RequestParam  int size);
 }
