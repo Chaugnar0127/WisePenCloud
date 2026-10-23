@@ -106,7 +106,7 @@ public class SingleHtmlPageServiceImpl implements ISingleHtmlPageService {
                     .md5(request.getMd5())
                     .extension("html")
                     .scene(StorageSceneEnum.PRIVATE_WEB_APP_ASSET)
-                    .bizTag(request.getResourceId())
+                    .bizTag(singleHtmlPageId)
                     .expectedSize(request.getExpectedSize())
                     .isNeedCallback(true)
                     .build()).getData();
