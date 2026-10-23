@@ -176,6 +176,42 @@ public class TagServiceImpl implements ITagService {
         ensurePersonalSystemTags(groupId, tagRepository.findByGroupId(groupId));
     }
 
+    @Override
+    public String ensurePersonalPath(String userId, List<String> path, boolean createIfAbsent) {
+        String groupId = ResourceConstants.PERSONAL_GROUP_PREFIX + userId;
+        ensurePersonalSystemTags(groupId);
+
+        // 首个 currentTag 是根目录
+        TagEntity currentTag = tagRepository.findByGroupIdAndParentIdAndTagName(
+                        groupId, "0", ResourceConstants.ROOT_TAG_NAME)
+                .orElseThrow(() -> new ServiceException(ResourceError.TAG_NODE_NOT_FOUND));
+        String createdTagId = currentTag.getTagId();
+
+        for (String rawSegment : path) {
+            String segment = rawSegment.trim();
+            // 在 currentTag 中找下一级的 tagName
+            Optional<TagEntity> existing = tagRepository.findByGroupIdAndParentIdAndTagName(
+                    groupId, createdTagId, segment);
+            if (existing.isPresent()) {
+                if (!Boolean.TRUE.equals(existing.get().getIsPath())) { // 节点不是路径
+                    throw new ServiceException(ResourceError.RESOURCE_TAG_TYPE_INVALID);
+                }
+                createdTagId = existing.get().getTagId(); // 进入下一级
+                continue;
+            }
+
+            // 缺失时不创建
+            if (!createIfAbsent) throw new ServiceException(ResourceError.TAG_NODE_NOT_FOUND);
+
+            TagCreateRequest createRequest = new TagCreateRequest();
+            createRequest.setGroupId(groupId);
+            createRequest.setParentId(currentTag.getTagId());
+            createRequest.setTagName(segment);
+            createdTagId = createTag(createRequest, userId);
+        }
+        return createdTagId;
+    }
+
     private void ensurePersonalSystemTags(String groupId, List<TagEntity> allTags) {
         if (!groupId.startsWith(ResourceConstants.PERSONAL_GROUP_PREFIX)) {
             return;

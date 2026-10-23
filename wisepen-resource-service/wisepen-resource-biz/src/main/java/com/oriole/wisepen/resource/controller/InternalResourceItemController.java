@@ -4,6 +4,7 @@ import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.common.core.domain.enums.BusinessType;
 import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.resource.domain.dto.*;
+import com.oriole.wisepen.resource.domain.dto.req.PersonalFolderEnsureReqDTO;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
 import com.oriole.wisepen.resource.feign.RemoteResourceService;
 import com.oriole.wisepen.resource.service.IGroupResService;
@@ -114,6 +115,22 @@ public class InternalResourceItemController implements RemoteResourceService {
     public R<ResourceCheckPermissionResDTO> checkResPermission(@RequestBody ResourceCheckPermissionReqDTO dto) {
         ResourceCheckPermissionResDTO hasPermission = resourceService.checkPermission(dto);
         return R.ok(hasPermission);
+    }
+
+    @Operation(
+            summary = "内部确保个人文件夹",
+            description = """
+                    - 用途：供内部流程按路径定位目标用户个人云盘文件夹，并按需补齐缺失目录。
+                    - 请求：targetUserId 指定个人空间；folderPath 按根目录向下给出路径片段；createIfAbsent 控制缺失目录是否创建。
+                    - 约束：调用方必须通过内部服务调用边界；路径片段不能为空，且不能使用系统保留名称；已存在节点必须是路径节点。
+                    - 处理：确保目标个人空间系统路径存在，从个人根节点逐层查找目录；允许创建时补齐缺失目录并返回末级标签 ID；不移动任何资源。
+                    - 失败：目录不存在且不允许创建 -> ResourceError.TAG_NODE_NOT_FOUND；同名节点不是路径节点 -> ResourceError.RESOURCE_TAG_TYPE_INVALID；路径使用系统保留名称 -> ResourceError.CANNOT_USE_RESERVED_TAG_PATH_NODE_NAME。
+                    - 响应：返回解析或创建后的末级路径标签 ID。
+                    """
+    )
+    @PostMapping("/ensurePersonalFolder")
+    public R<String> ensurePersonalFolder(@Validated @RequestBody PersonalFolderEnsureReqDTO dto) {
+        return R.ok(tagService.ensurePersonalPath(dto.getTargetUserId(), dto.getFolderPath(), dto.isCreateIfAbsent()));
     }
 
     // 小组解散：软删除 Tag 树与配置

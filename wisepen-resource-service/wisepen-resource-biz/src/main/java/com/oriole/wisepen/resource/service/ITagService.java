@@ -19,6 +19,9 @@ public interface ITagService {
     // 确保个人空间的系统路径节点存在
     void ensurePersonalSystemTags(String groupId);
 
+    // 按路径解析个人文件夹，并按需创建缺失节点
+    String ensurePersonalPath(String userId, List<String> folderPath, boolean createIfAbsent);
+
     // 批量拖拽/移动多个 Tag 节点 (核心难点：维护多棵子树的 ancestors)
     void moveTags(TagMoveRequest tagMoveRequest);
 
