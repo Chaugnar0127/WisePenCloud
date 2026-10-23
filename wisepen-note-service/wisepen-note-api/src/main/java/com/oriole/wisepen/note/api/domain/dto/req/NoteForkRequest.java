@@ -12,4 +12,6 @@ public class NoteForkRequest {
     private Integer forkedResourceVersion;
 
     private String forkedResourceName;
+
+    private String mountTargetTagId;
 }
