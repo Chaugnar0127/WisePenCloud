@@ -12,7 +12,6 @@ import java.util.Map;
 public class BatchTaskItemResponse {
     private Long itemId;
     private Long taskId;
-    private String bizKey;
     private BatchTaskItemStatus status;
     private Map<String, Object> meta;
     private Map<String, Object> result;

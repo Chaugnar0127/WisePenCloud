@@ -96,7 +96,7 @@ public class AdminBatchTaskController {
                     - 约束：当前身份必须是平台管理员；任务必须存在。
                     - 处理：按任务项 ID 升序分页读取，解析通用 meta 和 result；不重试或修改任务项。
                     - 失败：任务不存在 -> SysError.BATCH_TASK_NOT_FOUND。
-                    - 响应：返回任务项分页、状态、业务键、结构化参数与结果、错误码和生命周期时间。
+                    - 响应：返回任务项分页、状态、结构化参数与结果、错误码和生命周期时间。
                     """
     )
     @GetMapping("/listTaskItems")

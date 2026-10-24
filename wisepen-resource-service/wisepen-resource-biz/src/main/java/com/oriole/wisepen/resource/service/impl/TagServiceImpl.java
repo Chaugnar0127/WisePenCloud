@@ -205,7 +205,7 @@ public class TagServiceImpl implements ITagService {
 
             TagCreateRequest createRequest = new TagCreateRequest();
             createRequest.setGroupId(groupId);
-            createRequest.setParentId(currentTag.getTagId());
+            createRequest.setParentId(createdTagId);
             createRequest.setTagName(segment);
             createdTagId = createTag(createRequest, userId);
         }

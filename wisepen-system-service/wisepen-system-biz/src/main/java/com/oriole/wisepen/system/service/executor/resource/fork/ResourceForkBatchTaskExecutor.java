@@ -58,6 +58,10 @@ public class ResourceForkBatchTaskExecutor implements BatchTaskExecutor {
             throw new ServiceException(SysError.BATCH_TASK_META_INVALID);
         }
 
+        if (taskMeta.getTargetUserIds() == null || taskMeta.getTargetUserIds().isEmpty()) {
+            throw new ServiceException(SysError.BATCH_TASK_META_INVALID);
+        }
+
         // 去除空 targetUserId
         List<Long> targetUserIds = taskMeta.getTargetUserIds().stream()
                 .filter(Objects::nonNull)
@@ -74,6 +78,9 @@ public class ResourceForkBatchTaskExecutor implements BatchTaskExecutor {
             }
         }
         taskMeta.setTargetFolderPath(folderPath);
+        if (taskMeta.getCreateFolderIfAbsent() == null) {
+            taskMeta.setCreateFolderIfAbsent(true);
+        }
 
         // 批量检查用户
         Set<Long> validUserIds = new LinkedHashSet<>();
@@ -86,7 +93,7 @@ public class ResourceForkBatchTaskExecutor implements BatchTaskExecutor {
                 validUserIds.addAll(userMap.keySet());
             }
         }
-        taskMeta.setTargetUserIds(validUserIds.stream().toList());
+        taskMeta.setTargetUserIds(targetUserIds);
 
         // 校验资源是否存在
         List<ResourceItemInfoResDTO> resources = remoteResourceService
@@ -95,19 +102,15 @@ public class ResourceForkBatchTaskExecutor implements BatchTaskExecutor {
 
         ResourceItemInfoResDTO sourceResource = resources.getFirst();
 
-        Integer currentVersion = null;
-        switch (sourceResource.getResourceType()){
-            case NOTE:
-            case DRAWIO:
-                // 获取笔记的最新版本
+        Integer currentVersion = switch (sourceResource.getResourceType()) {
+            case NOTE, DRAWIO -> {
                 NoteSnapshotResponse snapshot = remoteNoteService
                         .getNoteLatestVersion(sourceResource.getResourceId()).getData();
-                currentVersion = snapshot == null ? null : snapshot.getVersion();
-                break;
-            default:
-                // TODO: 在未来支持更多类型资源的Fork，暂时仅支持NOTE和DRAWIO
-                throw new ServiceException(BatchTaskError.RESOURCE_FORK_TYPE_UNSUPPORTED);
-        }
+                yield snapshot == null ? null : snapshot.getVersion();
+            }
+            // TODO: 在未来支持更多类型资源的 Fork，暂时仅支持 NOTE 和 DRAWIO
+            default -> throw new ServiceException(BatchTaskError.RESOURCE_FORK_TYPE_UNSUPPORTED);
+        };
 
         if (currentVersion == null) throw new ServiceException(BatchTaskError.RESOURCE_FORK_SOURCE_NOT_FOUND);
         Integer sourceVersion = taskMeta.getSourceVersion() == null ? currentVersion : taskMeta.getSourceVersion();
