@@ -31,6 +31,8 @@ public class BatchTaskEntity {
     private Long operatorUserId;
     private LocalDateTime startTime;
     private LocalDateTime finishTime;
+    private LocalDateTime deletedAt;
+    private Long deletedBy;
 
     @TableField(value = "create_time", fill = FieldFill.INSERT)
     private LocalDateTime createTime;

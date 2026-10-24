@@ -1,6 +1,7 @@
 package com.oriole.wisepen.system.mapper;
 
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
+import com.oriole.wisepen.system.api.enums.BatchTaskItemStatus;
 import com.oriole.wisepen.system.domain.entity.BatchTaskItemEntity;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
@@ -34,6 +35,7 @@ public interface BatchTaskItemMapper extends BaseMapper<BatchTaskItemEntity> {
             INNER JOIN sys_batch_task t ON t.id = i.task_id
             WHERE i.status = 'PENDING'
               AND t.status IN ('PENDING', 'RUNNING')
+              AND t.deleted_at IS NULL
             ORDER BY i.id ASC
             LIMIT #{limit}
             """)
@@ -45,7 +47,8 @@ public interface BatchTaskItemMapper extends BaseMapper<BatchTaskItemEntity> {
             INNER JOIN sys_batch_task t ON t.id = i.task_id
             WHERE i.status = 'RUNNING'
               AND i.start_time < #{cutoff}
-              AND t.status IN ('PENDING', 'RUNNING')
+              AND t.status IN ('PENDING', 'RUNNING', 'PAUSING')
+              AND t.deleted_at IS NULL
             ORDER BY i.id ASC
             LIMIT #{limit}
             """)
@@ -61,20 +64,30 @@ public interface BatchTaskItemMapper extends BaseMapper<BatchTaskItemEntity> {
                   FROM sys_batch_task t
                   WHERE t.id = sys_batch_task_item.task_id
                     AND t.status IN ('PENDING', 'RUNNING')
+                    AND t.deleted_at IS NULL
               )
             """)
     int claimPendingItem(@Param("itemId") Long itemId, @Param("startTime") LocalDateTime startTime);
 
     @Update("""
             UPDATE sys_batch_task_item
-            SET status = 'FAILED', result = #{result},
+            SET status = #{status}, result = #{result},
                 error_code = #{errorCode}, error_message = #{errorMessage},
                 finish_time = #{finishTime}, update_time = #{finishTime}
             WHERE id = #{itemId} AND status = 'RUNNING'
             """)
     int completeRunningItem(@Param("itemId") Long itemId,
+                            @Param("status") BatchTaskItemStatus status,
                             @Param("result") String result,
                             @Param("errorCode") Integer errorCode,
                             @Param("errorMessage") String errorMessage,
                             @Param("finishTime") LocalDateTime finishTime);
+
+    @Update("""
+            UPDATE sys_batch_task_item
+            SET status = 'PENDING', start_time = NULL, finish_time = NULL, update_time = #{updateTime}
+            WHERE id = #{itemId} AND status = 'RUNNING'
+            """)
+    int releaseRunningItem(@Param("itemId") Long itemId, @Param("updateTime") LocalDateTime updateTime);
+
 }

@@ -12,6 +12,10 @@ public interface BatchTaskService {
 
     void startTask(Long taskId);
 
+    void stopTask(Long taskId);
+
+    void deleteTask(Long taskId, Long operatorUserId);
+
     BatchTaskResponse getTaskInfo(Long taskId);
 
     PageR<BatchTaskItemResponse> listTaskItems(Long taskId, BatchTaskItemStatus status, int page, int size);

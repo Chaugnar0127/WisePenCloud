@@ -19,6 +19,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -26,7 +27,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-@Tag(name = "管理员 - 批量任务", description = "管理员创建、发起和查询通用批量任务")
+@Tag(name = "管理员 - 批量任务", description = "管理员创建、启动、停止、删除和查询通用批量任务")
 @RestController
 @RequestMapping("/system/admin/task")
 @RequiredArgsConstructor
@@ -55,20 +56,56 @@ public class AdminBatchTaskController {
     }
 
     @Operation(
-            summary = "发起批量任务",
+            summary = "启动批量任务",
             description = """
-                    - 用途：将已经创建并确认的批量任务交给后台执行器异步处理。
+                    - 用途：首次启动批量任务，或者恢复正在停止及已经停止的批量任务。
                     - 请求：taskId 指定目标任务。
-                    - 约束：当前身份必须是平台管理员；任务必须存在且处于 CREATED 状态；重复发起 PENDING 或 RUNNING 任务按幂等成功处理。
-                    - 处理：存在可执行任务项时把任务推进为 PENDING，由后台 Worker 逐项尽力执行；全部任务项在创建阶段已失败时直接将任务置为 FAILED；不等待业务任务执行完成。
-                    - 失败：任务不存在 -> SysError.BATCH_TASK_NOT_FOUND；任务已处于终态 -> SysError.BATCH_TASK_STATE_INVALID。
+                    - 约束：当前身份必须是平台管理员；任务必须存在且未删除；CREATED、PAUSING 或 PAUSED 状态可启动，PENDING 或 RUNNING 按幂等成功处理。
+                    - 处理：CREATED 任务进入 PENDING；PAUSING 或 PAUSED 任务恢复为 RUNNING；仅继续处理 PENDING 任务项，不重试 FAILED 任务项；如果所有任务项已经结束则直接汇总最终状态。
+                    - 失败：任务不存在或已删除 -> SysError.BATCH_TASK_NOT_FOUND；任务已处于终态 -> SysError.BATCH_TASK_STATE_INVALID。
                     - 响应：成功时返回空结果。
                     """
     )
-    @Log(title = "发起批量任务", businessType = BusinessType.UPDATE)
+    @Log(title = "启动批量任务", businessType = BusinessType.UPDATE)
     @PostMapping("/startTask")
     public R<Void> startTask(@RequestParam Long taskId) {
         batchTaskService.startTask(taskId);
+        return R.ok();
+    }
+
+    @Operation(
+            summary = "停止批量任务",
+            description = """
+                    - 用途：停止批量任务继续领取新的任务项，并等待已经开始的任务项执行结束。
+                    - 请求：taskId 指定目标任务。
+                    - 约束：当前身份必须是平台管理员；任务必须存在且未删除；仅 PENDING 或 RUNNING 任务可停止，PAUSING 或 PAUSED 按幂等成功处理。
+                    - 处理：任务先进入 PAUSING；不再领取新的 PENDING 任务项；现有 RUNNING 任务项结束后，有待执行项则进入 PAUSED，全部任务项已结束则直接汇总最终状态。
+                    - 失败：任务不存在或已删除 -> SysError.BATCH_TASK_NOT_FOUND；任务未开始或已处于终态 -> SysError.BATCH_TASK_STATE_INVALID。
+                    - 响应：成功时返回空结果；返回时任务可能仍处于 PAUSING。
+                    """
+    )
+    @Log(title = "停止批量任务", businessType = BusinessType.UPDATE)
+    @PostMapping("/stopTask")
+    public R<Void> stopTask(@RequestParam Long taskId) {
+        batchTaskService.stopTask(taskId);
+        return R.ok();
+    }
+
+    @Operation(
+            summary = "删除批量任务",
+            description = """
+                    - 用途：从管理端软删除不再需要展示的批量任务，并保留任务及任务项审计数据。
+                    - 请求：taskId 指定目标任务。
+                    - 约束：当前身份必须是平台管理员；仅 CREATED、PAUSED 或终态任务可删除；PENDING、RUNNING 和 PAUSING 任务必须先完成停止流程。
+                    - 处理：记录删除时间和操作管理员；不删除任务项，不停止仍在执行的调用，也不撤销任务已经产生的业务结果。
+                    - 失败：任务不存在或已删除 -> SysError.BATCH_TASK_NOT_FOUND；任务状态不允许删除 -> SysError.BATCH_TASK_STATE_INVALID。
+                    - 响应：成功时返回空结果。
+                    """
+    )
+    @Log(title = "删除批量任务", businessType = BusinessType.DELETE)
+    @DeleteMapping("/deleteTask")
+    public R<Void> deleteTask(@RequestParam Long taskId) {
+        batchTaskService.deleteTask(taskId, SecurityContextHolder.getUserId());
         return R.ok();
     }
 
@@ -77,9 +114,9 @@ public class AdminBatchTaskController {
             description = """
                     - 用途：查询批量任务的当前生命周期状态、规范化业务参数和执行进度。
                     - 请求：taskId 指定目标任务。
-                    - 约束：当前身份必须是平台管理员；任务必须存在。
+                    - 约束：当前身份必须是平台管理员；任务必须存在且未删除。
                     - 处理：读取任务主记录，并按任务项状态实时聚合待执行、执行中、成功和失败数量；不修改任务状态。
-                    - 失败：任务不存在 -> SysError.BATCH_TASK_NOT_FOUND。
+                    - 失败：任务不存在或已删除 -> SysError.BATCH_TASK_NOT_FOUND。
                     - 响应：返回任务信息、meta、各状态数量和生命周期时间。
                     """
     )
@@ -93,9 +130,9 @@ public class AdminBatchTaskController {
             description = """
                     - 用途：分页查看批量任务中每个业务目标的执行状态、结果或失败原因。
                     - 请求：taskId 指定任务；status 可选，用于筛选任务项状态；page 和 size 控制分页，size 最大为 100。
-                    - 约束：当前身份必须是平台管理员；任务必须存在。
+                    - 约束：当前身份必须是平台管理员；任务必须存在且未删除。
                     - 处理：按任务项 ID 升序分页读取，解析通用 meta 和 result；不重试或修改任务项。
-                    - 失败：任务不存在 -> SysError.BATCH_TASK_NOT_FOUND。
+                    - 失败：任务不存在或已删除 -> SysError.BATCH_TASK_NOT_FOUND。
                     - 响应：返回任务项分页、状态、结构化参数与结果、错误码和生命周期时间。
                     """
     )

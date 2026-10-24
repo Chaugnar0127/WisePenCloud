@@ -54,7 +54,7 @@ public class BatchTaskExecutionServiceImpl implements BatchTaskExecutionService 
                 now.minusMinutes(staleMinutes), executionBatchSize);
         for (BatchTaskItemEntity item : staleItems) {
             int updated = batchTaskItemMapper.completeRunningItem(
-                    item.getId(), null,
+                    item.getId(), BatchTaskItemStatus.FAILED, null,
                     SysError.BATCH_TASK_ITEM_INTERRUPTED.getCode(), SysError.BATCH_TASK_ITEM_INTERRUPTED.getMsg(), now
             );
             if (updated > 0) {
@@ -73,22 +73,23 @@ public class BatchTaskExecutionServiceImpl implements BatchTaskExecutionService 
             // 没有更新到行时说明它目前不能被领取，跳到循环的下一项
             if (batchTaskItemMapper.claimPendingItem(item.getId(), startTime) == 0) continue;
 
-            processed++;
+            affectedTaskIds.add(item.getTaskId());
             item.setStatus(BatchTaskItemStatus.RUNNING);
             item.setStartTime(startTime);
             item.setUpdateTime(startTime);
 
             // 尝试获取父任务
             BatchTaskEntity task = taskCache.computeIfAbsent(item.getTaskId(), batchTaskMapper::selectById);
-            boolean taskRunnable = task != null
+            boolean active = task != null
                     && (task.getStatus() == BatchTaskStatus.PENDING || task.getStatus() == BatchTaskStatus.RUNNING);
 
-            // 父任务存在且为 PENDING 时
-            if (taskRunnable && task.getStatus() == BatchTaskStatus.PENDING) {
+            // 父任务状态为 PENDING 时
+            if (task != null && task.getStatus() == BatchTaskStatus.PENDING) {
                 // 更新父任务状态
                 int updated = batchTaskMapper.update(null, Wrappers.<BatchTaskEntity>lambdaUpdate()
                         .eq(BatchTaskEntity::getId, task.getId())
                         .eq(BatchTaskEntity::getStatus, BatchTaskStatus.PENDING)
+                        .isNull(BatchTaskEntity::getDeletedAt)
                         .set(BatchTaskEntity::getStatus, BatchTaskStatus.RUNNING)
                         .set(BatchTaskEntity::getStartTime, startTime)
                         .set(BatchTaskEntity::getUpdateTime, startTime));
@@ -98,17 +99,25 @@ public class BatchTaskExecutionServiceImpl implements BatchTaskExecutionService 
                     // 不成功，重新选择并更新缓存
                     task = batchTaskMapper.selectById(task.getId());
                     taskCache.put(item.getTaskId(), task);
-                    taskRunnable = task != null && task.getStatus() == BatchTaskStatus.RUNNING;
+                    active = task != null && task.getStatus() == BatchTaskStatus.RUNNING;
                 }
             }
 
-            if (!taskRunnable) {
-                // 父任务没有运行
+            // 父任务状态为 PAUSING 或 PAUSED 时
+            if (task != null && (task.getStatus() == BatchTaskStatus.PAUSING
+                    || task.getStatus() == BatchTaskStatus.PAUSED)) {
+                // 尚未调用执行器的任务项释放回待处理状态
+                batchTaskItemMapper.releaseRunningItem(item.getId(), LocalDateTime.now());
+                continue; // 跳过后续处理
+            }
+
+            processed++;
+            if (!active) {
+                // 任务不在可运行的状态
                 item.setStatus(BatchTaskItemStatus.FAILED);
                 item.setErrorCode(SysError.BATCH_TASK_STATE_INVALID.getCode());
                 item.setErrorMessage(SysError.BATCH_TASK_STATE_INVALID.getMsg());
             } else {
-                affectedTaskIds.add(task.getId());  // 统计受影响的任务
                 try {
                     // 开始执行
                     BatchTaskItemEntity executedItem = executorRegistry.get(task.getType()).executeItem(item);
@@ -145,19 +154,28 @@ public class BatchTaskExecutionServiceImpl implements BatchTaskExecutionService 
 
             // 仅允许 RUNNING 项完成，避免迟到的执行结果覆盖回收或其他实例写入的状态
             if (batchTaskItemMapper.completeRunningItem(
-                    item.getId(), item.getResult(),
-                    item.getErrorCode(), item.getErrorMessage(), now
-            ) > 0) {
+                    item.getId(), item.getStatus(), item.getResult(),
+                    item.getErrorCode(), item.getErrorMessage(), finishTime) > 0) {
                 if (item.getStatus() == BatchTaskItemStatus.SUCCEEDED) succeeded++;
                 else failed++;
             }
         }
 
-        affectedTaskIds.forEach(this::finalizeTaskIfCompleted); // 对受影响的父任务进行最终检查
+        affectedTaskIds.forEach(this::reconcileTaskStatus);
         return new ExecutionSummary(processed, succeeded, failed, interrupted);
     }
 
-    private void finalizeTaskIfCompleted(Long taskId) {
+    @Override
+    public void reconcileTaskStatus(Long taskId) {
+        BatchTaskEntity task = batchTaskMapper.selectOne(Wrappers.<BatchTaskEntity>lambdaQuery()
+                .eq(BatchTaskEntity::getId, taskId)
+                .isNull(BatchTaskEntity::getDeletedAt));
+        if (task == null) return;
+
+        BatchTaskStatus currentStatus = task.getStatus();
+        boolean active = currentStatus == BatchTaskStatus.PENDING || currentStatus == BatchTaskStatus.RUNNING;
+        if (!active && currentStatus != BatchTaskStatus.PAUSING) return;
+
         // 只有父任务的所有任务项都离开 PENDING/RUNNING 后，才汇总并结束父任务
         long pending = batchTaskItemMapper.selectCount(Wrappers.<BatchTaskItemEntity>lambdaQuery()
                 .eq(BatchTaskItemEntity::getTaskId, taskId)
@@ -165,7 +183,26 @@ public class BatchTaskExecutionServiceImpl implements BatchTaskExecutionService 
         long running = batchTaskItemMapper.selectCount(Wrappers.<BatchTaskItemEntity>lambdaQuery()
                 .eq(BatchTaskItemEntity::getTaskId, taskId)
                 .eq(BatchTaskItemEntity::getStatus, BatchTaskItemStatus.RUNNING));
-        if (pending > 0 || running > 0) {
+
+        if (currentStatus == BatchTaskStatus.PAUSING) {
+            if (running > 0) return;
+            if (pending > 0) {
+                // 没有在 RUNNING的任务了，说明成功停止
+                LocalDateTime now = LocalDateTime.now();
+                // 将 PAUSING 转为 PAUSED
+                int updated = batchTaskMapper.update(null, Wrappers.<BatchTaskEntity>lambdaUpdate()
+                        .eq(BatchTaskEntity::getId, taskId)
+                        .eq(BatchTaskEntity::getStatus, BatchTaskStatus.PAUSING)
+                        .isNull(BatchTaskEntity::getDeletedAt)
+                        .set(BatchTaskEntity::getStatus, BatchTaskStatus.PAUSED)
+                        .set(BatchTaskEntity::getUpdateTime, now));
+                if (updated > 0) {
+                    log.info("batch task status changed. taskId={} from={} to={}",
+                            taskId, BatchTaskStatus.PAUSING, BatchTaskStatus.PAUSED);
+                }
+                return;
+            }
+        } else if (pending > 0 || running > 0) {
             return;
         }
 
@@ -179,16 +216,16 @@ public class BatchTaskExecutionServiceImpl implements BatchTaskExecutionService 
                 ? BatchTaskStatus.FAILED
                 : failed == 0 ? BatchTaskStatus.SUCCEEDED : BatchTaskStatus.PARTIAL_SUCCESS;
         LocalDateTime finishTime = LocalDateTime.now();
-        // 更新父任务项
         int updated = batchTaskMapper.update(null, Wrappers.<BatchTaskEntity>lambdaUpdate()
                 .eq(BatchTaskEntity::getId, taskId)
-                .in(BatchTaskEntity::getStatus, BatchTaskStatus.PENDING, BatchTaskStatus.RUNNING)
+                .eq(BatchTaskEntity::getStatus, currentStatus)
+                .isNull(BatchTaskEntity::getDeletedAt)
                 .set(BatchTaskEntity::getStatus, finalStatus)
                 .set(BatchTaskEntity::getFinishTime, finishTime)
                 .set(BatchTaskEntity::getUpdateTime, finishTime));
         if (updated > 0) {
-            log.info("batch task status changed. taskId={} to={} succeeded={} failed={}",
-                    taskId, finalStatus, succeeded, failed);
+            log.info("batch task status changed. taskId={} from={} to={} succeeded={} failed={}",
+                    taskId, currentStatus, finalStatus, succeeded, failed);
         }
     }
 
