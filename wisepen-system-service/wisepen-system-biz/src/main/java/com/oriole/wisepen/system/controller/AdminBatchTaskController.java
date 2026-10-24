@@ -44,13 +44,13 @@ public class AdminBatchTaskController {
                     - 约束：当前身份必须是平台管理员；type 必须存在对应执行器；requestId 与 type 组合唯一；meta 必须满足执行器契约；单任务项数不能超过服务配置上限。
                     - 处理：执行器校验并规范化 meta、批量校验目标用户、拆分任务项，在一个本地事务中保存 CREATED 任务；相同 type 和 requestId 重复请求返回原任务；本接口不发起执行。
                     - 失败：任务类型无执行器 -> SysError.BATCH_TASK_TYPE_UNSUPPORTED；meta 非法 -> SysError.BATCH_TASK_META_INVALID；源资源不存在 -> SysError.RESOURCE_FORK_SOURCE_NOT_FOUND；源资源类型暂不支持 -> SysError.RESOURCE_FORK_TYPE_UNSUPPORTED。
-                    - 响应：返回任务信息、规范化后的 meta 和按任务项状态汇总的数量。
+                    - 响应：返回任务ID。
                     """
     )
     @Log(title = "创建批量任务", businessType = BusinessType.INSERT,
             isSaveRequestData = false, isSaveResponseData = false)
     @PostMapping("/createTask")
-    public R<BatchTaskResponse> createTask(@Valid @RequestBody BatchTaskCreateRequest request) {
+    public R<Long> createTask(@Valid @RequestBody BatchTaskCreateRequest request) {
         return R.ok(batchTaskService.createTask(request, SecurityContextHolder.getUserId()));
     }
 

@@ -12,10 +12,6 @@ import java.util.Map;
 @Data
 public class BatchTaskCreateRequest {
 
-    @NotBlank
-    @Size(max = 128)
-    private String requestId;
-
     @NotNull
     private BatchTaskType type;
 

@@ -24,7 +24,6 @@ public class BatchTaskEntity {
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    private String requestId;
     private BatchTaskType type;
     private String name;
     private BatchTaskStatus status;

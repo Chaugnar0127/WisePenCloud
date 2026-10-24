@@ -8,7 +8,7 @@ import com.oriole.wisepen.system.api.enums.BatchTaskItemStatus;
 
 public interface BatchTaskService {
 
-    BatchTaskResponse createTask(BatchTaskCreateRequest request, Long operatorUserId);
+    Long createTask(BatchTaskCreateRequest request, Long operatorUserId);
 
     void startTask(Long taskId);
 
