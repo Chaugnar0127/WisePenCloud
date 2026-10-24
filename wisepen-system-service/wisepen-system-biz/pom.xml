@@ -17,6 +17,26 @@
             <artifactId>wisepen-system-api</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>com.oriole</groupId>
+            <artifactId>wisepen-common-log</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.oriole</groupId>
+            <artifactId>wisepen-note-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.oriole</groupId>
+            <artifactId>wisepen-resource-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.oriole</groupId>
+            <artifactId>wisepen-user-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.cloud</groupId>
