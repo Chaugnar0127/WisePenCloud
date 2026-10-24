@@ -1,0 +1,195 @@
+package com.oriole.wisepen.system.service.impl;
+
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.oriole.wisepen.common.core.exception.ServiceException;
+import com.oriole.wisepen.system.api.enums.BatchTaskItemStatus;
+import com.oriole.wisepen.system.api.enums.BatchTaskStatus;
+import com.oriole.wisepen.system.domain.entity.BatchTaskEntity;
+import com.oriole.wisepen.system.domain.entity.BatchTaskItemEntity;
+import com.oriole.wisepen.system.excpetion.SysError;
+import com.oriole.wisepen.system.mapper.BatchTaskItemMapper;
+import com.oriole.wisepen.system.mapper.BatchTaskMapper;
+import com.oriole.wisepen.system.service.BatchTaskExecutionService;
+import com.oriole.wisepen.system.service.batch.BatchTaskExecutorRegistry;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class BatchTaskExecutionServiceImpl implements BatchTaskExecutionService {
+
+    private static final int ERROR_MESSAGE_MAX_LENGTH = 1000;
+
+    private final BatchTaskMapper batchTaskMapper;
+    private final BatchTaskItemMapper batchTaskItemMapper;
+    private final BatchTaskExecutorRegistry executorRegistry;
+
+    @Value("${wisepen.batch-task.execution-batch-size:20}")
+    private int executionBatchSize;
+
+    @Value("${wisepen.batch-task.stale-minutes:30}")
+    private long staleMinutes;
+
+    @Override
+    public ExecutionSummary executePendingItems() {
+        Set<Long> affectedTaskIds = new LinkedHashSet<>();
+        int processed = 0;
+        int succeeded = 0;
+        int failed = 0;
+        int interrupted = 0;
+
+        LocalDateTime now = LocalDateTime.now();
+        // 检查并回收超时的执行中任务项
+        List<BatchTaskItemEntity> staleItems = batchTaskItemMapper.selectStaleRunningItems(
+                now.minusMinutes(staleMinutes), executionBatchSize);
+        for (BatchTaskItemEntity item : staleItems) {
+            int updated = batchTaskItemMapper.completeRunningItem(
+                    item.getId(), null,
+                    SysError.BATCH_TASK_ITEM_INTERRUPTED.getCode(), SysError.BATCH_TASK_ITEM_INTERRUPTED.getMsg(), now
+            );
+            if (updated > 0) {
+                interrupted++;
+                affectedTaskIds.add(item.getTaskId()); // 统计受影响的任务
+            }
+        }
+
+        List<BatchTaskItemEntity> candidates = batchTaskItemMapper.selectRunnableItems(executionBatchSize);
+
+        Map<Long, BatchTaskEntity> taskCache = new HashMap<>();
+        for (BatchTaskItemEntity item : candidates) {
+
+            LocalDateTime startTime = LocalDateTime.now();
+            // claimPendingItem 会尝试把数据库中的任务项从 PENDING 原子地更新为 RUNNING，并返回受影响的行数
+            // 没有更新到行时说明它目前不能被领取，跳到循环的下一项
+            if (batchTaskItemMapper.claimPendingItem(item.getId(), startTime) == 0) continue;
+
+            processed++;
+            item.setStatus(BatchTaskItemStatus.RUNNING);
+            item.setStartTime(startTime);
+            item.setUpdateTime(startTime);
+
+            // 尝试获取父任务
+            BatchTaskEntity task = taskCache.computeIfAbsent(item.getTaskId(), batchTaskMapper::selectById);
+            boolean taskRunnable = task != null
+                    && (task.getStatus() == BatchTaskStatus.PENDING || task.getStatus() == BatchTaskStatus.RUNNING);
+
+            // 父任务存在且为 PENDING 时
+            if (taskRunnable && task.getStatus() == BatchTaskStatus.PENDING) {
+                // 更新父任务状态
+                int updated = batchTaskMapper.update(null, Wrappers.<BatchTaskEntity>lambdaUpdate()
+                        .eq(BatchTaskEntity::getId, task.getId())
+                        .eq(BatchTaskEntity::getStatus, BatchTaskStatus.PENDING)
+                        .set(BatchTaskEntity::getStatus, BatchTaskStatus.RUNNING)
+                        .set(BatchTaskEntity::getStartTime, startTime)
+                        .set(BatchTaskEntity::getUpdateTime, startTime));
+                if (updated > 0) {
+                    task.setStatus(BatchTaskStatus.RUNNING);
+                } else {
+                    // 不成功，重新选择并更新缓存
+                    task = batchTaskMapper.selectById(task.getId());
+                    taskCache.put(item.getTaskId(), task);
+                    taskRunnable = task != null && task.getStatus() == BatchTaskStatus.RUNNING;
+                }
+            }
+
+            if (!taskRunnable) {
+                // 父任务没有运行
+                item.setStatus(BatchTaskItemStatus.FAILED);
+                item.setErrorCode(SysError.BATCH_TASK_STATE_INVALID.getCode());
+                item.setErrorMessage(SysError.BATCH_TASK_STATE_INVALID.getMsg());
+            } else {
+                affectedTaskIds.add(task.getId());  // 统计受影响的任务
+                try {
+                    // 开始执行
+                    BatchTaskItemEntity executedItem = executorRegistry.get(task.getType()).executeItem(item);
+                    if (executedItem == null) throw new ServiceException(SysError.BATCH_TASK_ITEM_EXECUTION_FAILED);
+                    // 记录执行结果（成功）
+                    item.setResult(executedItem.getResult());
+                    item.setStatus(BatchTaskItemStatus.SUCCEEDED);
+                    item.setErrorCode(null);
+                    item.setErrorMessage(null);
+                } catch (Exception e) {
+                    // 记录执行结果（失败）
+                    item.setStatus(BatchTaskItemStatus.FAILED);
+                    if (e instanceof ServiceException serviceException) {
+                        item.setErrorCode(serviceException.getErrorResult().getCode());
+                        item.setErrorMessage(serviceException.getMessage());
+                    } else {
+                        item.setErrorCode(SysError.BATCH_TASK_ITEM_EXECUTION_FAILED.getCode());
+                        item.setErrorMessage(SysError.BATCH_TASK_ITEM_EXECUTION_FAILED.getMsg());
+                    }
+                    log.warn("batch task item failed. taskId={} itemId={} type={}",
+                            task.getId(), item.getId(), task.getType(), e);
+                }
+            }
+
+            // 截断过长的异常
+            if (item.getErrorMessage() != null
+                    && item.getErrorMessage().length() > ERROR_MESSAGE_MAX_LENGTH) {
+                item.setErrorMessage(item.getErrorMessage().substring(0, ERROR_MESSAGE_MAX_LENGTH));
+            }
+
+            LocalDateTime finishTime = LocalDateTime.now();
+            item.setFinishTime(finishTime);
+            item.setUpdateTime(finishTime);
+
+            // 仅允许 RUNNING 项完成，避免迟到的执行结果覆盖回收或其他实例写入的状态
+            if (batchTaskItemMapper.completeRunningItem(
+                    item.getId(), item.getResult(),
+                    item.getErrorCode(), item.getErrorMessage(), now
+            ) > 0) {
+                if (item.getStatus() == BatchTaskItemStatus.SUCCEEDED) succeeded++;
+                else failed++;
+            }
+        }
+
+        affectedTaskIds.forEach(this::finalizeTaskIfCompleted); // 对受影响的父任务进行最终检查
+        return new ExecutionSummary(processed, succeeded, failed, interrupted);
+    }
+
+    private void finalizeTaskIfCompleted(Long taskId) {
+        // 只有父任务的所有任务项都离开 PENDING/RUNNING 后，才汇总并结束父任务
+        long pending = batchTaskItemMapper.selectCount(Wrappers.<BatchTaskItemEntity>lambdaQuery()
+                .eq(BatchTaskItemEntity::getTaskId, taskId)
+                .eq(BatchTaskItemEntity::getStatus, BatchTaskItemStatus.PENDING));
+        long running = batchTaskItemMapper.selectCount(Wrappers.<BatchTaskItemEntity>lambdaQuery()
+                .eq(BatchTaskItemEntity::getTaskId, taskId)
+                .eq(BatchTaskItemEntity::getStatus, BatchTaskItemStatus.RUNNING));
+        if (pending > 0 || running > 0) {
+            return;
+        }
+
+        long succeeded = batchTaskItemMapper.selectCount(Wrappers.<BatchTaskItemEntity>lambdaQuery()
+                .eq(BatchTaskItemEntity::getTaskId, taskId)
+                .eq(BatchTaskItemEntity::getStatus, BatchTaskItemStatus.SUCCEEDED));
+        long failed = batchTaskItemMapper.selectCount(Wrappers.<BatchTaskItemEntity>lambdaQuery()
+                .eq(BatchTaskItemEntity::getTaskId, taskId)
+                .eq(BatchTaskItemEntity::getStatus, BatchTaskItemStatus.FAILED));
+        BatchTaskStatus finalStatus = succeeded == 0
+                ? BatchTaskStatus.FAILED
+                : failed == 0 ? BatchTaskStatus.SUCCEEDED : BatchTaskStatus.PARTIAL_SUCCESS;
+        LocalDateTime finishTime = LocalDateTime.now();
+        // 更新父任务项
+        int updated = batchTaskMapper.update(null, Wrappers.<BatchTaskEntity>lambdaUpdate()
+                .eq(BatchTaskEntity::getId, taskId)
+                .in(BatchTaskEntity::getStatus, BatchTaskStatus.PENDING, BatchTaskStatus.RUNNING)
+                .set(BatchTaskEntity::getStatus, finalStatus)
+                .set(BatchTaskEntity::getFinishTime, finishTime)
+                .set(BatchTaskEntity::getUpdateTime, finishTime));
+        if (updated > 0) {
+            log.info("batch task status changed. taskId={} to={} succeeded={} failed={}",
+                    taskId, finalStatus, succeeded, failed);
+        }
+    }
+
+}
