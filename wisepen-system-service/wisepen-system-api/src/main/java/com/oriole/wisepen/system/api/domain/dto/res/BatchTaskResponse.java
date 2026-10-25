@@ -12,7 +12,6 @@ import java.util.Map;
 @NoArgsConstructor
 public class BatchTaskResponse {
     private Long taskId;
-    private String requestId;
     private BatchTaskType type;
     private String name;
     private BatchTaskStatus status;
