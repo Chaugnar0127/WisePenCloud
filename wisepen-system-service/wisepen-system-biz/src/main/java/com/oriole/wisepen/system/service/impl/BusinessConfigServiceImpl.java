@@ -70,6 +70,7 @@ public class BusinessConfigServiceImpl implements BusinessConfigService {
                     response.setName(definition.getName()); // name 用于管理端展示配置名称
                     response.setDescription(definition.getDescription()); // description 用于说明该配置节点的业务作用
                     response.setService(definition.getService()); // service 用于前端按微服务归类
+                    response.setRestartRequired(definition.isRestartRequired()); // restartRequired 提示发布后是否需要重启实例
                     responses.add(response); // 将组装完成的摘要加入返回列表
                 });
         return responses;
@@ -138,6 +139,7 @@ public class BusinessConfigServiceImpl implements BusinessConfigService {
             configResponse.setCode(definition.getCode());
             configResponse.setName(definition.getName());
             configResponse.setDescription(definition.getDescription());
+            configResponse.setRestartRequired(definition.isRestartRequired());
             // 将目录中的 Schema JsonNode 转成普通 Map
             configResponse.setSchema(objectMapper.convertValue(
                     definition.getSchema(), new TypeReference<>() {

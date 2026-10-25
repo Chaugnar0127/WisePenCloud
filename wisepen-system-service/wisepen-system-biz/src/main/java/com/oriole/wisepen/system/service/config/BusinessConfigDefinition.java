@@ -17,6 +17,7 @@ public class BusinessConfigDefinition {
     private final String dataId;
     private final String group;
     private final List<String> path;
+    private final boolean restartRequired;
     private final JsonNode schema;
     private final JsonSchema compiledSchema;
 }

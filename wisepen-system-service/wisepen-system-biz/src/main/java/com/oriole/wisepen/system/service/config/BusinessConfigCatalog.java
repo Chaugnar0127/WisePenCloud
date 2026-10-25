@@ -105,13 +105,16 @@ public class BusinessConfigCatalog {
                 String name = configNode.path("name").asText();
                 String description = configNode.path("description").asText("");
                 JsonNode pathNode = configNode.path("path"); // path 使用字符串数组逐层定位 YAML Object
+                JsonNode restartRequiredNode = configNode.get("restartRequired"); // 明确声明发布后是否需要重启服务实例
                 JsonNode schemaNode = configNode.path("schema"); // schema 同时提供给前端渲染，并由后端在发布前执行校验
 
                 // 检查必要项目是否缺失
-                // code、name、非空数组 path 和对象 schema 是每项配置的最小必要定义
+                // code、name、非空数组 path、restartRequired 和对象 schema 是每项配置的最小必要定义
                 if (!StringUtils.hasText(code) || !StringUtils.hasText(name)
-                        || !pathNode.isArray() || pathNode.isEmpty() || !schemaNode.isObject()) {
-                    throw new IllegalStateException("业务配置定义缺少 name、path 或 schema: " + code);
+                        || !pathNode.isArray() || pathNode.isEmpty()
+                        || restartRequiredNode == null || !restartRequiredNode.isBoolean()
+                        || !schemaNode.isObject()) {
+                    throw new IllegalStateException("业务配置定义缺少 name、path、restartRequired 或 schema: " + code);
                 }
 
                 // 检查路径合法性
@@ -136,7 +139,7 @@ public class BusinessConfigCatalog {
                 // 将目录公共定位信息和当前节点定义合并成一份完整运行期定义
                 BusinessConfigDefinition definition = new BusinessConfigDefinition(
                         code, name, description, service, dataId, group, List.copyOf(path),
-                        schemaNode.deepCopy(), compiledSchema
+                        restartRequiredNode.booleanValue(), schemaNode.deepCopy(), compiledSchema
                 );
                 // putIfAbsent 在保存定义的同时检查跨微服务全局 code 唯一性
                 if (loadedDefinitions.putIfAbsent(code, definition) != null) {

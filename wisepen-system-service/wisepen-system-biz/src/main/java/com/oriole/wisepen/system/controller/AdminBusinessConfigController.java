@@ -43,7 +43,7 @@ public class AdminBusinessConfigController {
                     - 约束：当前身份必须是平台管理员。
                     - 处理：读取版本化静态目录并返回配置摘要；不读取 Nacos 配置内容。
                     - 失败：无业务失败项。
-                    - 响应：返回配置编码、名称、描述和所属微服务列表。
+                    - 响应：返回配置编码、名称、描述、所属微服务及是否需要重启。
                     """
     )
     @GetMapping("/listConfigs")
@@ -59,7 +59,7 @@ public class AdminBusinessConfigController {
                     - 约束：当前身份必须是平台管理员；微服务目录和 Nacos Data ID 必须存在；目标节点可以不存在。
                     - 处理：只读取并解析一次该服务的完整 Nacos YAML，逐项提取目录节点；缺失节点返回 exists=false 和空 value，不修改配置。
                     - 失败：微服务目录或 Data ID 不存在 -> SysError.BUSINESS_CONFIG_NOT_FOUND；Nacos YAML 无法解析或已有父路径不是对象 -> SysError.BUSINESS_CONFIG_CONTENT_INVALID；Nacos 查询失败 -> SysError.BUSINESS_CONFIG_NACOS_FAILED。
-                    - 响应：返回微服务名、完整 Nacos 文档 MD5 revision，以及全部配置项的元数据、Schema、存在状态和当前 JSON 值。
+                    - 响应：返回微服务名、完整 Nacos 文档 MD5 revision，以及全部配置项的元数据、是否需要重启、Schema、存在状态和当前 JSON 值。
                     """
     )
     @GetMapping("/listServiceConfigs")

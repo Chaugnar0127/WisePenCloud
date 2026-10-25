@@ -8,4 +8,5 @@ public class BusinessConfigSummaryResponse {
     private String name;
     private String description;
     private String service;
+    private boolean restartRequired;
 }
