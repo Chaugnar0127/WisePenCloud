@@ -7,7 +7,7 @@ import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.common.security.annotation.CheckRole;
 import com.oriole.wisepen.system.api.domain.dto.req.BusinessConfigApplyRequest;
 import com.oriole.wisepen.system.api.domain.dto.res.BusinessConfigApplyResponse;
-import com.oriole.wisepen.system.api.domain.dto.res.BusinessConfigResponse;
+import com.oriole.wisepen.system.api.domain.dto.res.BusinessConfigServiceResponse;
 import com.oriole.wisepen.system.api.domain.dto.res.BusinessConfigSummaryResponse;
 import com.oriole.wisepen.system.service.BusinessConfigService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -52,19 +52,20 @@ public class AdminBusinessConfigController {
     }
 
     @Operation(
-            summary = "查询业务配置",
+            summary = "查询服务业务配置",
             description = """
-                    - 用途：读取一个受管 Nacos YAML 节点及其 JSON Schema，供管理端生成表单和编辑。
-                    - 请求：code 是静态目录中的业务配置编码。
-                    - 约束：当前身份必须是平台管理员；配置编码、Nacos Data ID 和目标节点必须存在。
-                    - 处理：读取完整 Nacos YAML，提取目录指定节点，并返回完整文档 MD5 revision；不修改配置。
-                    - 失败：配置编码、Data ID 或目标节点不存在 -> SysError.BUSINESS_CONFIG_NOT_FOUND；Nacos YAML 无法解析 -> SysError.BUSINESS_CONFIG_CONTENT_INVALID；Nacos 查询失败 -> SysError.BUSINESS_CONFIG_NACOS_FAILED。
-                    - 响应：返回配置元数据、Schema、当前 JSON 值和完整 Nacos 文档 revision。
+                    - 用途：一次读取指定微服务的全部受管 Nacos YAML 节点及其 JSON Schema，供管理端生成表单和编辑。
+                    - 请求：service 是静态目录中登记的微服务名。
+                    - 约束：当前身份必须是平台管理员；微服务目录和 Nacos Data ID 必须存在；目标节点可以不存在。
+                    - 处理：只读取并解析一次该服务的完整 Nacos YAML，逐项提取目录节点；缺失节点返回 exists=false 和空 value，不修改配置。
+                    - 失败：微服务目录或 Data ID 不存在 -> SysError.BUSINESS_CONFIG_NOT_FOUND；Nacos YAML 无法解析或已有父路径不是对象 -> SysError.BUSINESS_CONFIG_CONTENT_INVALID；Nacos 查询失败 -> SysError.BUSINESS_CONFIG_NACOS_FAILED。
+                    - 响应：返回微服务名、完整 Nacos 文档 MD5 revision，以及全部配置项的元数据、Schema、存在状态和当前 JSON 值。
                     """
     )
-    @GetMapping("/getConfig")
-    public R<BusinessConfigResponse> getConfig(@RequestParam @NotBlank String code) {
-        return R.ok(businessConfigService.getConfig(code));
+    @GetMapping("/listServiceConfigs")
+    public R<BusinessConfigServiceResponse> listServiceConfigs(
+            @RequestParam @NotBlank String service) {
+        return R.ok(businessConfigService.listServiceConfigs(service));
     }
 
     @Operation(
@@ -72,9 +73,9 @@ public class AdminBusinessConfigController {
             description = """
                     - 用途：将管理端编辑完成的 JSON 节点应用到对应微服务的 Nacos YAML。
                     - 请求：code 是业务配置编码；revision 是查询时取得的完整文档 MD5；value 是符合目录 JSON Schema 的新节点值。
-                    - 约束：当前身份必须是平台管理员；value 必须通过 Schema 校验；revision 必须与 Nacos 当前完整文档一致；目标节点必须已存在。
-                    - 处理：重新读取完整 YAML，替换指定节点并规范化整份 YAML，通过 Nacos CAS 发布；只保证发布到 Nacos 成功，不确认业务实例已刷新。
-                    - 失败：配置编码、Data ID 或目标节点不存在 -> SysError.BUSINESS_CONFIG_NOT_FOUND；Schema 或 YAML 无效 -> SysError.BUSINESS_CONFIG_CONTENT_INVALID；文档版本变化或 CAS 失败 -> SysError.BUSINESS_CONFIG_REVISION_CONFLICT；Nacos 查询或发布失败 -> SysError.BUSINESS_CONFIG_NACOS_FAILED。
+                    - 约束：当前身份必须是平台管理员；value 必须通过 Schema 校验；revision 必须与 Nacos 当前完整文档一致；Nacos Data ID 必须已存在。
+                    - 处理：重新读取完整 YAML，自动创建缺失的对象父路径并设置目标节点，规范化整份 YAML 后通过 Nacos CAS 发布；不会覆盖已有的标量或数组父节点，也不确认业务实例已刷新。
+                    - 失败：配置编码或 Data ID 不存在 -> SysError.BUSINESS_CONFIG_NOT_FOUND；Schema、YAML 或已有父路径类型无效 -> SysError.BUSINESS_CONFIG_CONTENT_INVALID；文档版本变化或 CAS 失败 -> SysError.BUSINESS_CONFIG_REVISION_CONFLICT；Nacos 查询或发布失败 -> SysError.BUSINESS_CONFIG_NACOS_FAILED。
                     - 响应：返回发布成功标记和规范化后完整文档的新 revision。
                     """
     )

@@ -15,6 +15,7 @@ import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.system.api.domain.dto.req.BusinessConfigApplyRequest;
 import com.oriole.wisepen.system.api.domain.dto.res.BusinessConfigApplyResponse;
 import com.oriole.wisepen.system.api.domain.dto.res.BusinessConfigResponse;
+import com.oriole.wisepen.system.api.domain.dto.res.BusinessConfigServiceResponse;
 import com.oriole.wisepen.system.api.domain.dto.res.BusinessConfigSummaryResponse;
 import com.oriole.wisepen.system.excpetion.SysError;
 import com.oriole.wisepen.system.service.BusinessConfigService;
@@ -75,64 +76,82 @@ public class BusinessConfigServiceImpl implements BusinessConfigService {
     }
 
     /**
-     * 查询单个业务配置的 Schema、当前 JSON 值和完整文档 revision。
+     * 查询指定微服务的全部配置项、Schema、当前 JSON 值和完整文档 revision
      */
     @Override
-    public BusinessConfigResponse getConfig(String code) {
-        BusinessConfigDefinition definition = businessConfigCatalog.getDefinitions().get(code);
-        if (definition == null) {
+    public BusinessConfigServiceResponse listServiceConfigs(String service) {
+        // 同一个微服务只对应一份目录和一个 Nacos Data ID，取出该服务的全部节点定义
+        List<BusinessConfigDefinition> definitions = businessConfigCatalog.getDefinitions().values().stream()
+                .filter(definition -> definition.getService().equals(service))
+                .sorted(Comparator.comparing(BusinessConfigDefinition::getCode))
+                .toList();
+        if (definitions.isEmpty()) {
             throw new ServiceException(SysError.BUSINESS_CONFIG_NOT_FOUND);
         }
 
-        String yamlContent; // Nacos 返回的完整原始 YAML
+        BusinessConfigDefinition serviceDefinition = definitions.getFirst();
+        String yamlContent;
         try {
-            // 使用目录确定的 dataId、group 读取完整文档
             yamlContent = nacosConfigManager.getConfigService().getConfig(
-                    definition.getDataId(), definition.getGroup(),
+                    serviceDefinition.getDataId(), serviceDefinition.getGroup(),
                     nacosConfigManager.getNacosConfigProperties().getTimeout()
             );
         } catch (NacosException exception) {
-            log.error("business config query failed. configCode={} dataId={} group={}",
-                    code, definition.getDataId(), definition.getGroup(), exception);
+            log.error("business configs query failed. service={} dataId={} group={}",
+                    service, serviceDefinition.getDataId(), serviceDefinition.getGroup(), exception);
             throw new ServiceException(SysError.BUSINESS_CONFIG_NACOS_FAILED);
         }
 
+        // Data ID 必须预先存在，业务配置管理器只负责读取或创建其中的节点
         if (yamlContent == null || yamlContent.isBlank()) {
             throw new ServiceException(SysError.BUSINESS_CONFIG_NOT_FOUND, "Nacos Data ID 不存在或内容为空");
         }
 
-        // 将完整 YAML 解析成 JSON 兼容树
+        // 完整 YAML 解析解析成 JSON 兼容树，提取该服务的全部受管节点
         JsonNode documentNode;
         try {
             documentNode = yamlObjectMapper.readTree(yamlContent);
         } catch (JsonProcessingException exception) {
-            // 无法解析的现有 YAML 不能安全提取节点，需要先修复源文档
             throw new ServiceException(SysError.BUSINESS_CONFIG_CONTENT_INVALID, "Nacos YAML 无法解析");
         }
-
-        JsonNode configNode = documentNode;
-        for (String pathSegment : definition.getPath()) {
-            // 中间节点必须是 Object 且明确包含当前 key
-            // 路径不允许进入数组元素或自动创建节点
-            if (configNode == null || !configNode.isObject() || !configNode.has(pathSegment)) {
-                throw new ServiceException(SysError.BUSINESS_CONFIG_NOT_FOUND, "Nacos YAML 中不存在目标节点");
-            }
-            // 进入下一级节点
-            configNode = configNode.get(pathSegment);
+        if (documentNode == null || !documentNode.isObject()) {
+            throw new ServiceException(SysError.BUSINESS_CONFIG_CONTENT_INVALID, "Nacos YAML 根节点必须是对象");
         }
 
-        BusinessConfigResponse response = new BusinessConfigResponse();
-        response.setCode(definition.getCode());
-        response.setName(definition.getName());
-        response.setDescription(definition.getDescription());
-        response.setService(definition.getService());
-        // 将目录中的 Schema JsonNode 转成普通 Map
-        response.setSchema(objectMapper.convertValue(
-                definition.getSchema(), new TypeReference<>() {
+        List<BusinessConfigResponse> configResponses = new ArrayList<>();
+        for (BusinessConfigDefinition definition : definitions) {
+            JsonNode configNode = documentNode;
+            boolean exists = true;
+            for (String pathSegment : definition.getPath()) {
+                if (!configNode.isObject()) {
+                    // 已有父路径不是对象表示现有 YAML 结构冲突
+                    throw new ServiceException(SysError.BUSINESS_CONFIG_CONTENT_INVALID, "业务配置父路径不是对象: configCode=" + definition.getCode());
                 }
-        ));
-        // 将目标 JsonNode 转成普通 JSON 兼容值
-        response.setValue(objectMapper.convertValue(configNode, Object.class));
+                if (!configNode.has(pathSegment)) {
+                    exists = false;
+                    break;
+                }
+                configNode = configNode.get(pathSegment);
+            }
+
+            BusinessConfigResponse configResponse = new BusinessConfigResponse();
+            configResponse.setCode(definition.getCode());
+            configResponse.setName(definition.getName());
+            configResponse.setDescription(definition.getDescription());
+            // 将目录中的 Schema JsonNode 转成普通 Map
+            configResponse.setSchema(objectMapper.convertValue(
+                    definition.getSchema(), new TypeReference<>() {
+                    }
+            ));
+            configResponse.setExists(exists);
+            // 将目标 JsonNode 转成普通 JSON 兼容值
+            configResponse.setValue(exists ? objectMapper.convertValue(configNode, Object.class) : null);
+            configResponses.add(configResponse);
+        }
+
+        BusinessConfigServiceResponse response = new BusinessConfigServiceResponse();
+        response.setService(service);
+        response.setConfigs(configResponses);
         // revision 对 Nacos 原始 UTF-8 字符串计算
         response.setRevision(DigestUtils.md5DigestAsHex(yamlContent.getBytes(StandardCharsets.UTF_8)));
         return response;
@@ -196,28 +215,32 @@ public class BusinessConfigServiceImpl implements BusinessConfigService {
             throw new ServiceException(SysError.BUSINESS_CONFIG_CONTENT_INVALID, "Nacos YAML 无法解析");
         }
 
-        JsonNode parentNode = documentNode;
-        // 最后一个 path 元素是要替换的 key，这里只遍历它之前的父路径
+        if (documentNode == null || !documentNode.isObject()) {
+            throw new ServiceException(SysError.BUSINESS_CONFIG_CONTENT_INVALID, "Nacos YAML 根节点必须是对象");
+        }
+
+        ObjectNode parentNode = (ObjectNode) documentNode;
+        // 最后一个 path 元素是要设置的 key，这里只遍历并按需创建它之前的父路径
         for (int pathIndex = 0; pathIndex < definition.getPath().size() - 1; pathIndex++) {
             String pathSegment = definition.getPath().get(pathIndex);
-            // 中间节点必须是 Object 且明确包含当前 key
-            // 路径不允许进入数组元素或自动创建节点
-            if (parentNode == null || !parentNode.isObject() || !parentNode.has(pathSegment)) {
-                throw new ServiceException(SysError.BUSINESS_CONFIG_NOT_FOUND, "Nacos YAML 中不存在目标节点");
+            JsonNode nextNode = parentNode.get(pathSegment);
+            if (nextNode == null) {
+                // 缺失父节点时创建空对象，使目录中登记但 Nacos 尚未配置的节点可以首次应用
+                ObjectNode newParentNode = yamlObjectMapper.createObjectNode();
+                parentNode.set(pathSegment, newParentNode);
+                parentNode = newParentNode;
+                continue;
             }
-            // 进入下一级节点
-            parentNode = parentNode.get(pathSegment);
+            if (!nextNode.isObject()) {
+                // 已有父路径不是对象表示现有 YAML 结构冲突
+                throw new ServiceException(SysError.BUSINESS_CONFIG_CONTENT_INVALID, "业务配置父路径不是对象: configCode=" + request.getCode());
+            }
+            parentNode = (ObjectNode) nextNode;
         }
 
-        // 取得目标节点在父 Object 中的 key
+        // 目标节点不存在时创建，存在时整体替换
         String targetPathSegment = definition.getPath().get(definition.getPath().size() - 1);
-        // 目标节点也必须已经存在
-        if (parentNode == null || !parentNode.isObject() || !parentNode.has(targetPathSegment)) {
-            throw new ServiceException(SysError.BUSINESS_CONFIG_NOT_FOUND, "Nacos YAML 中不存在目标节点");
-        }
-
-        // 用新节点整体替换旧节点
-        ((ObjectNode) parentNode).set(targetPathSegment, newConfigNode);
+        parentNode.set(targetPathSegment, newConfigNode);
 
         String newYamlContent;
         try {

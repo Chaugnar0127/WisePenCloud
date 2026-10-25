@@ -9,8 +9,7 @@ public class BusinessConfigResponse {
     private String code;
     private String name;
     private String description;
-    private String service;
     private Map<String, Object> schema;
+    private boolean exists;
     private Object value;
-    private String revision;
 }
