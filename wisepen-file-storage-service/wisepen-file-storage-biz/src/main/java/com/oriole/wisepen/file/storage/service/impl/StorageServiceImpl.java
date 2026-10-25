@@ -168,7 +168,7 @@ public class StorageServiceImpl implements IStorageService {
                 .scene(scene).objectKey(newObjectKey).status(StorageStatusEnum.UPLOADING).configId(provider.getConfigId())
                 .build();
         storageRecordMapper.insert(newRecord);
-        UploadUrlBase uploadUrl = provider.generateUploadTicket(newObjectKey, storageProperties.getDefaultTicketDuration(), storageProperties.getApiDomain(), isNeedCallback);
+        UploadUrlBase uploadUrl = provider.generateUploadTicket(newObjectKey, storageProperties.getUpload().getDefaultTicketDuration(), storageProperties.getEndpoint().getApiDomain(), isNeedCallback);
 
         log.info("storage upload ticket created. objectKey={} status={}", newObjectKey, StorageStatusEnum.UPLOADING);
 
@@ -192,7 +192,7 @@ public class StorageServiceImpl implements IStorageService {
 
     @Override
     public StorageRecordDTO uploadSmallFile(byte[] content, String extension, StorageSceneEnum scene, String bizTag) {
-        if (content == null || content.length == 0 || content.length > storageProperties.getMaxSmallFileSize()) {
+        if (content == null || content.length == 0 || content.length > storageProperties.getUpload().getMaxSmallFileSize()) {
             throw new ServiceException(FileStorageError.FILE_SIZE_ABOVE_UPPER_BOUND);
         }
         if (StrUtil.isBlank(extension) || !extension.matches("[A-Za-z0-9]+")) {
@@ -224,11 +224,11 @@ public class StorageServiceImpl implements IStorageService {
     @Override
     public byte[] getSmallFileContent(String objectKey) {
         StorageRecordEntity record = getStorageRecordWithCompensateStatus(objectKey);
-        if (record.getSize() != null && record.getSize() > storageProperties.getMaxSmallFileSize()) {
+        if (record.getSize() != null && record.getSize() > storageProperties.getUpload().getMaxSmallFileSize()) {
             throw new ServiceException(FileStorageError.FILE_SIZE_ABOVE_UPPER_BOUND);
         }
         StorageProvider provider = storageManager.getProvider(record.getConfigId());
-        return provider.getSmallFileContent(objectKey, storageProperties.getMaxSmallFileSize());
+        return provider.getSmallFileContent(objectKey, storageProperties.getUpload().getMaxSmallFileSize());
     }
 
     @Override
