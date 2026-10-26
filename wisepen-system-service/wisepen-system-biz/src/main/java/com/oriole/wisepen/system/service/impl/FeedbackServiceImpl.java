@@ -22,9 +22,6 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 
-/**
- * @author Xiong Heng
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -43,11 +40,21 @@ public class FeedbackServiceImpl implements FeedbackService {
 
     @Override
     public PageR<FeedbackListItemResponse> listFeedbacks(FeedbackQueryRequest request) {
+        boolean filterByType = request.isBugReport() || request.isSuggestion() || request.isConsultation()
+                || request.isComplaint() || request.isOther();
         IPage<FeedbackEntity> feedbackPage = feedbackMapper.selectPage(new Page<>(request.getPage(), request.getSize()),
                 Wrappers.<FeedbackEntity>lambdaQuery()
-                        .select(FeedbackEntity::getId, FeedbackEntity::getUserId, FeedbackEntity::getType,
+                        .select(FeedbackEntity::getId, FeedbackEntity::getUserId,
+                                FeedbackEntity::isBugReport, FeedbackEntity::isSuggestion, FeedbackEntity::isConsultation,
+                                FeedbackEntity::isComplaint, FeedbackEntity::isOther,
                                 FeedbackEntity::getStatus, FeedbackEntity::getCreateTime, FeedbackEntity::getUpdateTime)
-                        .eq(request.getType() != null, FeedbackEntity::getType, request.getType())
+                        .and(filterByType, typeQuery -> {
+                            if (request.isBugReport()) typeQuery.or().eq(FeedbackEntity::isBugReport, true);
+                            if (request.isSuggestion()) typeQuery.or().eq(FeedbackEntity::isSuggestion, true);
+                            if (request.isConsultation()) typeQuery.or().eq(FeedbackEntity::isConsultation, true);
+                            if (request.isComplaint()) typeQuery.or().eq(FeedbackEntity::isComplaint, true);
+                            if (request.isOther()) typeQuery.or().eq(FeedbackEntity::isOther, true);
+                        })
                         .eq(request.getStatus() != null, FeedbackEntity::getStatus, request.getStatus())
                         .eq(request.getUserId() != null, FeedbackEntity::getUserId, request.getUserId())
                         .ge(request.getStartTime() != null, FeedbackEntity::getCreateTime, request.getStartTime())
