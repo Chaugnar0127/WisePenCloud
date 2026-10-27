@@ -184,7 +184,7 @@ public class GroupMemberController {
 					- 用途：小组 OWNER 调整一个或多个成员在高级小组内的信息点使用额度。
 					- 请求：groupId 指定目标小组；targetUserIds 指定成员列表；newTokenLimit 指定新的额度上限。
 					- 约束：当前用户必须是目标小组 OWNER；目标小组必须支持配置成员额度；新额度不能低于成员已使用额度。
-					- 处理：批量更新成员额度，并对额度高于已使用量的成员解除聊天熔断；不修改小组总余额。
+					- 处理：批量更新成员额度；不修改成员已使用量或小组总余额。
 					- 失败：未登录 -> PermissionError.NOT_LOGIN；当前用户不是 OWNER -> PermissionError.PERMISSION_DENIED；小组不存在 -> UserError.GROUP_NOT_EXIST；普通小组不允许配置额度 -> UserError.CANNOT_CONFIGURE_GROUP_WALLET_QUOTA；额度低于已使用量 -> UserError.WALLET_TOKEN_LIMIT_BELOW_USED。
 					- 响应：成功时返回空结果。
 					"""

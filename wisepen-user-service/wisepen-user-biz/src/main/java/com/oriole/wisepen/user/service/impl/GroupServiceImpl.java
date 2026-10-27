@@ -19,7 +19,6 @@ import com.oriole.wisepen.user.api.domain.dto.res.GroupItemInfoResponse;
 import com.oriole.wisepen.user.api.enums.AiBillingPolicy;
 import com.oriole.wisepen.user.api.enums.GroupRoleFilter;
 import com.oriole.wisepen.user.api.enums.TokenTransferType;
-import com.oriole.wisepen.user.cache.RedisCacheManager;
 import com.oriole.wisepen.user.domain.entity.GroupEntity;
 import com.oriole.wisepen.user.domain.entity.GroupMemberEntity;
 import com.oriole.wisepen.user.exception.UserError;
@@ -48,7 +47,6 @@ public class GroupServiceImpl implements IGroupService {
     private final IGroupMemberService groupMemberService;
     private final IWalletService walletService;
     private final IDisplayService displayService;
-    private final RedisCacheManager redisCacheManager;
     private final RemoteResourceService remoteResourceService;
 
     @Override
@@ -80,7 +78,6 @@ public class GroupServiceImpl implements IGroupService {
         BeanUtil.copyProperties(req, group, "ownerId", "inviteCode", "tokenUsed", "tokenBalance");
         groupMapper.insert(group);
         groupMemberService.joinGroup(group.getGroupId(), userId, GroupRoleType.OWNER);
-        redisCacheManager.blockGroupChat(group.getGroupId());
         return group.getGroupId();
     }
 

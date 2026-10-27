@@ -33,6 +33,7 @@ import com.oriole.wisepen.user.service.IGroupMemberService;
 import com.oriole.wisepen.user.service.IWalletService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
@@ -59,6 +60,9 @@ public class WalletServiceImpl implements IWalletService {
     private final TokenVoucherMapper tokenVoucherMapper;
 
     private final RedisCacheManager redisCacheManager;
+
+    @Value("${wisepen.user.ai-debt-hard-limit-tokens}")
+    private int aiDebtHardLimitTokens;
 
     @Override
     // 消费Token
@@ -251,11 +255,6 @@ public class WalletServiceImpl implements IWalletService {
         walletTransactionRecordMapper.insert(record);
 
         groupMapper.update(null, wrapper);
-        if (group.getTokenBalance() + changedToken > 0) {
-            redisCacheManager.unblockGroupChat(groupId);
-        } else {
-            redisCacheManager.blockGroupChat(groupId);
-        }
     }
 
     @Override
@@ -278,9 +277,10 @@ public class WalletServiceImpl implements IWalletService {
         walletTransactionRecordMapper.insert(record);
 
         userWalletsMapper.update(null, wrapper);
-        if (walletEntity.getTokenBalance() + changedToken > 0) {
+        int updatedBalance = walletEntity.getTokenBalance() + changedToken;
+        if (updatedBalance >= 0) {
             redisCacheManager.unblockUserChat(userId);
-        } else {
+        } else if (updatedBalance <= -aiDebtHardLimitTokens) {
             redisCacheManager.blockUserChat(userId);
         }
     }
@@ -309,18 +309,6 @@ public class WalletServiceImpl implements IWalletService {
         if (rows == 0) {
             throw new ServiceException(UserError.WALLET_TOKEN_LIMIT_BELOW_USED);
         }
-
-        LambdaQueryWrapper<GroupMemberEntity> queryWrapper = new LambdaQueryWrapper<>();
-        queryWrapper.eq(GroupMemberEntity::getGroupId, req.getGroupId())
-                .in(GroupMemberEntity::getUserId, req.getTargetUserIds())
-                // 必须严格小于 (<)！如果等于，说明额度依然是满的，不能解封
-                .lt(GroupMemberEntity::getTokenUsed, req.getNewTokenLimit());
-
-        List<GroupMemberEntity> validMembersToUnblock = groupMemberMapper.selectList(queryWrapper);
-
-        validMembersToUnblock.forEach(member ->
-                redisCacheManager.unblockGroupMemberChat(req.getGroupId(), member.getUserId())
-        );
     }
 
     @Override
@@ -332,13 +320,6 @@ public class WalletServiceImpl implements IWalletService {
                 .setSql("token_balance = token_balance - " + usedToken);
 
         groupMapper.update(null, wrapper);
-
-        GroupEntity group = groupMapper.selectById(groupId);
-        if (group != null && group.getTokenBalance() <= 0) {
-            redisCacheManager.blockGroupChat(groupId);
-            log.warn("group chat blocked by token overdraft. groupId={} tokenBalance={}",
-                    groupId, group.getTokenBalance());
-        }
     }
 
     @EventListener
@@ -375,12 +356,6 @@ public class WalletServiceImpl implements IWalletService {
         }
         // 剩余未支付部分
         int overageTokenBill = tokenBill - groupPayment;
-        // 如果当前余额不足以支付订单
-        if (overageTokenBill > 0) {
-            // 触发组成员熔断
-            redisCacheManager.blockGroupMemberChat(groupId, userId);
-            log.warn("group member chat blocked by quota. groupId={} userId={}", groupId, userId);
-        }
 
         // 联动扣除群组大盘资金池
         eventPublisher.publishEvent(new GroupTokenConsumeEvent(this, groupId, groupPayment));
@@ -418,10 +393,10 @@ public class WalletServiceImpl implements IWalletService {
         userWalletsMapper.update(null, wrapper);
 
         UserWalletEntity walletEntity = userWalletsMapper.selectById(userId);
-        if (walletEntity != null && walletEntity.getTokenBalance() <= 0) {
+        if (walletEntity != null && walletEntity.getTokenBalance() <= -aiDebtHardLimitTokens) {
             redisCacheManager.blockUserChat(userId);
-            log.warn("user chat blocked by token overdraft. userId={} tokenBalance={}",
-                    userId, walletEntity.getTokenBalance());
+            log.warn("user AI blocked by token debt. userId={} tokenBalance={} debtHardLimit={}",
+                    userId, walletEntity.getTokenBalance(), aiDebtHardLimitTokens);
         }
 
         // 记录交易
