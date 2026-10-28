@@ -5,7 +5,7 @@
 <mapper namespace="com.oriole.wisepen.user.mapper.GroupMemberMapper">
 
     <update id="updateAiBillingPriorities">
-        UPDATE sys_group_member
+        UPDATE group_member
         SET ai_billing_priority =
         <choose>
             <when test="orderedGroupIds != null and orderedGroupIds.size() > 0">

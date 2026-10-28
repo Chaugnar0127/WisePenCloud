@@ -16,7 +16,7 @@ import java.time.LocalDateTime;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("sys_group")
+@TableName("user_group")
 public class GroupEntity extends GroupInfoBase {
     @Serial
     private static final long serialVersionUID = 1L;
