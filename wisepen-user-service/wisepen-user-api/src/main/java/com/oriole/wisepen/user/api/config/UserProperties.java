@@ -15,6 +15,7 @@ public class UserProperties {
     private Endpoint endpoint = new Endpoint();
     private AdminPassword adminPassword = new AdminPassword();
     private MessageDedup messageDedup = new MessageDedup();
+    private AiDebt aiDebt = new AiDebt();
 
     @Data
     public static class Endpoint {
@@ -34,5 +35,11 @@ public class UserProperties {
     public static class MessageDedup {
         /** 相同消息的重复判定窗口（分钟） */
         private long windowMinutes = 60;
+    }
+
+    @Data
+    public static class AiDebt {
+        /** 个人钱包允许的 AI Token 欠费硬上限 */
+        private int hardLimitTokens = 10_000;
     }
 }

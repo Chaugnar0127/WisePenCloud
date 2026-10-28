@@ -24,6 +24,32 @@
         }
       }
     },
+    "user-ai-debt-policy": {
+      "name": "用户 AI 欠费策略",
+      "description": "个人钱包允许透支的 Token 上限；达到负向上限后禁止继续使用 AI。",
+      "path": [
+        "wisepen",
+        "user",
+        "ai-debt"
+      ],
+      "restartRequired": false,
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "hard-limit-tokens"
+        ],
+        "properties": {
+          "hard-limit-tokens": {
+            "type": "integer",
+            "title": "AI 欠费硬上限（Token）",
+            "default": 10000,
+            "minimum": 1,
+            "maximum": 2147483647
+          }
+        }
+      }
+    },
     "message-dedup-policy": {
       "name": "消息去重配置",
       "description": "相同消息的重复判定窗口。",

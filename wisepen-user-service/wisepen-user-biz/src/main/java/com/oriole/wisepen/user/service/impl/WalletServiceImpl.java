@@ -11,6 +11,7 @@ import com.baomidou.mybatisplus.core.toolkit.CollectionUtils;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.oriole.wisepen.common.core.domain.PageR;
 import com.oriole.wisepen.resource.feign.RemoteResourceService;
+import com.oriole.wisepen.user.api.config.UserProperties;
 import com.oriole.wisepen.user.api.domain.base.UserDisplayBase;
 import com.oriole.wisepen.user.api.domain.dto.req.WalletSettleCoinTradeRequest;
 import com.oriole.wisepen.user.api.domain.dto.req.WalletTransferTokenRequest;
@@ -33,7 +34,6 @@ import com.oriole.wisepen.user.service.IGroupMemberService;
 import com.oriole.wisepen.user.service.IWalletService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
@@ -60,9 +60,7 @@ public class WalletServiceImpl implements IWalletService {
     private final TokenVoucherMapper tokenVoucherMapper;
 
     private final RedisCacheManager redisCacheManager;
-
-    @Value("${wisepen.user.ai-debt-hard-limit-tokens}")
-    private int aiDebtHardLimitTokens;
+    private final UserProperties userProperties;
 
     @Override
     // 消费Token
@@ -280,7 +278,7 @@ public class WalletServiceImpl implements IWalletService {
         int updatedBalance = walletEntity.getTokenBalance() + changedToken;
         if (updatedBalance >= 0) {
             redisCacheManager.unblockUserChat(userId);
-        } else if (updatedBalance <= -aiDebtHardLimitTokens) {
+        } else if (updatedBalance <= -userProperties.getAiDebt().getHardLimitTokens()) {
             redisCacheManager.blockUserChat(userId);
         }
     }
@@ -393,6 +391,7 @@ public class WalletServiceImpl implements IWalletService {
         userWalletsMapper.update(null, wrapper);
 
         UserWalletEntity walletEntity = userWalletsMapper.selectById(userId);
+        int aiDebtHardLimitTokens = userProperties.getAiDebt().getHardLimitTokens();
         if (walletEntity != null && walletEntity.getTokenBalance() <= -aiDebtHardLimitTokens) {
             redisCacheManager.blockUserChat(userId);
             log.warn("user AI blocked by token debt. userId={} tokenBalance={} debtHardLimit={}",
