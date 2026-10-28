@@ -78,7 +78,7 @@ public class MediaPlaybackServiceImpl implements IMediaPlaybackService {
             throw new ServiceException(MediaError.MEDIA_PREVIEW_NOT_READY);
         }
         String manifestObjectKey = mediaInfo.getSourceHlsPrefix() + "/index.m3u8";
-        return hlsManifestService.getSignedManifest(mediaInfo.getMediaId(), manifestObjectKey);
+        return hlsManifestService.getSignedManifest(mediaInfo.getMediaId(), manifestObjectKey, mediaInfo.getDurationMs());
     }
 
 }

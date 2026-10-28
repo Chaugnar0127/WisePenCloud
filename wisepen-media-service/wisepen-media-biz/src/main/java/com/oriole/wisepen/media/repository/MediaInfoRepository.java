@@ -22,6 +22,9 @@ public interface MediaInfoRepository extends MongoRepository<MediaInfoEntity, St
 
     void deleteByResourceIdIn(List<String> resourceIds);
 
+    @Query(value = "{'_id': ?0, 'mediaStatus.status': ?1}", delete = true)
+    long deleteIfStatusCurrent(String mediaId, MediaStatusEnum expectedStatus);
+
     @Query("{ '$or': [ { 'sourceObjectKey': ?0 }, { 'previewObjectKey': ?0 }, { 'sourceHlsObjectKeys': ?0 } ] }")
     Optional<MediaInfoEntity> findByStorageObjectKey(String objectKey);
 

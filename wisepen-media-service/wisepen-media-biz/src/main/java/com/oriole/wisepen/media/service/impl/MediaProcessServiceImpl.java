@@ -1,6 +1,7 @@
 package com.oriole.wisepen.media.service.impl;
 
 import cn.hutool.core.io.FileUtil;
+import cn.hutool.core.util.IdUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.crypto.SecureUtil;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -203,10 +204,11 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
             sourceFile = downloadSourceFile(downloadUrl, mediaInfo.getMediaId(), sourceExtension);
             ImageSize imageSize = probeImage(sourceFile.toPath());
 
-            previewPath = Files.createTempFile(Paths.get(mediaProperties.getCachePath()), mediaInfo.getMediaId() + "_preview_", ".jpg");
+            previewPath = Files.createTempFile(Paths.get(mediaProperties.getLocalResources().getCachePath()), mediaInfo.getMediaId() + "_preview_", ".jpg");
             runFfmpegToImagePreview(sourceFile.toPath(), previewPath);
+            // 每次处理使用独立目录，避免上一轮异步清理删除本轮产物。
             previewObjectKey = StorageSceneEnum.PRIVATE_MEDIA.getPrefix()
-                    + "/" + mediaInfo.getMediaId() + "/preview.jpg";
+                    + "/" + mediaInfo.getMediaId() + "/" + IdUtil.fastSimpleUUID() + "/preview.jpg";
             previewObjectKey = uploadFile(previewPath, previewObjectKey, mediaInfo.getMediaId());
 
             return new MediaPackagingResult(
@@ -245,7 +247,7 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
         File sourceFile = null;
         List<String> uploadedObjectKeys = new ArrayList<>();
         try {
-            Path cacheRoot = Paths.get(mediaProperties.getCachePath());
+            Path cacheRoot = Paths.get(mediaProperties.getLocalResources().getCachePath());
             Files.createDirectories(cacheRoot);
             workDir = Files.createTempDirectory(cacheRoot, mediaInfo.getMediaId() + "_");
 
@@ -264,7 +266,7 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
 
             // HLS 产物统一上传到 private media 目录，播放时再由 manifest 服务签发分片 URL
             String hlsPrefix = StorageSceneEnum.PRIVATE_MEDIA.getPrefix()
-                    + "/" + mediaInfo.getMediaId() + "/source-hls";
+                    + "/" + mediaInfo.getMediaId() + "/" + IdUtil.fastSimpleUUID() + "/source-hls";
             List<String> hlsObjectKeys = new ArrayList<>();
             try (var stream = Files.list(hlsDir)) {
                 for (Path file : stream.filter(Files::isRegularFile).toList()) {
@@ -355,13 +357,13 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
 
     private File downloadSourceFile(String url, String mediaId, String extension) throws IOException, InterruptedException {
         // 所有媒体源文件先落到本地缓存目录
-        Path dir = Paths.get(mediaProperties.getCachePath());
+        Path dir = Paths.get(mediaProperties.getLocalResources().getCachePath());
         Files.createDirectories(dir);
         Path target = Files.createTempFile(dir, mediaId + "_source_", "." + extension);
 
         HttpRequest request = HttpRequest.newBuilder()
                 .uri(URI.create(url))
-                .timeout(Duration.ofMillis(mediaProperties.getHttpRequestTimeoutMs()))
+                .timeout(Duration.ofMillis(mediaProperties.getProcessingRuntime().getHttpRequestTimeoutMs()))
                 .GET()
                 .build();
         HttpResponse<Path> response;
@@ -381,13 +383,13 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
     private ImageSize probeImage(Path sourcePath) throws IOException {
         // ffprobe 读取图片首帧尺寸，覆盖 webp/gif 等 ImageIO 默认支持不稳定的格式
         String output = runCommand(List.of(
-                mediaProperties.getFfprobePath(),
+                mediaProperties.getLocalResources().getFfprobePath(),
                 "-v", "error",
                 "-select_streams", "v:0",
                 "-show_entries", "stream=width,height",
                 "-of", "json",
                 sourcePath.toString()
-        ), Duration.ofMillis(mediaProperties.getFfmpegTimeoutMs()));
+        ), Duration.ofMillis(mediaProperties.getProcessingRuntime().getFfmpegTimeoutMs()));
         JsonNode root = objectMapper.readTree(output);
         JsonNode stream = root.path("streams").isArray() && !root.path("streams").isEmpty()
                 ? root.path("streams").get(0) : objectMapper.createObjectNode();
@@ -400,13 +402,13 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
     private VideoProbe probeVideo(Path sourcePath) throws IOException {
         // ffprobe 输出 JSON，读取首个视频流尺寸和容器时长
         String output = runCommand(List.of(
-                mediaProperties.getFfprobePath(),
+                mediaProperties.getLocalResources().getFfprobePath(),
                 "-v", "error",
                 "-select_streams", "v:0",
                 "-show_entries", "stream=width,height:format=duration",
                 "-of", "json",
                 sourcePath.toString()
-        ), Duration.ofMillis(mediaProperties.getFfmpegTimeoutMs()));
+        ), Duration.ofMillis(mediaProperties.getProcessingRuntime().getFfmpegTimeoutMs()));
         JsonNode root = objectMapper.readTree(output);
         JsonNode stream = root.path("streams").isArray() && !root.path("streams").isEmpty()
                 ? root.path("streams").get(0) : objectMapper.createObjectNode();
@@ -422,13 +424,13 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
     private AudioProbe probeAudio(Path sourcePath) throws IOException {
         // ffprobe 只选择第一条音频流；没有音频流说明文件不符合音频媒体预期
         String output = runCommand(List.of(
-                mediaProperties.getFfprobePath(),
+                mediaProperties.getLocalResources().getFfprobePath(),
                 "-v", "error",
                 "-select_streams", "a:0",
                 "-show_entries", "stream=codec_type:format=duration",
                 "-of", "json",
                 sourcePath.toString()
-        ), Duration.ofMillis(mediaProperties.getFfmpegTimeoutMs()));
+        ), Duration.ofMillis(mediaProperties.getProcessingRuntime().getFfmpegTimeoutMs()));
         JsonNode root = objectMapper.readTree(output);
         JsonNode streams = root.path("streams");
         if (!streams.isArray() || streams.isEmpty()) {
@@ -442,7 +444,7 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
     private void runFfmpegToHls(Path sourcePath, Path hlsDir) {
         // 转成 VOD HLS：视频统一编码为 H.264，音频存在时转 AAC，并输出 index.m3u8 与 TS 分片
         runCommand(List.of(
-                mediaProperties.getFfmpegPath(),
+                mediaProperties.getLocalResources().getFfmpegPath(),
                 "-y",
                 "-i", sourcePath.toString(),
                 "-map", "0:v:0",
@@ -450,37 +452,37 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
                 "-c:v", "libx264",
                 "-preset", "veryfast",
                 "-c:a", "aac",
-                "-hls_time", String.valueOf(mediaProperties.getHlsSegmentSeconds()),
+                "-hls_time", String.valueOf(mediaProperties.getProcessingRuntime().getHlsSegmentSeconds()),
                 "-hls_playlist_type", "vod",
                 "-hls_segment_filename", hlsDir.resolve("seg-%05d.ts").toString(),
                 hlsDir.resolve("index.m3u8").toString()
-        ), Duration.ofMillis(mediaProperties.getFfmpegTimeoutMs()));
+        ), Duration.ofMillis(mediaProperties.getProcessingRuntime().getFfmpegTimeoutMs()));
     }
 
     private void runFfmpegToImagePreview(Path sourcePath, Path previewPath) {
         // 图片预览统一输出 jpg，并限制长边，避免列表和详情页直接加载原图
         runCommand(List.of(
-                mediaProperties.getFfmpegPath(),
+                mediaProperties.getLocalResources().getFfmpegPath(),
                 "-y",
                 "-i", sourcePath.toString(),
                 "-frames:v", "1",
                 "-vf", "scale=w='if(gt(iw,ih),min(1280,iw),-2)':h='if(gt(iw,ih),-2,min(1280,ih))'",
                 "-q:v", "3",
                 previewPath.toString()
-        ), Duration.ofMillis(mediaProperties.getFfmpegTimeoutMs()));
+        ), Duration.ofMillis(mediaProperties.getProcessingRuntime().getFfmpegTimeoutMs()));
     }
 
     private void runFfmpegToPoster(Path sourcePath, Path posterPath) {
         // 从第 1 秒截取单帧作为视频封面，避免首帧黑屏的常见情况
         runCommand(List.of(
-                mediaProperties.getFfmpegPath(),
+                mediaProperties.getLocalResources().getFfmpegPath(),
                 "-y",
                 "-ss", "00:00:01",
                 "-i", sourcePath.toString(),
                 "-frames:v", "1",
                 "-q:v", "2",
                 posterPath.toString()
-        ), Duration.ofMillis(mediaProperties.getFfmpegTimeoutMs()));
+        ), Duration.ofMillis(mediaProperties.getProcessingRuntime().getFfmpegTimeoutMs()));
     }
 
     private String runCommand(List<String> command, Duration timeout) {
@@ -529,7 +531,7 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
                 // 非秒传场景由媒体服务直接 PUT 产物；不需要上传回调再次驱动媒体流程
                 HttpRequest request = HttpRequest.newBuilder()
                         .uri(URI.create(uploadInitResp.getPutUrl()))
-                        .timeout(Duration.ofMillis(mediaProperties.getHttpRequestTimeoutMs()))
+                        .timeout(Duration.ofMillis(mediaProperties.getProcessingRuntime().getHttpRequestTimeoutMs()))
                         .header("Content-Type", "application/octet-stream")
                         .PUT(HttpRequest.BodyPublishers.ofFile(file))
                         .build();

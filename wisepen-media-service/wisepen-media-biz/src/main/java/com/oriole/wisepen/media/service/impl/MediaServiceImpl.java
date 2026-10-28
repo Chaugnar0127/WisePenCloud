@@ -219,11 +219,9 @@ public class MediaServiceImpl implements IMediaService {
             throw new ServiceException(MediaError.CANNOT_CANCEL_MEDIA_PROCESS_IN_CURRENT_STATE);
         }
 
-        if (StrUtil.isNotBlank(entity.getResourceId())) {
-            deleteMediaByResourceIds(List.of(entity.getResourceId()));
-            log.info("media process cancelled. mediaId={} resourceId={} status={}",
-                    mediaId, entity.getResourceId(), status);
-            return;
+        // 与消费者抢占状态互斥；只有成功删除当前状态的记录后才能清理文件。
+        if (mediaInfoRepository.deleteIfStatusCurrent(mediaId, status) == 0) {
+            throw new ServiceException(MediaError.CANNOT_CANCEL_MEDIA_PROCESS_IN_CURRENT_STATE);
         }
 
         Set<String> objectKeys = new LinkedHashSet<>();
@@ -241,9 +239,8 @@ public class MediaServiceImpl implements IMediaService {
         if (!objectKeys.isEmpty()) {
             eventPublisher.publishFileDeleteEvent(new ArrayList<>(objectKeys));
         }
-        mediaInfoRepository.deleteById(mediaId);
-        log.info("media process cancelled. mediaId={} status={} objectKeys={}",
-                mediaId, status, summarizeIds(new ArrayList<>(objectKeys)));
+        log.info("media process cancelled. mediaId={} resourceId={} status={} objectKeys={}",
+                mediaId, entity.getResourceId(), status, summarizeIds(new ArrayList<>(objectKeys)));
     }
 
     @Override

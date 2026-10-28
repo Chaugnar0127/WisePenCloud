@@ -14,6 +14,7 @@ import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.file.storage.api.domain.base.StorageRecordBase;
 import com.oriole.wisepen.file.storage.api.domain.base.UploadUrlBase;
 import com.oriole.wisepen.file.storage.api.domain.dto.CopyReqDTO;
+import com.oriole.wisepen.file.storage.api.domain.dto.DownloadUrlsReqDTO;
 import com.oriole.wisepen.file.storage.api.domain.dto.StorageRecordDTO;
 import com.oriole.wisepen.file.storage.api.domain.dto.UploadInitReqDTO;
 import com.oriole.wisepen.file.storage.api.domain.dto.StsTokenDTO;
@@ -40,6 +41,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -275,6 +277,34 @@ public class StorageServiceImpl implements IStorageService {
 
         StorageProvider provider = storageManager.getProvider(record.getConfigId());
         return provider.generateDownloadUrl(objectKey, durationSeconds, contentDisposition);
+    }
+
+    @Override
+    public Map<String, String> getDownloadUrls(DownloadUrlsReqDTO req) {
+        List<StorageRecordEntity> records = storageRecordMapper.selectList(
+                Wrappers.<StorageRecordEntity>lambdaQuery()
+                        .in(StorageRecordEntity::getObjectKey, req.getObjectKeys())
+                        .orderByDesc(StorageRecordEntity::getUpdateTime));
+        Map<String, StorageRecordEntity> recordsByKey = records.stream().collect(Collectors.toMap(
+                StorageRecordEntity::getObjectKey, record -> record, (latest, older) -> latest));
+        Map<String, String> downloadUrls = new LinkedHashMap<>();
+        long durationSeconds = req.getDurationSeconds() == null ? 900L : req.getDurationSeconds();
+        for (String objectKey : req.getObjectKeys()) {
+            if (downloadUrls.containsKey(objectKey)) {
+                continue;
+            }
+            StorageRecordEntity record = recordsByKey.get(objectKey);
+            if (record == null || record.getStatus() == StorageStatusEnum.DELETED) {
+                throw new ServiceException(FileStorageError.FILE_RECORD_NOT_FOUND);
+            }
+            // 仅未收到回调的上传记录需要逐个 HEAD 确认；每批最多 500 个，沿用单文件补偿契约。
+            if (record.getStatus() == StorageStatusEnum.UPLOADING && compensateStatus(record) == null) {
+                throw new ServiceException(FileStorageError.FILE_RECORD_NOT_FOUND);
+            }
+            StorageProvider provider = storageManager.getProvider(record.getConfigId());
+            downloadUrls.put(objectKey, provider.generateDownloadUrl(objectKey, durationSeconds, null));
+        }
+        return downloadUrls;
     }
 
     @Override

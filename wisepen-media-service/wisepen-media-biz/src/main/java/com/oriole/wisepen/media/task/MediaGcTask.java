@@ -30,12 +30,12 @@ public class MediaGcTask {
     private final MediaProperties mediaProperties;
     private final KafkaMediaEventPublisher eventPublisher;
 
-    @Scheduled(fixedDelayString = "${wisepen.media.stale-check-delay-ms:300000}")
+    @Scheduled(fixedDelayString = "${wisepen.media.stale-check.delay-ms:300000}")
     public void detectStaleUploads() {
         long start = System.currentTimeMillis();
         log.info("media gc started. task=staleUpload");
         try {
-            int batchSize = Math.max(1, mediaProperties.getGcBatchSize());
+            int batchSize = Math.max(1, mediaProperties.getStaleCheck().getBatchSize());
             List<MediaInfoEntity> uploadingMediaEntities = mediaInfoRepository.findByStatus(
                     MediaStatusEnum.UPLOADING, PageRequest.of(0, batchSize));
             LocalDateTime now = LocalDateTime.now();
@@ -63,7 +63,7 @@ public class MediaGcTask {
             }
 
             LocalDateTime processingCutoff = now.minusNanos(
-                    mediaProperties.getProcessingTimeoutMs() * 1_000_000L);
+                    mediaProperties.getProcessingRuntime().getProcessingTimeoutMs() * 1_000_000L);
             int requeued = requeueStale(MediaStatusEnum.PROCESSING, processingCutoff, batchSize,
                     MediaStatusEnum.UPLOADED);
             requeued += requeueStale(MediaStatusEnum.UPLOADED, processingCutoff, batchSize,
@@ -111,10 +111,10 @@ public class MediaGcTask {
      */
     private long calculateTimeoutMs(Long size) {
         if (size == null || size <= 0) {
-            return mediaProperties.getBaseTimeoutMs();
+            return mediaProperties.getUploadTimeout().getBaseTimeoutMs();
         }
-        long sizeBasedMs = size * 1000L / mediaProperties.getAssumedSpeedBps();
-        return Math.max(mediaProperties.getBaseTimeoutMs(),
-                Math.min(mediaProperties.getMaxTimeoutMs(), sizeBasedMs));
+        long sizeBasedMs = size * 1000L / mediaProperties.getUploadTimeout().getAssumedSpeedBps();
+        return Math.max(mediaProperties.getUploadTimeout().getBaseTimeoutMs(),
+                Math.min(mediaProperties.getUploadTimeout().getMaxTimeoutMs(), sizeBasedMs));
     }
 }

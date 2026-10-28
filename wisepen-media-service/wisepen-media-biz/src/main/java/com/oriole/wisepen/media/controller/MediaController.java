@@ -62,7 +62,7 @@ public class MediaController {
                     - 响应：返回 mediaId、objectKey、上传凭证信息和是否秒传。
                     """
     )
-    @Log(title = "初始化媒体上传", businessType = BusinessType.INSERT)
+    @Log(title = "初始化媒体上传", businessType = BusinessType.INSERT, isSaveResponseData = false)
     @PostMapping("/uploadMedia")
     public R<MediaUploadInitResponse> uploadMedia(@Valid @RequestBody MediaUploadInitRequest request) {
         return R.ok(mediaService.initUploadMedia(request, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap()));
