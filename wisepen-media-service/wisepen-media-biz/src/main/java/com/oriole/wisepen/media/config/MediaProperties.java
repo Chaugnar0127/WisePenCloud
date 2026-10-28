@@ -13,16 +13,6 @@ import org.springframework.stereotype.Component;
 public class MediaProperties {
 
     /**
-     * 播放/预览会话默认过期时间。
-     */
-    private long sessionTtlMinutes = 30L;
-
-    /**
-     * 明水印固定声明文本。
-     */
-    private String academicUseText = "ACADEMIC USE ONLY";
-
-    /**
      * 本地媒体处理缓存目录。
      */
     private String cachePath = "/tmp/wisepen/media/cache/";

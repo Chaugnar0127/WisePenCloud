@@ -1,12 +1,11 @@
 package com.oriole.wisepen.media.api.domain.dto.res;
 
-import com.oriole.wisepen.media.api.enums.MediaDeliveryMode;
 import com.oriole.wisepen.resource.enums.ResourceType;
 import lombok.Builder;
 import lombok.Data;
 
 /**
- * 媒体无水印播放响应
+ * 媒体播放响应，按 resourceType 提供图片、音频或视频播放地址。
  */
 @Data
 @Builder
@@ -17,9 +16,6 @@ public class MediaPlaybackResponse {
     private String mediaId;
 
     private ResourceType resourceType;
-
-    /** 播放交付模式 */
-    private MediaDeliveryMode deliveryMode;
 
     /** 图片或视频封面图 URL */
     private String coverUrl;

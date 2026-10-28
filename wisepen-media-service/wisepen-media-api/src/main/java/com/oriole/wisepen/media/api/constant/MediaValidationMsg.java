@@ -12,7 +12,6 @@ public final class MediaValidationMsg {
     public static final String FILE_SIZE_POSITIVE = "文件大小必须大于0";
     public static final String MEDIA_ID_EMPTY = "媒体ID不能为空";
     public static final String RESOURCE_ID_EMPTY = "资源ID不能为空";
-    public static final String SESSION_ID_EMPTY = "会话ID不能为空";
 
     private MediaValidationMsg() {
     }

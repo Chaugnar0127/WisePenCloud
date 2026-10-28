@@ -20,27 +20,27 @@ public class RedisCacheManager {
 
     private final StringRedisTemplate stringRedisTemplate;
 
-    public String getPlaybackManifest(String sessionId) {
-        return stringRedisTemplate.opsForValue().get(REDIS_PLAYBACK_MANIFEST_PREFIX + sessionId);
+    public String getPlaybackManifest(String mediaId) {
+        return stringRedisTemplate.opsForValue().get(REDIS_PLAYBACK_MANIFEST_PREFIX + mediaId);
     }
 
-    public void setPlaybackManifest(String sessionId, String manifest, long ttlSeconds) {
+    public void setPlaybackManifest(String mediaId, String manifest, long ttlSeconds) {
         if (ttlSeconds <= 0 || manifest == null || manifest.isBlank()) {
             return;
         }
-        stringRedisTemplate.opsForValue().set(REDIS_PLAYBACK_MANIFEST_PREFIX + sessionId, manifest, ttlSeconds, TimeUnit.SECONDS);
+        stringRedisTemplate.opsForValue().set(REDIS_PLAYBACK_MANIFEST_PREFIX + mediaId, manifest, ttlSeconds, TimeUnit.SECONDS);
     }
 
-    public Boolean tryLockPlaybackManifestBuild(String sessionId, String lockToken, long ttlSeconds) {
+    public Boolean tryLockPlaybackManifestBuild(String mediaId, String lockToken, long ttlSeconds) {
         if (ttlSeconds <= 0) {
             return Boolean.FALSE;
         }
-        return stringRedisTemplate.opsForValue().setIfAbsent(REDIS_PLAYBACK_MANIFEST_LOCK_PREFIX + sessionId, lockToken, ttlSeconds, TimeUnit.SECONDS);
+        return stringRedisTemplate.opsForValue().setIfAbsent(REDIS_PLAYBACK_MANIFEST_LOCK_PREFIX + mediaId, lockToken, ttlSeconds, TimeUnit.SECONDS);
     }
 
-    public void unlockPlaybackManifestBuild(String sessionId, String lockToken) {
+    public void unlockPlaybackManifestBuild(String mediaId, String lockToken) {
         stringRedisTemplate.execute(UNLOCK_PLAYBACK_MANIFEST_BUILD_SCRIPT,
-                List.of(REDIS_PLAYBACK_MANIFEST_LOCK_PREFIX + sessionId),
+                List.of(REDIS_PLAYBACK_MANIFEST_LOCK_PREFIX + mediaId),
                 lockToken);
     }
 

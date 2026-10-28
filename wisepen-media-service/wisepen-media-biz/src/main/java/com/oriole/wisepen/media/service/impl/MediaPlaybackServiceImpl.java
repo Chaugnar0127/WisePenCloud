@@ -4,9 +4,7 @@ import cn.hutool.core.util.StrUtil;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.file.storage.api.feign.RemoteStorageService;
 import com.oriole.wisepen.media.api.domain.dto.res.MediaPlaybackResponse;
-import com.oriole.wisepen.media.api.enums.MediaDeliveryMode;
 import com.oriole.wisepen.media.api.enums.MediaStatusEnum;
-import com.oriole.wisepen.media.config.MediaProperties;
 import com.oriole.wisepen.media.domain.entity.MediaInfoEntity;
 import com.oriole.wisepen.media.exception.MediaError;
 import com.oriole.wisepen.media.repository.MediaInfoRepository;
@@ -16,7 +14,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 /**
- * 无水印媒体播放服务，按媒体类型返回封面图、源文件或源 HLS 播放地址
+ * 媒体播放服务，按媒体类型返回封面图、源文件或源 HLS 播放地址。
  */
 @Service
 @RequiredArgsConstructor
@@ -25,7 +23,6 @@ public class MediaPlaybackServiceImpl implements IMediaPlaybackService {
     private final MediaInfoRepository mediaInfoRepository;
     private final RemoteStorageService remoteStorageService;
     private final MediaHlsManifestService hlsManifestService;
-    private final MediaProperties mediaProperties;
 
     @Override
     public MediaPlaybackResponse getPlayback(String resourceId) {
@@ -47,7 +44,6 @@ public class MediaPlaybackServiceImpl implements IMediaPlaybackService {
                 throw new ServiceException(MediaError.MEDIA_PREVIEW_NOT_READY);
             }
             return builder
-                    .deliveryMode(MediaDeliveryMode.IMAGE_SOURCE)
                     .coverUrl(remoteStorageService.getDownloadUrl(mediaInfo.getPreviewObjectKey(), null, null).getData())
                     .playbackUrl(remoteStorageService.getDownloadUrl(mediaInfo.getSourceObjectKey(), null, null).getData())
                     .build();
@@ -57,7 +53,6 @@ public class MediaPlaybackServiceImpl implements IMediaPlaybackService {
                 throw new ServiceException(MediaError.MEDIA_PREVIEW_NOT_READY);
             }
             return builder
-                    .deliveryMode(MediaDeliveryMode.VIDEO_SOURCE_HLS)
                     .coverUrl(StrUtil.isNotBlank(mediaInfo.getPreviewObjectKey())
                             ? remoteStorageService.getDownloadUrl(mediaInfo.getPreviewObjectKey(), null, null).getData()
                             : null)
@@ -66,7 +61,6 @@ public class MediaPlaybackServiceImpl implements IMediaPlaybackService {
         }
         if (mediaInfo.getResourceType() == ResourceType.AUDIO) {
             return builder
-                    .deliveryMode(MediaDeliveryMode.AUDIO_SOURCE)
                     .playbackUrl(remoteStorageService.getDownloadUrl(mediaInfo.getSourceObjectKey(), null, null).getData())
                     .build();
         }
@@ -84,10 +78,7 @@ public class MediaPlaybackServiceImpl implements IMediaPlaybackService {
             throw new ServiceException(MediaError.MEDIA_PREVIEW_NOT_READY);
         }
         String manifestObjectKey = mediaInfo.getSourceHlsPrefix() + "/index.m3u8";
-        return hlsManifestService.getSignedManifest(manifestObjectKey,
-                "source:" + mediaInfo.getMediaId(),
-                mediaProperties.getHlsSegmentUrlTtlSeconds()
-                        - mediaProperties.getPlaybackManifestCacheSafetySeconds());
+        return hlsManifestService.getSignedManifest(mediaInfo.getMediaId(), manifestObjectKey);
     }
 
 }

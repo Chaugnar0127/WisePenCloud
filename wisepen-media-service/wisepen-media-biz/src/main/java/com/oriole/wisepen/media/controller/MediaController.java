@@ -8,17 +8,14 @@ import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.common.security.annotation.CheckRole;
 import com.oriole.wisepen.media.api.constant.MediaValidationMsg;
 import com.oriole.wisepen.media.api.domain.base.MediaStatus;
-import com.oriole.wisepen.media.api.domain.dto.req.MediaPlaybackSessionCreateRequest;
 import com.oriole.wisepen.media.api.domain.dto.req.MediaUploadInitRequest;
 import com.oriole.wisepen.media.api.domain.dto.res.MediaDetailResponse;
 import com.oriole.wisepen.media.api.domain.dto.res.MediaInfoResponse;
 import com.oriole.wisepen.media.api.domain.dto.res.MediaPlaybackResponse;
-import com.oriole.wisepen.media.api.domain.dto.res.MediaPlaybackSessionResponse;
 import com.oriole.wisepen.media.api.domain.dto.res.MediaUploadInitResponse;
 import com.oriole.wisepen.media.exception.MediaError;
 import com.oriole.wisepen.media.service.IMediaPlaybackService;
 import com.oriole.wisepen.media.service.IMediaService;
-import com.oriole.wisepen.media.service.IMediaWatermarkPlaybackService;
 import com.oriole.wisepen.resource.domain.dto.ResourceInfoGetReqDTO;
 import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionReqDTO;
 import com.oriole.wisepen.resource.domain.dto.ResourceCheckPermissionResDTO;
@@ -42,7 +39,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-@Tag(name = "媒体处理", description = "图片、视频和音频上传、处理状态、播放会话与下载")
+@Tag(name = "媒体处理", description = "图片、视频和音频上传、处理状态、播放与下载")
 @RestController
 @RequestMapping("/media")
 @RequiredArgsConstructor
@@ -52,7 +49,6 @@ public class MediaController {
 
     private final IMediaService mediaService;
     private final IMediaPlaybackService mediaPlaybackService;
-    private final IMediaWatermarkPlaybackService mediaWatermarkPlaybackService;
     private final RemoteResourceService remoteResourceService;
 
     @Operation(
@@ -131,7 +127,7 @@ public class MediaController {
                     - 用途：取消当前用户尚未完成的媒体上传或处理任务。
                     - 请求：mediaId 指定待取消的媒体任务。
                     - 约束：当前用户必须是该媒体上传者；媒体已就绪后不能取消；处理中或正在注册资源的媒体当前不允许取消。
-                    - 处理：删除媒体信息以及相关对象存储待清理文件；如果媒体已经关联资源，则同时删除资源关联的媒体记录和水印会话。
+                    - 处理：删除媒体记录，并提交源文件、预览图和 HLS 产物的对象存储清理请求。
                     - 失败：媒体不存在 -> MediaError.MEDIA_NOT_FOUND；当前用户不是上传者 -> MediaError.MEDIA_PERMISSION_DENIED；媒体已就绪 -> MediaError.CANNOT_CANCEL_READY_MEDIA_PROCESS；媒体当前状态不能取消 -> MediaError.CANNOT_CANCEL_MEDIA_PROCESS_IN_CURRENT_STATE。
                     - 响应：成功时返回空结果。
                     """
@@ -147,12 +143,12 @@ public class MediaController {
     @Operation(
             summary = "获取媒体播放授权",
             description = """
-                    - 用途：为有查看权限的用户获取无水印媒体播放地址。
+                    - 用途：为有查看权限的用户获取媒体播放地址。
                     - 请求：resourceId 指定媒体资源。
                     - 约束：当前用户必须拥有 VIEW 动作；媒体必须已经处理完成。
-                    - 处理：图片签发原图和低清封面图 OSS 短时 URL；音频签发源文件 OSS 短时 URL；视频返回封面图和媒体服务的源 HLS manifest 地址，不创建水印会话，不生成水印。
+                    - 处理：图片签发原图和低清封面图 OSS 短时 URL；音频签发源文件 OSS 短时 URL；视频返回封面图和媒体服务的源 HLS manifest 地址。
                     - 失败：无查看权限 -> MediaError.MEDIA_PERMISSION_DENIED；媒体不存在 -> MediaError.MEDIA_NOT_FOUND；媒体未就绪 -> MediaError.MEDIA_PREVIEW_NOT_READY。
-                    - 响应：图片通过 playbackUrl 返回原图、coverUrl 返回低清封面图；视频通过 coverUrl 返回封面图、manifestUrl 返回 HLS 地址；音频通过 playbackUrl 返回源文件。
+                    - 响应：resourceType 标识媒体类型；图片通过 playbackUrl 返回原图、coverUrl 返回低清封面图；视频通过 coverUrl 返回封面图、manifestUrl 返回 HLS 地址；音频通过 playbackUrl 返回源文件。
                     """
     )
     @GetMapping("/getPlayback")
@@ -165,11 +161,11 @@ public class MediaController {
     @Operation(
             summary = "获取媒体播放 HLS manifest",
             description = """
-                    - 用途：为无水印视频播放返回当前可播放的源 HLS manifest。
+                    - 用途：为视频播放返回当前可播放的源 HLS manifest。
                     - 请求：resourceId 指定媒体资源。
                     - 约束：当前用户必须拥有 VIEW 动作；媒体必须是已就绪视频。
-                    - 处理：读取源 HLS manifest，并将 segment URI 改写为 OSS 短时防盗链 URL；不创建播放会话，不生成水印。
-                    - 失败：无查看权限 -> MediaError.MEDIA_PERMISSION_DENIED；媒体不存在 -> MediaError.MEDIA_NOT_FOUND；媒体未就绪或不是视频 -> MediaError.MEDIA_PREVIEW_NOT_READY。
+                    - 处理：读取源 HLS manifest，并将 segment URI 改写为 OSS 短时防盗链 URL；按媒体缓存签名后的清单。
+                    - 失败：无查看权限 -> MediaError.MEDIA_PERMISSION_DENIED；媒体不存在 -> MediaError.MEDIA_NOT_FOUND；媒体未就绪或不是视频 -> MediaError.MEDIA_PREVIEW_NOT_READY；播放清单获取失败 -> MediaError.MEDIA_PLAYBACK_FAILED。
                     - 响应：返回 application/vnd.apple.mpegurl 文本。
                     """
     )
@@ -181,65 +177,12 @@ public class MediaController {
     }
 
     @Operation(
-            summary = "创建水印播放会话",
-            description = """
-                    - 用途：为后续取证水印播放链路创建图片预览或视频 HLS 播放会话。
-                    - 请求：resourceId 指定媒体资源。
-                    - 约束：当前用户必须拥有 VIEW 动作；媒体必须已经处理完成；图片和视频暗水印 Provider 不可用时直接拒绝返回源文件；音频不需要水印。
-                    - 处理：先通过资源服务校验 VIEW 权限；图片和视频创建带 wmId 的水印会话并交由水印 Provider 生成交付地址；音频直接申请源文件短时播放 URL，不创建水印会话。
-                    - 失败：无查看权限 -> MediaError.MEDIA_PERMISSION_DENIED；媒体未就绪 -> MediaError.MEDIA_PREVIEW_NOT_READY；图片或视频暗水印能力不可用 -> MediaError.MEDIA_FORENSIC_UNAVAILABLE。
-                    - 响应：图片和视频返回会话 ID、交付模式、明水印文本、预览 URL 或 HLS manifest URL；音频返回 AUDIO_SOURCE 交付模式和 playbackUrl。
-                    """
-    )
-    @Log(title = "创建水印播放会话", businessType = BusinessType.INSERT)
-    @PostMapping("/createWatermarkPlaybackSession")
-    public R<MediaPlaybackSessionResponse> createWatermarkPlaybackSession(
-            @Valid @RequestBody MediaPlaybackSessionCreateRequest request) {
-        assertResourceAction(request.getResourceId(), ResourceAction.VIEW);
-        return R.ok(mediaWatermarkPlaybackService.createPlaybackSession(request.getResourceId(), SecurityContextHolder.getUserId()));
-    }
-
-    @Operation(
-            summary = "查询水印播放会话",
-            description = """
-                    - 用途：查询当前用户已有图片预览或视频水印播放会话的生成结果；音频播放授权不创建可轮询会话。
-                    - 请求：sessionId 指定播放会话。
-                    - 约束：只能查询当前登录用户自己的未过期会话。
-                    - 处理：读取会话状态和交付地址，不重新创建水印。
-                    - 失败：会话不存在、不是本人会话或已过期 -> MediaError.MEDIA_PLAYBACK_SESSION_NOT_FOUND。
-                    - 响应：返回会话状态、交付模式、明水印文本、预览 URL 或 HLS manifest URL。
-                    """
-    )
-    @GetMapping("/getWatermarkPlaybackSession")
-    public R<MediaPlaybackSessionResponse> getWatermarkPlaybackSession(
-            @RequestParam @NotBlank(message = MediaValidationMsg.SESSION_ID_EMPTY) String sessionId) {
-        return R.ok(mediaWatermarkPlaybackService.getPlaybackSession(sessionId, SecurityContextHolder.getUserId()));
-    }
-
-    @Operation(
-            summary = "获取水印播放 HLS manifest",
-            description = """
-                    - 用途：为视频水印播放会话返回当前可播放的 HLS manifest。
-                    - 请求：sessionId 指定播放会话。
-                    - 约束：只能访问当前登录用户自己的未过期视频会话；READY 前不返回可播放 manifest。
-                    - 处理：读取会话 manifest，并将 segment URI 改写为 OSS 短时防盗链 URL。
-                    - 失败：会话不存在、不是本人会话或已过期 -> MediaError.MEDIA_PLAYBACK_SESSION_NOT_FOUND；媒体未就绪 -> MediaError.MEDIA_PREVIEW_NOT_READY。
-                    - 响应：返回 application/vnd.apple.mpegurl 文本。
-                    """
-    )
-    @GetMapping(value = "/getWatermarkPlaybackManifest", produces = "application/vnd.apple.mpegurl")
-    public String getWatermarkPlaybackManifest(
-            @RequestParam @NotBlank(message = MediaValidationMsg.SESSION_ID_EMPTY) String sessionId) {
-        return mediaWatermarkPlaybackService.getPlaybackManifest(sessionId, SecurityContextHolder.getUserId());
-    }
-
-    @Operation(
             summary = "下载原始媒体",
             description = """
                     - 用途：为有源文件下载权限的用户下载图片、视频或音频原始文件。
                     - 请求：resourceId 指定媒体资源。
                     - 约束：当前用户必须拥有 DOWNLOAD_ORIGINAL 动作；媒体必须已经处理完成。
-                    - 处理：通过资源服务校验 DOWNLOAD_ORIGINAL 权限后，申请携带原始文件名的对象存储限时下载 URL，并重定向浏览器直下；不创建水印会话，不修改媒体内容。
+                    - 处理：通过资源服务校验 DOWNLOAD_ORIGINAL 权限后，申请携带原始文件名的对象存储限时下载 URL，并重定向浏览器直下。
                     - 失败：无源文件下载权限 -> MediaError.MEDIA_PERMISSION_DENIED；媒体不存在 -> MediaError.MEDIA_NOT_FOUND；媒体未就绪 -> MediaError.MEDIA_PREVIEW_NOT_READY。
                     - 响应：返回 302 重定向到对象存储限时下载地址，并保持上传格式。
                     """

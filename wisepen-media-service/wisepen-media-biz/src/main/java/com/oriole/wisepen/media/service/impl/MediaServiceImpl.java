@@ -19,11 +19,9 @@ import com.oriole.wisepen.media.api.domain.dto.res.MediaUploadInitResponse;
 import com.oriole.wisepen.media.api.domain.mq.MediaProcessTaskMessage;
 import com.oriole.wisepen.media.api.enums.MediaStatusEnum;
 import com.oriole.wisepen.media.domain.entity.MediaInfoEntity;
-import com.oriole.wisepen.media.domain.entity.MediaWatermarkSessionEntity;
 import com.oriole.wisepen.media.exception.MediaError;
 import com.oriole.wisepen.media.mq.KafkaMediaEventPublisher;
 import com.oriole.wisepen.media.repository.MediaInfoRepository;
-import com.oriole.wisepen.media.repository.MediaWatermarkSessionRepository;
 import com.oriole.wisepen.media.service.IMediaProcessService;
 import com.oriole.wisepen.media.service.IMediaService;
 import com.oriole.wisepen.resource.enums.ResourceType;
@@ -49,7 +47,6 @@ import static com.oriole.wisepen.common.core.util.LogIdUtils.summarizeIds;
 public class MediaServiceImpl implements IMediaService {
 
     private final MediaInfoRepository mediaInfoRepository;
-    private final MediaWatermarkSessionRepository watermarkSessionRepository;
     private final KafkaMediaEventPublisher eventPublisher;
     private final RemoteStorageService remoteStorageService;
     private final IMediaProcessService mediaProcessService;
@@ -332,7 +329,6 @@ public class MediaServiceImpl implements IMediaService {
     @Override
     public void deleteMediaByResourceIds(List<String> resourceIds) {
         List<MediaInfoEntity> mediaInfos = mediaInfoRepository.findByResourceIdIn(resourceIds);
-        List<MediaWatermarkSessionEntity> sessions = watermarkSessionRepository.findByResourceIdIn(resourceIds);
         Set<String> objectKeys = new LinkedHashSet<>();
         for (MediaInfoEntity mediaInfo : mediaInfos) {
             if (StrUtil.isNotBlank(mediaInfo.getSourceObjectKey())) {
@@ -347,23 +343,9 @@ public class MediaServiceImpl implements IMediaService {
                 objectKeys.add(mediaInfo.getPreviewObjectKey());
             }
         }
-        for (MediaWatermarkSessionEntity session : sessions) {
-            if (StrUtil.isNotBlank(session.getPreviewObjectKey())) {
-                objectKeys.add(session.getPreviewObjectKey());
-            }
-            if (StrUtil.isNotBlank(session.getManifestObjectKey())) {
-                objectKeys.add(session.getManifestObjectKey());
-            }
-            if (session.getDeliveryObjectKeys() != null) {
-                session.getDeliveryObjectKeys().stream()
-                        .filter(StrUtil::isNotBlank)
-                        .forEach(objectKeys::add);
-            }
-        }
         if (!objectKeys.isEmpty()) {
             eventPublisher.publishFileDeleteEvent(new ArrayList<>(objectKeys));
         }
-        watermarkSessionRepository.deleteByResourceIdIn(resourceIds);
         mediaInfoRepository.deleteByResourceIdIn(resourceIds);
         log.info("media resources deleted. count={} resourceIds={}", resourceIds.size(), summarizeIds(resourceIds));
     }

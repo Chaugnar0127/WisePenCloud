@@ -193,7 +193,7 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
     }
 
     private MediaPackagingResult packageImage(MediaInfoEntity mediaInfo) {
-        // 图片生成独立预览图，不把源文件暴露给预览链路
+        // 图片生成独立低清封面图，用于资源列表和播放封面展示
         File sourceFile = null;
         String previewObjectKey = null;
         Path previewPath = null;

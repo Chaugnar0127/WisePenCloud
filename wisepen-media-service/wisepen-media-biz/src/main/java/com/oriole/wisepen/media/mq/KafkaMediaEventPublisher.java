@@ -2,7 +2,6 @@ package com.oriole.wisepen.media.mq;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oriole.wisepen.common.mq.ReliablePublisher;
-import com.oriole.wisepen.media.api.domain.mq.MediaJitPlaybackTaskMessage;
 import com.oriole.wisepen.media.api.domain.mq.MediaProcessTaskMessage;
 import com.oriole.wisepen.media.api.domain.mq.MediaReadyMessage;
 import io.github.springwolf.core.asyncapi.annotations.AsyncMessage;
@@ -46,23 +45,6 @@ public class KafkaMediaEventPublisher {
         } catch (Exception e) {
             log.error("media process event publish request failed. topic={} mediaId={}",
                     TOPIC_MEDIA_PROCESS, message.getMediaId(), e);
-        }
-    }
-
-    @AsyncPublisher(operation = @AsyncOperation(
-            channelName = TOPIC_MEDIA_JIT_PLAYBACK,
-            description = "短视频播放会话创建后发布 JIT HLS 处理任务。",
-            payloadType = MediaJitPlaybackTaskMessage.class,
-            message = @AsyncMessage(name = "MediaJitPlaybackTaskMessage", title = "媒体 JIT 播放任务")
-    ))
-    public void publishJitPlaybackTask(MediaJitPlaybackTaskMessage message) {
-        try {
-            reliablePublisher.publish(TOPIC_MEDIA_JIT_PLAYBACK, message.getSessionId(), message, message.getSessionId());
-            log.debug("media jit playback event publish requested. topic={} sessionId={} mediaId={}",
-                    TOPIC_MEDIA_JIT_PLAYBACK, message.getSessionId(), message.getMediaId());
-        } catch (Exception e) {
-            log.error("media jit playback event publish request failed. topic={} sessionId={} mediaId={}",
-                    TOPIC_MEDIA_JIT_PLAYBACK, message.getSessionId(), message.getMediaId(), e);
         }
     }
 

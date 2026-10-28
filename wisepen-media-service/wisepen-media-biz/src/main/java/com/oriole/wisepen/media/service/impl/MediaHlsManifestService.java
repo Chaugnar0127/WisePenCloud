@@ -38,12 +38,12 @@ public class MediaHlsManifestService {
     private final MediaProperties mediaProperties;
     private final RedisCacheManager redisCacheManager;
 
-    public String getSignedManifest(String manifestObjectKey, String cacheKey, long ttlSeconds) {
+    public String getSignedManifest(String mediaId, String manifestObjectKey) {
         try {
             // 读缓存
             String cachedManifest = null;
             try {
-                cachedManifest = redisCacheManager.getPlaybackManifest(cacheKey);
+                cachedManifest = redisCacheManager.getPlaybackManifest(mediaId);
             } catch (Exception e) {
                 log.warn("media hls manifest cache read failed. manifestObjectKey={}", manifestObjectKey, e);
             }
@@ -56,7 +56,7 @@ public class MediaHlsManifestService {
             Boolean lockResult = null;
             try {
                 lockResult = redisCacheManager.tryLockPlaybackManifestBuild(
-                        cacheKey,
+                        mediaId,
                         lockToken,
                         mediaProperties.getPlaybackManifestBuildLockTtlSeconds());
             } catch (Exception e) {
@@ -69,7 +69,7 @@ public class MediaHlsManifestService {
                 if (lockAcquired) {
                     // 再读一次缓存，防止刚好别人已经写入
                     try {
-                        cachedManifest = redisCacheManager.getPlaybackManifest(cacheKey);
+                        cachedManifest = redisCacheManager.getPlaybackManifest(mediaId);
                     } catch (Exception e) {
                         log.warn("media hls manifest cache read failed. manifestObjectKey={}", manifestObjectKey, e);
                     }
@@ -80,16 +80,18 @@ public class MediaHlsManifestService {
                 // 别人拿到锁
                 else if (Boolean.FALSE.equals(lockResult)) {
                     // 等对方写缓存
-                    cachedManifest = waitForCachedManifest(cacheKey, manifestObjectKey);
+                    cachedManifest = waitForCachedManifest(mediaId, manifestObjectKey);
                     if (cachedManifest != null) {
                         return cachedManifest;
                     }
                 }
 
                 String manifest = buildSignedManifest(manifestObjectKey);
+                long ttlSeconds = mediaProperties.getHlsSegmentUrlTtlSeconds()
+                        - mediaProperties.getPlaybackManifestCacheSafetySeconds();
                 if (ttlSeconds > 0) {
                     try {
-                        redisCacheManager.setPlaybackManifest(cacheKey, manifest, ttlSeconds);
+                        redisCacheManager.setPlaybackManifest(mediaId, manifest, ttlSeconds);
                     } catch (Exception e) {
                         log.warn("media hls manifest cache write failed. manifestObjectKey={}", manifestObjectKey, e);
                     }
@@ -98,7 +100,7 @@ public class MediaHlsManifestService {
             } finally {
                 if (lockAcquired) {
                     try {
-                        redisCacheManager.unlockPlaybackManifestBuild(cacheKey, lockToken);
+                        redisCacheManager.unlockPlaybackManifestBuild(mediaId, lockToken);
                     } catch (Exception e) {
                         log.warn("media hls manifest cache unlock failed. manifestObjectKey={}", manifestObjectKey, e);
                     }
@@ -142,11 +144,11 @@ public class MediaHlsManifestService {
         return builder.toString();
     }
 
-    private String waitForCachedManifest(String cacheKey, String manifestObjectKey) {
+    private String waitForCachedManifest(String mediaId, String manifestObjectKey) {
         for (int i = 0; i < MANIFEST_CACHE_WAIT_ATTEMPTS; i++) {
             try {
                 Thread.sleep(MANIFEST_CACHE_WAIT_MILLIS);
-                String manifest = redisCacheManager.getPlaybackManifest(cacheKey);
+                String manifest = redisCacheManager.getPlaybackManifest(mediaId);
                 if (StrUtil.isNotBlank(manifest)) {
                     return manifest;
                 }
