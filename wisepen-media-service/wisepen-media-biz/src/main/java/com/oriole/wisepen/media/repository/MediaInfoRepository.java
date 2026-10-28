@@ -37,10 +37,6 @@ public interface MediaInfoRepository extends MongoRepository<MediaInfoEntity, St
     @Query("{ 'mediaStatus.status': ?0, 'updateTime': { '$lte': ?1 } }")
     List<MediaInfoEntity> findStaleByStatus(MediaStatusEnum status, LocalDateTime updateTime, Pageable pageable);
 
-    @Query("{'_id': ?0}")
-    @Update("{'$set': {'mediaStatus': ?1}, '$currentDate': {'updateTime': true}}")
-    void updateStatusById(String mediaId, MediaStatus status);
-
     @Query("{'_id': ?0, 'mediaStatus.status': ?1}")
     @Update("{'$set': {'mediaStatus': ?2}, '$currentDate': {'updateTime': true}}")
     long updateStatusIfCurrent(String mediaId, MediaStatusEnum expectedStatus, MediaStatus status);

@@ -121,21 +121,6 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
     }
 
     @Override
-    public void updateStatus(String mediaId, MediaStatus status) {
-        // 先读取旧状态只用于日志追踪；状态流转约束由调用方业务流程保证
-        MediaInfoEntity entity = mediaInfoRepository.findById(mediaId)
-                .orElse(null);
-        if (entity == null) {
-            log.debug("media status update skipped because media was deleted. mediaId={}", mediaId);
-            return;
-        }
-        MediaStatusEnum from = entity.getMediaStatus() != null ? entity.getMediaStatus().getStatus() : null;
-        mediaInfoRepository.updateStatusById(mediaId, status);
-        log.info("media status changed. mediaId={} resourceId={} from={} to={}",
-                mediaId, entity.getResourceId(), from, status.getStatus());
-    }
-
-    @Override
     public void prepareProcessRetry(String mediaId) {
         // 资源注册阶段、终态和失败态不回拨；这些状态有各自的重试或出口语义
         MediaInfoEntity entity = mediaInfoRepository.findById(mediaId)
