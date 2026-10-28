@@ -8,6 +8,7 @@ import com.oriole.wisepen.ai.asset.exception.AIResourceError;
 import com.oriole.wisepen.ai.asset.mq.AIAssetEventPublisher;
 import com.oriole.wisepen.ai.asset.repository.AgentRepository;
 import com.oriole.wisepen.ai.asset.repository.AgentVersionBundleRepository;
+import com.oriole.wisepen.ai.asset.repository.CustomVersionBundleAssetRepository;
 import com.oriole.wisepen.common.core.exception.ServiceException;
 import com.oriole.wisepen.file.storage.api.enums.StorageSceneEnum;
 import com.oriole.wisepen.file.storage.api.feign.RemoteStorageService;
@@ -22,8 +23,9 @@ public class AgentVersionServiceImpl extends VersionServiceImpl<AgentVersionBund
     public AgentVersionServiceImpl(AgentVersionBundleRepository agentVersionBundleRepository,
                                    AgentRepository agentRepository,
                                    RemoteStorageService remoteStorageService,
-                                   AIAssetEventPublisher eventPublisher) {
-        super(agentVersionBundleRepository, agentRepository, remoteStorageService, eventPublisher);
+                                   AIAssetEventPublisher eventPublisher,
+                                   CustomVersionBundleAssetRepository versionBundleAssetRepository) {
+        super(agentVersionBundleRepository, agentRepository, remoteStorageService, eventPublisher, versionBundleAssetRepository);
     }
 
     @Override

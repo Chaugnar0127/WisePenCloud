@@ -19,6 +19,6 @@ public interface RemoteMailService {
      * @param mailSendDTO 邮件发送DTO
      * @return 发送结果
      */
-    @PostMapping("/system/mail/send")
+    @PostMapping("/internal/system/mail/sendMail")
     R<Void> sendMail(@RequestBody MailSendDTO mailSendDTO);
 }

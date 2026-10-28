@@ -199,7 +199,7 @@ public class AgentController {
                     - 用途：为智能体资产草稿版本新增或替换一批资产文件，并申请对象存储上传凭证。
                     - 请求：resourceId 指定智能体资产；draftVersion 指定草稿版本；assets 中的 path、name、assetResourceType、md5、expectedSize 描述待上传文件。
                     - 约束：当前用户必须是资源所有者；目标版本必须是 DRAFT；path 必须以 / 开头且不能包含非法目录跳转；name 不能包含路径分隔符；资产列表不能为空。
-                    - 处理：在草稿版本中查找或创建资产条目，向文件存储服务申请上传 URL 或秒传，更新资产 objectKey、大小和上传状态；被替换且不再被任何版本引用的旧文件会发布删除事件；不发布草稿版本。
+                    - 处理：在草稿版本中查找或创建资产条目并向文件存储服务申请上传凭证；普通上传记录为待提交内容并保留当前可用文件，秒传立即生效；旧文件仅在新文件生效且不再被任何版本引用后发布删除事件；不发布草稿版本。
                     - 失败：未登录 -> PermissionError.NOT_LOGIN；当前用户不是资源所有者 -> AIResourceError.AI_RESOURCE_PERMISSION_DENIED；版本不存在 -> AIResourceError.AI_RESOURCE_VERSION_NOT_FOUND；版本不是草稿 -> AIResourceError.CANNOT_OPERATE_NON_DRAFT_AI_RESOURCE_VERSION；资产路径非法 -> AIResourceError.AI_RESOURCE_ASSET_PATH_INVALID；存储上传凭证申请失败 -> AIResourceError.AI_RESOURCE_ASSET_UPLOAD_URL_APPLY_FAILED。
                     - 响应：返回每个资产的 assetId、路径、文件名、objectKey、上传凭证和是否秒传。
                     """
@@ -213,12 +213,31 @@ public class AgentController {
     }
 
     @Operation(
+            summary = "取消智能体文件上传",
+            description = """
+                    - 用途：放弃智能体草稿文件尚未完成的新增或替换上传。
+                    - 请求：resourceId 和 draftVersion 指定草稿版本；uploads 中每项同时提供 assetId 与初始化上传返回的 objectKey。
+                    - 约束：当前用户必须是资源所有者；目标版本必须是 DRAFT；只取消 assetId 与当前待提交 objectKey 同时匹配的上传。
+                    - 处理：已有正式文件时清除待提交上传并恢复可发布状态；全新文件尚无正式内容时移除资产占位；对不再被引用的待上传 objectKey 发布删除事件；不影响后来发起的其他上传。
+                    - 失败：未登录 -> PermissionError.NOT_LOGIN；当前用户不是资源所有者 -> AIResourceError.AI_RESOURCE_PERMISSION_DENIED；版本不存在 -> AIResourceError.AI_RESOURCE_VERSION_NOT_FOUND；版本不是草稿 -> AIResourceError.CANNOT_OPERATE_NON_DRAFT_AI_RESOURCE_VERSION。
+                    - 响应：成功时返回空结果；上传标识已失效或不匹配时按幂等取消处理。
+                    """
+    )
+    @Log(title = "取消 Agent 资源上传", businessType = BusinessType.UPDATE)
+    @PostMapping("/cancelUploadAgentAssets")
+    public R<Void> cancelUploadAgentAssets(@Validated @RequestBody AssetUploadCancelRequest request) {
+        assertAgentOwner(request.getResourceId());
+        agentVersionService.cancelUploadAssets(request);
+        return R.ok();
+    }
+
+    @Operation(
             summary = "删除智能体草稿文件",
             description = """
                     - 用途：从智能体资产草稿版本中移除一批资产文件。
                     - 请求：resourceId 指定智能体资产；draftVersion 指定草稿版本；assetIds 为待删除资产 ID 列表。
                     - 约束：当前用户必须是资源所有者；目标版本必须是 DRAFT；assetIds 不能为空。
-                    - 处理：从草稿版本中移除匹配的资产文件，并对不再被任何版本引用的 objectKey 发布文件删除事件；不影响已发布版本中仍被引用的文件。
+                    - 处理：从草稿版本中移除匹配的资产文件，并对不再被任何版本引用的正式或待上传 objectKey 发布文件删除事件；不影响已发布版本中仍被引用的文件。
                     - 失败：未登录 -> PermissionError.NOT_LOGIN；当前用户不是资源所有者 -> AIResourceError.AI_RESOURCE_PERMISSION_DENIED；版本不存在 -> AIResourceError.AI_RESOURCE_VERSION_NOT_FOUND；版本不是草稿 -> AIResourceError.CANNOT_OPERATE_NON_DRAFT_AI_RESOURCE_VERSION。
                     - 响应：成功时返回空结果。
                     """

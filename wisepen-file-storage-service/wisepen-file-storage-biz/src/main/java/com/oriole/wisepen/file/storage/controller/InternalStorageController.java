@@ -10,6 +10,9 @@ import com.oriole.wisepen.file.storage.api.enums.StorageSceneEnum;
 import com.oriole.wisepen.file.storage.service.IStorageService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -20,6 +23,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/internal/storage/")
 @RequiredArgsConstructor
+@Validated
 public class InternalStorageController {
 
     private final IStorageService storageService;
@@ -46,6 +50,42 @@ public class InternalStorageController {
     @PostMapping("/copy")
     public R<StorageRecordDTO> copyFile(@Validated @RequestBody CopyReqDTO req) {
         return R.ok(storageService.copyFile(req));
+    }
+
+    @Operation(
+            summary = "内部上传小文件内容",
+            description = """
+                    - 用途：供内部业务服务将已经生成的小文件内容代理上传到对象存储。
+                    - 请求：请求体为文件原始字节；extension 指定扩展名；scene 和 bizTag 决定私有存储目录。
+                    - 约束：调用方必须通过内部服务调用边界；文件不能为空且不能超过小文件代理上传上限。
+                    - 处理：使用主存储配置写入对象存储，创建 AVAILABLE 存储记录并记录文件大小与 MD5；不签发前端上传凭证。
+                    - 失败：文件超过大小限制 -> FileStorageError.FILE_SIZE_ABOVE_UPPER_BOUND；扩展名不合法 -> FileStorageError.CANNOT_SUPPORT_FILE_TYPE；存储场景缺失 -> FileStorageError.CANNOT_SUPPORT_FILE_STORAGE_SCENE；对象存储上传失败 -> FileStorageError.STORAGE_PROVIDER_UPLOAD_FILE_FAILED。
+                    - 响应：返回 objectKey、文件摘要、大小和存储域名信息。
+                    """
+    )
+    @PostMapping(value = "/uploadSmallFile", consumes = "application/octet-stream")
+    public R<StorageRecordDTO> uploadSmallFile(
+            @NotEmpty @RequestBody byte[] content,
+            @NotBlank @RequestParam("extension") String extension,
+            @NotNull @RequestParam("scene") StorageSceneEnum scene,
+            @NotBlank @RequestParam("bizTag") String bizTag) {
+        return R.ok(storageService.uploadSmallFile(content, extension, scene, bizTag));
+    }
+
+    @Operation(
+            summary = "内部读取小文件内容",
+            description = """
+                    - 用途：供持有 objectKey 的内部业务服务读取私有小文件内容。
+                    - 请求：objectKey 指定目标对象存储文件。
+                    - 约束：调用方必须通过内部服务调用边界；目标存储记录必须可用且文件不能超过小文件上限。
+                    - 处理：根据存储记录选择对应提供方并读取受大小限制的对象内容；不生成外部下载地址。
+                    - 失败：存储记录不存在 -> FileStorageError.FILE_RECORD_NOT_FOUND；文件超过大小限制 -> FileStorageError.FILE_SIZE_ABOVE_UPPER_BOUND；对象存储读取失败 -> FileStorageError.STORAGE_PROVIDER_READ_FILE_FAILED。
+                    - 响应：返回文件原始字节。
+                    """
+    )
+    @GetMapping("/getSmallFileContent")
+    public R<byte[]> getSmallFileContent(@RequestParam("objectKey") String objectKey) {
+        return R.ok(storageService.getSmallFileContent(objectKey));
     }
 
     /**

@@ -3,17 +3,19 @@ package com.oriole.wisepen.ai.asset.service.impl;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.IdUtil;
 import com.oriole.wisepen.ai.asset.domain.base.AssetInfoBase;
+import com.oriole.wisepen.ai.asset.domain.base.AssetPendingUploadBase;
 import com.oriole.wisepen.ai.asset.domain.dto.req.AssetDeleteRequest;
+import com.oriole.wisepen.ai.asset.domain.dto.req.AssetUploadCancelRequest;
 import com.oriole.wisepen.ai.asset.domain.dto.req.AssetUploadInitRequest;
 import com.oriole.wisepen.ai.asset.domain.dto.res.AssetUploadInitResponse;
 import com.oriole.wisepen.ai.asset.domain.entity.AIResourceBaseEntity;
 import com.oriole.wisepen.ai.asset.domain.entity.VersionBundleBaseEntity;
 import com.oriole.wisepen.ai.asset.enums.AssetUploadStatus;
-import com.oriole.wisepen.ai.asset.enums.AssetResourceType;
 import com.oriole.wisepen.ai.asset.enums.VersionStatus;
 import com.oriole.wisepen.ai.asset.exception.AIResourceError;
 import com.oriole.wisepen.ai.asset.mq.AIAssetEventPublisher;
 import com.oriole.wisepen.ai.asset.repository.AIResourceBaseRepository;
+import com.oriole.wisepen.ai.asset.repository.CustomVersionBundleAssetRepository;
 import com.oriole.wisepen.ai.asset.repository.VersionBundleBaseRepository;
 import com.oriole.wisepen.ai.asset.service.IVersionService;
 import com.oriole.wisepen.common.core.exception.ServiceException;
@@ -42,6 +44,7 @@ public abstract class VersionServiceImpl<VT extends VersionBundleBaseEntity<VT>,
     final AIResourceBaseRepository<AT> aiResourceBaseRepository;
     private final RemoteStorageService remoteStorageService;
     private final AIAssetEventPublisher eventPublisher;
+    private final CustomVersionBundleAssetRepository versionBundleAssetRepository;
 
     protected abstract VT buildDraft(String resourceId, Integer draftVersion);
 
@@ -140,27 +143,25 @@ public abstract class VersionServiceImpl<VT extends VersionBundleBaseEntity<VT>,
     }
 
     @Override
-    @Transactional
     public AssetUploadInitResponse initUploadAssets(AssetUploadInitRequest req) {
-        // 检查当前是否是草案版本
         VT draft = versionBundleBaseRepository.findByResourceIdAndVersion(req.getResourceId(), req.getDraftVersion())
                 .orElseThrow(() -> new ServiceException(AIResourceError.AI_RESOURCE_VERSION_NOT_FOUND));
         if (draft.getStatus() != VersionStatus.DRAFT) throw new ServiceException(AIResourceError.CANNOT_OPERATE_NON_DRAFT_AI_RESOURCE_VERSION);
 
-        Set<String> replacedObjectKeys = new HashSet<>();
+        // 先完成本地校验，避免申请部分上传凭证后才发现后续资产参数非法
+        for (AssetUploadInitRequest.AssetUploadRequest assetReq : req.getAssets()) {
+            validateDirectoryPath(assetReq.getPath());
+            validateFileName(assetReq.getName());
+        }
 
+        Set<String> replacedObjectKeys = new HashSet<>();
         AssetUploadInitResponse response = AssetUploadInitResponse.builder()
                 .resourceId(req.getResourceId())
                 .version(draft.getVersion())
                 .build();
 
         for (AssetUploadInitRequest.AssetUploadRequest assetReq : req.getAssets()) {
-            // 校验 Path 和 Name 合法性
-            validateDirectoryPath(assetReq.getPath());
-            validateFileName(assetReq.getName());
-            // 找到旧 Asset 为覆盖，未找到则为新增 Asset
-            AssetInfoBase asset = findOrCreateDraftAsset(draft, assetReq.getPath(), assetReq.getName(), assetReq.getAssetResourceType());
-            String oldObjectKey = asset.getObjectKey();
+            AssetInfoBase asset = findOrCreateDraftAsset(draft, assetReq.getPath(), assetReq.getName());
 
             UploadInitRespDTO uploadInitRespDTO;
             try {
@@ -177,9 +178,24 @@ public abstract class VersionServiceImpl<VT extends VersionBundleBaseEntity<VT>,
                 throw new ServiceException(AIResourceError.AI_RESOURCE_ASSET_UPLOAD_URL_APPLY_FAILED);
             }
 
-            asset.setObjectKey(uploadInitRespDTO.getObjectKey());
-            asset.setSize(assetReq.getExpectedSize());
-            asset.setUploadStatus(Boolean.TRUE.equals(uploadInitRespDTO.getFlashUploaded()) ? AssetUploadStatus.AVAILABLE : AssetUploadStatus.UPLOADING);
+            if (Boolean.TRUE.equals(uploadInitRespDTO.getFlashUploaded())) {
+                // 如果是快传，直接设置 AssetUploadStatus 为 AVAILABLE
+                if (StringUtils.hasText(asset.getObjectKey())) replacedObjectKeys.add(asset.getObjectKey());
+                asset.setObjectKey(uploadInitRespDTO.getObjectKey());
+                asset.setAssetResourceType(assetReq.getAssetResourceType());
+                asset.setSize(assetReq.getExpectedSize());
+                asset.setUploadStatus(AssetUploadStatus.AVAILABLE);
+                asset.setPendingUpload(null);
+            } else {
+                // 如果不是快传，则设置 AssetUploadStatus 为 UPLOADING
+                asset.setPendingUpload(AssetPendingUploadBase.builder()
+                        .objectKey(uploadInitRespDTO.getObjectKey())
+                        .assetResourceType(assetReq.getAssetResourceType())
+                        .expectedSize(assetReq.getExpectedSize())
+                        .createTime(LocalDateTime.now())
+                        .build());
+                asset.setUploadStatus(AssetUploadStatus.UPLOADING);
+            }
 
             AssetUploadInitResponse.AssetUploadTicket assetUploadTicket = AssetUploadInitResponse.AssetUploadTicket
                     .builder().assetId(asset.getId())
@@ -187,9 +203,6 @@ public abstract class VersionServiceImpl<VT extends VersionBundleBaseEntity<VT>,
                     .name(asset.getName()).build();
             BeanUtil.copyProperties(uploadInitRespDTO, assetUploadTicket);
             response.getAssetUploadTickets().add(assetUploadTicket);
-
-            // 只要oldObjectKey有值，说明是替代，则检查oldObjectKey是否可移除
-            if (StringUtils.hasText(oldObjectKey)) replacedObjectKeys.add(oldObjectKey);
         }
 
         versionBundleBaseRepository.save(draft);
@@ -212,21 +225,49 @@ public abstract class VersionServiceImpl<VT extends VersionBundleBaseEntity<VT>,
         }
     }
 
-    private AssetInfoBase findOrCreateDraftAsset(VT draft, String path, String name, AssetResourceType assetResourceType) {
+    private AssetInfoBase findOrCreateDraftAsset(VT draft, String path, String name) {
         if (draft.getAssets() == null) draft.setAssets(new ArrayList<>());
         AssetInfoBase asset = draft.getAssets().stream()
                 .filter(item -> path.equals(item.getPath()) && name.equals(item.getName()))
                 .findFirst().orElse(null);
         if (asset == null) {
             asset = AssetInfoBase.builder().id(IdUtil.fastSimpleUUID())
-                    .path(path).name(name).assetResourceType(assetResourceType)
+                    .path(path).name(name)
                     .uploadStatus(AssetUploadStatus.UPLOADING)
                     .build();
             draft.getAssets().add(asset);
-        } else {
-            asset.setAssetResourceType(assetResourceType);
         }
         return asset;
+    }
+
+    @Override
+    public void cancelUploadAssets(AssetUploadCancelRequest req) {
+        // 显式取消尚未完成的 pending 上传
+        VT draft = versionBundleBaseRepository.findByResourceIdAndVersion(req.getResourceId(), req.getDraftVersion())
+                .orElseThrow(() -> new ServiceException(AIResourceError.AI_RESOURCE_VERSION_NOT_FOUND));
+        // 取消上传会修改版本中的资产状态，只能操作草稿
+        if (draft.getStatus() != VersionStatus.DRAFT) throw new ServiceException(AIResourceError.CANNOT_OPERATE_NON_DRAFT_AI_RESOURCE_VERSION);
+
+        Set<String> canceledObjectKeys = new HashSet<>(); // 收集取消成功的 objectKey
+        for (AssetUploadCancelRequest.PendingUploadRef upload : req.getUploads()) {
+            // 取消 assetId 相同 && pendingUpload 存在 && pendingUpload.objectKey 相同的资源
+            AssetInfoBase asset = draft.getAssets().stream()
+                    .filter(item -> upload.getAssetId().equals(item.getId()))
+                    .filter(item -> item.getPendingUpload() != null)
+                    .filter(item -> upload.getObjectKey().equals(item.getPendingUpload().getObjectKey()))
+                    .findFirst()
+                    .orElse(null);
+            if (asset == null) continue;
+
+            boolean canceled = StringUtils.hasText(asset.getObjectKey())
+                    ? versionBundleAssetRepository.clearPendingUpload(
+                            draft, upload.getAssetId(), upload.getObjectKey()) // 替换已有文件
+                    : versionBundleAssetRepository.removePendingAsset(
+                            draft, upload.getAssetId(), upload.getObjectKey()); // 直接从 assets 中删除整个占位资产
+            if (canceled) canceledObjectKeys.add(upload.getObjectKey());
+        }
+        // 对不再被任何版本引用的 key 发布文件删除事件
+        deleteUnreferencedObjectKeys(req.getResourceId(), canceledObjectKeys);
     }
 
     @Override
@@ -246,6 +287,10 @@ public abstract class VersionServiceImpl<VT extends VersionBundleBaseEntity<VT>,
             if (removed != null) {
                 draft.getAssets().remove(removed);
                 removedObjectKeys.add(removed.getObjectKey());
+                if (removed.getPendingUpload() != null) {
+                    // 把待上传的 Object 一起删掉
+                    removedObjectKeys.add(removed.getPendingUpload().getObjectKey());
+                }
             }
         }
 
@@ -258,8 +303,12 @@ public abstract class VersionServiceImpl<VT extends VersionBundleBaseEntity<VT>,
 
         Set<String> referencedObjectKeys = new HashSet<>();
         versionBundleBaseRepository.findByResourceId(resourceId).forEach(version -> {
-            if (version.getAssets() != null) version.getAssets().forEach(asset ->
-                    referencedObjectKeys.add(asset.getObjectKey()));
+            if (version.getAssets() != null) version.getAssets().forEach(asset -> {
+                referencedObjectKeys.add(asset.getObjectKey());
+                if (asset.getPendingUpload() != null) {
+                    referencedObjectKeys.add(asset.getPendingUpload().getObjectKey());
+                }
+            });
         });
 
         List<String> deletableObjectKeys = objectKeys.stream()
@@ -267,7 +316,9 @@ public abstract class VersionServiceImpl<VT extends VersionBundleBaseEntity<VT>,
                 .filter(objectKey -> !referencedObjectKeys.contains(objectKey))
                 .toList();
 
-        eventPublisher.publishFileDeleteEvent(deletableObjectKeys);
+        if (!deletableObjectKeys.isEmpty()) {
+            eventPublisher.publishFileDeleteEvent(deletableObjectKeys);
+        }
     }
 
     @Override
@@ -298,36 +349,71 @@ public abstract class VersionServiceImpl<VT extends VersionBundleBaseEntity<VT>,
     private boolean isAssetUnavailable(AssetInfoBase asset) {
         return asset == null
                 || !StringUtils.hasText(asset.getObjectKey())
-                || asset.getUploadStatus() != AssetUploadStatus.AVAILABLE;
+                || asset.getUploadStatus() != AssetUploadStatus.AVAILABLE
+                || asset.getPendingUpload() != null;
     }
 
     @Override
     public void handleFileUploaded(FileUploadedMessage msg) {
-        if (msg.getScene() != getStorageScene()){
+        if (msg.getScene() != getStorageScene()){ // 过滤不属于当前资产类型的消息
+            return;
+        }
+        // 按正式 key 或 pending key 查找版本
+        VT versionBundle = versionBundleBaseRepository.findFirstByAssetOrPendingObjectKey(msg.getObjectKey()).orElse(null);
+        if (versionBundle == null) {
+            if (Boolean.TRUE.equals(msg.getFlashUploaded())) {
+                // 秒传事件可能早于上传初始化落库，初始化流程会同步提交秒传结果，此处跳过即可
+                log.debug("ai resource flash upload event skipped. objectKey={} reason=\"upload initialization not persisted\"", msg.getObjectKey());
+            } else {
+                eventPublisher.publishFileDeleteEvent(List.of(msg.getObjectKey()));
+                log.warn("ai resource stale asset upload detected. objectKey={}", msg.getObjectKey());
+            }
             return;
         }
 
-        VT versionBundle = versionBundleBaseRepository.findFirstByAssetObjectKey(msg.getObjectKey()).orElse(null);
-        if (versionBundle == null) {
-            // 未找到对应的版本，删除文件
-            eventPublisher.publishFileDeleteEvent(List.of(msg.getObjectKey()));
-            log.warn("AI resource asset upload compensated for missing version. objectKey={}", msg.getObjectKey());
-            return;
-        }
-        // 能按 objectKey 查到版本，资产列表中必然有对应项
-        AssetInfoBase asset = versionBundle.getAssets().stream()
+        AssetInfoBase availableAsset = versionBundle.getAssets().stream()
                 .filter(item -> msg.getObjectKey().equals(item.getObjectKey()))
                 .findFirst()
                 .orElse(null);
-        assert asset != null;
-        if (asset.getUploadStatus() == AssetUploadStatus.AVAILABLE) return;
+        if (availableAsset != null) return; // 查到了正式文件，可能是重复投递或多实例同时处理，直接返回不处理
 
-        asset.setSize(msg.getSize());
-        asset.setUploadStatus(AssetUploadStatus.AVAILABLE);
-        versionBundleBaseRepository.save(versionBundle);
+        AssetInfoBase pendingAsset = versionBundle.getAssets().stream()
+                .filter(item -> item.getPendingUpload() != null)
+                .filter(item -> msg.getObjectKey().equals(item.getPendingUpload().getObjectKey()))
+                .findFirst()
+                .orElse(null);
 
-        log.info("AI resource asset upload handled. resourceId={} version={} assetId={} objectKey={}",
-                versionBundle.getResourceId(), versionBundle.getVersion(), asset.getId(), msg.getObjectKey());
+        // 保存旧正式 key 和 pending 元数据
+        String oldObjectKey = pendingAsset.getObjectKey();
+        AssetPendingUploadBase pendingUpload = pendingAsset.getPendingUpload();
+
+        // 改变资源状态为 AVAILABLE
+        boolean promoted = versionBundleAssetRepository.promotePendingUpload(
+                versionBundle,
+                pendingAsset.getId(),
+                msg.getObjectKey(),
+                pendingUpload.getAssetResourceType(),
+                msg.getSize()
+        );
+
+        if (!promoted) { // 改变资源状态未能成功
+            VT currentVersion = versionBundleBaseRepository.findFirstByAssetOrPendingObjectKey(msg.getObjectKey()).orElse(null);
+            boolean alreadyAvailable = currentVersion != null && currentVersion.getAssets().stream()
+                    .anyMatch(item -> msg.getObjectKey().equals(item.getObjectKey()));
+            if (!alreadyAvailable && !Boolean.TRUE.equals(msg.getFlashUploaded())) {
+                // 未 AVAILABLE，说明这个上传在处理期间可能取消或新上传替换
+                // 发布删除事件
+                eventPublisher.publishFileDeleteEvent(List.of(msg.getObjectKey()));
+            }
+            return;
+        }
+
+        if (StringUtils.hasText(oldObjectKey)) {
+            // 删除旧文件
+            deleteUnreferencedObjectKeys(versionBundle.getResourceId(), Set.of(oldObjectKey));
+        }
+        log.info("ai resource asset upload promoted. resourceId={} version={} assetId={} objectKey={}",
+                versionBundle.getResourceId(), versionBundle.getVersion(), pendingAsset.getId(), msg.getObjectKey());
     }
 
     @Override
@@ -338,11 +424,18 @@ public abstract class VersionServiceImpl<VT extends VersionBundleBaseEntity<VT>,
             List<VT> versionBundles = versionBundleBaseRepository.findByResourceId(resourceId);
             if (versionBundles.isEmpty()) continue;
             versionBundles.forEach(versionBundle -> {
-                if (versionBundle.getAssets() != null) versionBundle.getAssets().forEach(asset ->
-                        objectKeys.add(asset.getObjectKey()));
+                if (versionBundle.getAssets() != null) versionBundle.getAssets().forEach(asset -> {
+                    objectKeys.add(asset.getObjectKey());
+                    if (asset.getPendingUpload() != null) {
+                        objectKeys.add(asset.getPendingUpload().getObjectKey());
+                    }
+                });
             });
         }
         versionBundleBaseRepository.deleteByResourceIdIn(resourceIds);
-        eventPublisher.publishFileDeleteEvent(objectKeys.stream().filter(StringUtils::hasText).toList());
+        List<String> deletableObjectKeys = objectKeys.stream().filter(StringUtils::hasText).toList();
+        if (!deletableObjectKeys.isEmpty()) {
+            eventPublisher.publishFileDeleteEvent(deletableObjectKeys);
+        }
     }
 }

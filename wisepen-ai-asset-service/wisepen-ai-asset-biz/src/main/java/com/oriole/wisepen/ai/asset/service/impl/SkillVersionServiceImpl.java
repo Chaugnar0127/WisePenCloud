@@ -5,6 +5,7 @@ import com.oriole.wisepen.ai.asset.domain.entity.SkillVersionBundleEntity;
 import com.oriole.wisepen.ai.asset.enums.VersionStatus;
 import com.oriole.wisepen.ai.asset.mq.AIAssetEventPublisher;
 import com.oriole.wisepen.ai.asset.repository.AIResourceBaseRepository;
+import com.oriole.wisepen.ai.asset.repository.CustomVersionBundleAssetRepository;
 import com.oriole.wisepen.ai.asset.repository.VersionBundleBaseRepository;
 import com.oriole.wisepen.file.storage.api.enums.StorageSceneEnum;
 import com.oriole.wisepen.file.storage.api.feign.RemoteStorageService;
@@ -17,8 +18,12 @@ import java.util.ArrayList;
 @Service
 public class SkillVersionServiceImpl extends VersionServiceImpl<SkillVersionBundleEntity, SkillEntity> {
 
-    public SkillVersionServiceImpl(VersionBundleBaseRepository<SkillVersionBundleEntity> skillVersionBundleRepository, AIResourceBaseRepository<SkillEntity> SkillRepository, RemoteStorageService remoteStorageService, AIAssetEventPublisher eventPublisher) {
-        super(skillVersionBundleRepository, SkillRepository, remoteStorageService, eventPublisher);
+    public SkillVersionServiceImpl(VersionBundleBaseRepository<SkillVersionBundleEntity> skillVersionBundleRepository,
+                                   AIResourceBaseRepository<SkillEntity> skillRepository,
+                                   RemoteStorageService remoteStorageService,
+                                   AIAssetEventPublisher eventPublisher,
+                                   CustomVersionBundleAssetRepository versionBundleAssetRepository) {
+        super(skillVersionBundleRepository, skillRepository, remoteStorageService, eventPublisher, versionBundleAssetRepository);
     }
 
     @Override

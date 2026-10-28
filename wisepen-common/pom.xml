@@ -83,6 +83,14 @@
             <scope>compile</scope>
         </dependency>
 
+        <!-- 仅用于 common 内编译分页拦截器配置；optional 避免把 extension 泄漏给未使用 MyBatis 的服务 -->
+        <dependency>
+            <groupId>com.baomidou</groupId>
+            <artifactId>mybatis-plus-extension</artifactId>
+            <version>${mybatis-plus.version}</version>
+            <optional>true</optional>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>

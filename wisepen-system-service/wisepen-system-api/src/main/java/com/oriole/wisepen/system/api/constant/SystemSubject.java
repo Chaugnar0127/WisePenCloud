@@ -5,7 +5,11 @@ import com.oriole.wisepen.common.core.domain.IBusinessSubject;
 import java.util.Locale;
 
 public enum SystemSubject implements IBusinessSubject {
-    MAIL;
+    MAIL,
+    BATCH_TASK,
+    BATCH_TASK_RESOURCE_FORK,
+    BUSINESS_CONFIG,
+    ;
 
     @Override
     public String key() {

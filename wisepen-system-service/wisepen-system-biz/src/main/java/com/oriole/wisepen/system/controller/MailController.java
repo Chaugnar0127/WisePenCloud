@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
  */
 @Tag(name = "内部 - 邮件", description = "供业务微服务发送系统邮件")
 @RestController
-@RequestMapping("/system/mail")
+@RequestMapping("/internal/system/mail")
 @RequiredArgsConstructor
 public class MailController {
 
@@ -38,7 +38,7 @@ public class MailController {
                     - 响应：成功时返回空结果。
                     """
     )
-    @PostMapping("/send")
+    @PostMapping("/sendMail")
     public R<Void> sendMail(@RequestBody MailSendDTO mailSendDTO) {
         sysMailService.sendMail(mailSendDTO);
         return R.ok();

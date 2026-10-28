@@ -175,7 +175,7 @@ public class UserServiceImpl implements IUserService {
         // uid存入Redis
         String token = redisCacheManager.setPwdResetToken(userEntity.getUserId());
         // 构建重置链接
-        String resetLink = userProperties.getApiDomain() + "/password/reset?token=" + token;
+        String resetLink = userProperties.getEndpoint().getApiDomain() + "/password/reset?token=" + token;
 
         // 构建重置邮件
         Context context = new Context();
@@ -227,7 +227,9 @@ public class UserServiceImpl implements IUserService {
     public void resetPasswordAdmin(AuthPwdAdminResetRequest req) {
         Long userId = req.getUserId();
         updatePasswordByUserId(userId,
-                StrUtil.isBlank(req.getNewPassword()) ? userProperties.getDefaultPassword() : req.getNewPassword());
+                StrUtil.isBlank(req.getNewPassword())
+                        ? userProperties.getAdminPassword().getDefaultPassword()
+                        : req.getNewPassword());
         log.info("password reset. userId={} mode=admin", userId);
     }
 
@@ -240,6 +242,20 @@ public class UserServiceImpl implements IUserService {
 
         updatePasswordByUserId(userId, req.getNewPassword());
         log.info("password reset. userId={} mode=self", userId);
+    }
+
+    @Override
+    public void changePassword(Long userId, AuthPwdChangeRequest req) {
+        UserEntity user = userMapper.selectById(userId);
+        if (user == null || !BCrypt.checkpw(req.getOldPassword(), user.getPassword())) {
+            throw new ServiceException(UserError.AUTH_CURRENT_PASSWORD_INVALID);
+        }
+        if (BCrypt.checkpw(req.getNewPassword(), user.getPassword())) {
+            throw new ServiceException(UserError.USER_PASSWORD_UNCHANGED);
+        }
+
+        updatePasswordByUserId(userId, req.getNewPassword());
+        log.info("password changed. userId={}", userId);
     }
 
     // 修改密码
@@ -262,7 +278,6 @@ public class UserServiceImpl implements IUserService {
 
         UserVerificationStrategy strategy = strategyFactory.getStrategy(userEntity.getVerificationMode());
         List<String> readonlyFields = strategy.getReadonlyFields();
-        readonlyFields.add("inviteCode");
 
         CopyOptions copyOptions = CopyOptions.create()
                 .setIgnoreNullValue(true)

@@ -72,6 +72,14 @@ services:
         aliases:
           - ai-asset-service
 
+  web-app-service:
+    environment:
+      SPRING_CLOUD_INETUTILS_PREFERRED_NETWORKS: '172.28.'
+    networks:
+      cloud-infra_cloud-net:
+        aliases:
+          - web-app-service
+
   docs-service:
     environment:
       SPRING_CLOUD_INETUTILS_PREFERRED_NETWORKS: '172.28.'

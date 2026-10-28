@@ -14,12 +14,14 @@
 
     <modules>
         <module>wisepen-common</module>
+        <module>wisepen-campus-extension-api</module>
         <module>wisepen-user-service</module>
         <module>wisepen-system-service</module>
         <module>wisepen-common-log</module>
         <module>wisepen-docs-service</module>
         <module>wisepen-resource-service</module>
         <module>wisepen-ai-asset-service</module>
+        <module>wisepen-web-app-service</module>
         <module>wisepen-file-storage-service</module>
         <module>wisepen-document-service</module>
         <module>wisepen-media-service</module>

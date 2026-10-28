@@ -33,16 +33,19 @@ public enum ResourceType {
     XLSX(27, "XLSX", "xlsx"),
 
     /** 图片资源，由媒体服务管理 */
-    IMAGE(41, "IMAGE", "image"),
+    IMAGE(51, "IMAGE", "image"),
     /** 视频资源，由媒体服务管理 */
-    VIDEO(42, "VIDEO", "video"),
+    VIDEO(52, "VIDEO", "video"),
     /** 音频资源，由媒体服务管理 */
-    AUDIO(43, "AUDIO", "audio"),
+    AUDIO(53, "AUDIO", "audio"),
 
     /** 无扩展名的 Skill，由 AI资产 服务管理 */
     SKILL(31, "SKILL", "skill"),
     /** 无扩展名的 Agent，由 AI资产 服务管理 */
     AGENT(32, "AGENT", "agent"),
+
+    /** 单文件 HTML 页面，由 Web App 服务管理 */
+    SINGLE_HTML_PAGE(41, "SINGLE_HTML_PAGE", "html"),
 
     /** 未知资源，兜底 */
     UNKNOWN(99, "UNKNOWN", "unknown");
@@ -55,25 +58,26 @@ public enum ResourceType {
 
     private final String extension;
 
-    private static final Map<String, ResourceType> EXT_MAP = new HashMap<>();
+    private static final Map<String, ResourceType> TYPE_MAP = new HashMap<>();
 
     static {
         for (ResourceType item : values()) {
-            EXT_MAP.put(item.extension, item);
+            TYPE_MAP.put(item.value.toLowerCase(), item);
+            TYPE_MAP.put(item.extension.toLowerCase(), item);
         }
     }
 
     /**
-     * 根据扩展名（大小写不敏感）查找对应枚举值。
+     * 根据资源类型值或扩展名（大小写不敏感）查找对应枚举值。
      *
-     * @param ext 扩展名或类型标识字符串，如 "docx"、"PDF"、"note"
+     * @param value 资源类型值或扩展名，如 "SINGLE_HTML_PAGE"、"html"、"docx"
      * @return 对应枚举值
      */
     @JsonCreator
-    public static ResourceType fromExtension(String ext) {
-        if (ext == null) {
+    public static ResourceType fromExtension(String value) {
+        if (value == null) {
             return null;
         }
-        return EXT_MAP.get(ext.trim().toLowerCase());
+        return TYPE_MAP.get(value.trim().toLowerCase());
     }
 }
