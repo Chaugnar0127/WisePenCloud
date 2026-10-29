@@ -10,7 +10,4 @@ public interface MqTopicConstants {
 
     /** 媒体处理死信任务。 */
     String TOPIC_MEDIA_PROCESS_DLQ = TOPIC_MEDIA_PROCESS + ".DLQ";
-
-    /** 媒体处理就绪事件。 */
-    String TOPIC_MEDIA_READY = "wisepen-media-ready-topic";
 }

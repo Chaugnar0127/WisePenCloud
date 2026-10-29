@@ -3,7 +3,6 @@ package com.oriole.wisepen.media.mq;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.oriole.wisepen.common.mq.ReliablePublisher;
 import com.oriole.wisepen.media.api.domain.mq.MediaProcessTaskMessage;
-import com.oriole.wisepen.media.api.domain.mq.MediaReadyMessage;
 import io.github.springwolf.core.asyncapi.annotations.AsyncMessage;
 import io.github.springwolf.core.asyncapi.annotations.AsyncOperation;
 import io.github.springwolf.core.asyncapi.annotations.AsyncPublisher;
@@ -16,7 +15,7 @@ import java.util.List;
 
 import static com.oriole.wisepen.common.core.util.LogIdUtils.summarizeIds;
 import static com.oriole.wisepen.file.storage.api.constant.MqTopicConstants.TOPIC_FILE_DELETE;
-import static com.oriole.wisepen.media.api.constant.MqTopicConstants.*;
+import static com.oriole.wisepen.media.api.constant.MqTopicConstants.TOPIC_MEDIA_PROCESS;
 
 /**
  * 媒体服务 Kafka 事件发布器。
@@ -45,23 +44,6 @@ public class KafkaMediaEventPublisher {
         } catch (Exception e) {
             log.error("media process event publish request failed. topic={} mediaId={}",
                     TOPIC_MEDIA_PROCESS, message.getMediaId(), e);
-        }
-    }
-
-    @AsyncPublisher(operation = @AsyncOperation(
-            channelName = TOPIC_MEDIA_READY,
-            description = "媒体处理完成后发布就绪事件。",
-            payloadType = MediaReadyMessage.class,
-            message = @AsyncMessage(name = "MediaReadyMessage", title = "媒体就绪事件")
-    ))
-    public void publishReadyEvent(MediaReadyMessage message) {
-        try {
-            reliablePublisher.publish(TOPIC_MEDIA_READY, message.getResourceId(), message, message.getResourceId());
-            log.debug("media ready event publish requested. topic={} resourceId={} mediaId={}",
-                    TOPIC_MEDIA_READY, message.getResourceId(), message.getMediaId());
-        } catch (Exception e) {
-            log.error("media ready event publish request failed. topic={} resourceId={} mediaId={}",
-                    TOPIC_MEDIA_READY, message.getResourceId(), message.getMediaId(), e);
         }
     }
 

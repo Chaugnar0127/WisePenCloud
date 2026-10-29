@@ -13,7 +13,6 @@ import com.oriole.wisepen.file.storage.api.enums.StorageSceneEnum;
 import com.oriole.wisepen.file.storage.api.feign.RemoteStorageService;
 import com.oriole.wisepen.media.api.domain.base.MediaStatus;
 import com.oriole.wisepen.media.api.domain.mq.MediaProcessTaskMessage;
-import com.oriole.wisepen.media.api.domain.mq.MediaReadyMessage;
 import com.oriole.wisepen.media.api.enums.MediaStatusEnum;
 import com.oriole.wisepen.media.config.MediaProperties;
 import com.oriole.wisepen.media.domain.entity.MediaInfoEntity;
@@ -591,14 +590,9 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
             }
         }
 
-        // 资源 ID 存在后才能对外宣告媒体 READY，并发布 ready 事件给下游服务
+        // 资源 ID 存在后才能将媒体标记为 READY
         if (mediaInfoRepository.updateStatusIfCurrent(
                 mediaId, MediaStatusEnum.REGISTERING_RES, new MediaStatus(MediaStatusEnum.READY)) > 0) {
-            eventPublisher.publishReadyEvent(MediaReadyMessage.builder()
-                    .resourceId(resourceId)
-                    .mediaId(mediaId)
-                    .resourceType(entity.getResourceType())
-                    .build());
             log.info("media ready finalized. mediaId={} resourceId={}", mediaId, resourceId);
         }
     }

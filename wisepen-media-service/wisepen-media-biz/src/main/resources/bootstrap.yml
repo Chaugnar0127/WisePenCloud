@@ -47,4 +47,4 @@ springwolf:
     info:
       title: 媒体服务 Kafka Events
       version: 1.0.0
-      description: 媒体上传回调、媒体处理、资源删除与媒体就绪相关 Kafka 消息契约
+      description: 媒体上传回调、媒体处理、资源删除与文件清理相关 Kafka 消息契约
