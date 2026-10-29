@@ -46,10 +46,8 @@ public class FeedbackServiceImpl implements FeedbackService {
                         .select(FeedbackEntity::getId, FeedbackEntity::getUserId,
                                 FeedbackEntity::getType,
                                 FeedbackEntity::getStatus, FeedbackEntity::getCreateTime, FeedbackEntity::getUpdateTime)
-                        .and(filterByType, typeQuery -> {
-                            request.getType().forEach(type ->
-                                    typeQuery.or().apply("FIND_IN_SET({0}, type) > 0", type.getValue()));
-                        })
+                        .and(filterByType, typeQuery -> request.getType().forEach(type ->
+                                typeQuery.or().apply("FIND_IN_SET({0}, type) > 0", type.getValue())))
                         .eq(request.getStatus() != null, FeedbackEntity::getStatus, request.getStatus())
                         .eq(request.getUserId() != null, FeedbackEntity::getUserId, request.getUserId())
                         .ge(request.getStartTime() != null, FeedbackEntity::getCreateTime, request.getStartTime())

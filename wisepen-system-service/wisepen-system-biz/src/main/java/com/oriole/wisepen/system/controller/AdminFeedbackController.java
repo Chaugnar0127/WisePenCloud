@@ -28,7 +28,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @Tag(name = "管理员 - 用户反馈", description = "管理员查看用户反馈并修改处理状态")
 @RestController
-@RequestMapping("/admin/feedback")
+@RequestMapping("/system/admin/feedback")
 @RequiredArgsConstructor
 @CheckRole(IdentityType.ADMIN)
 @Validated
