@@ -39,11 +39,11 @@ public class AdminFeedbackController {
             summary = "分页查询用户反馈",
             description = """
                     - 用途：供管理员筛选用户反馈并查看当前处理状态。
-                    - 请求：bugReport、suggestion、consultation、complaint、other 为类型筛选布尔字段，命中任一为 true 的类型即可，false 或不传的字段不参与筛选，全部为 false 时不限类型；status、userId 为可选精确条件；startTime 和 endTime 为创建时间的闭区间，使用 ISO 日期时间；page 默认 1，size 默认 20，最大 100。
+                    - 请求：type 为可选类型集合，可取 BUG_REPORT、SUGGESTION、CONSULTATION、COMPLAINT、OTHER，通过重复参数传入，如 type=BUG_REPORT&type=SUGGESTION，命中任一类型即可，不传或空集合时不限类型；status、userId 为可选精确条件；startTime 和 endTime 为创建时间的闭区间，使用 ISO 日期时间；page 默认 1，size 默认 20，最大 100。
                     - 约束：当前身份必须是平台管理员；开始时间不得晚于结束时间。
                     - 处理：按创建时间和 ID 倒序分页读取反馈元信息。
                     - 失败：当前身份不是管理员 -> PermissionError.UNAUTHORIZED。
-                    - 响应：返回反馈分页，包含反馈 ID、提交用户 ID、bugReport、suggestion、consultation、complaint、other 五个类型布尔字段、状态和创建及更新时间；完整内容通过详情接口获取。
+                    - 响应：返回反馈分页，包含反馈 ID、提交用户 ID、type 类型数组、状态和创建及更新时间；完整内容通过详情接口获取。
                     """
     )
     @GetMapping("/listFeedbacks")

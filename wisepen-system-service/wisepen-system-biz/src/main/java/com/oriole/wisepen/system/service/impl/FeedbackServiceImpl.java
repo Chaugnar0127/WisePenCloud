@@ -40,20 +40,15 @@ public class FeedbackServiceImpl implements FeedbackService {
 
     @Override
     public PageR<FeedbackListItemResponse> listFeedbacks(FeedbackQueryRequest request) {
-        boolean filterByType = request.isBugReport() || request.isSuggestion() || request.isConsultation()
-                || request.isComplaint() || request.isOther();
+        boolean filterByType = request.getType() != null && !request.getType().isEmpty();
         IPage<FeedbackEntity> feedbackPage = feedbackMapper.selectPage(new Page<>(request.getPage(), request.getSize()),
                 Wrappers.<FeedbackEntity>lambdaQuery()
                         .select(FeedbackEntity::getId, FeedbackEntity::getUserId,
-                                FeedbackEntity::isBugReport, FeedbackEntity::isSuggestion, FeedbackEntity::isConsultation,
-                                FeedbackEntity::isComplaint, FeedbackEntity::isOther,
+                                FeedbackEntity::getType,
                                 FeedbackEntity::getStatus, FeedbackEntity::getCreateTime, FeedbackEntity::getUpdateTime)
                         .and(filterByType, typeQuery -> {
-                            if (request.isBugReport()) typeQuery.or().eq(FeedbackEntity::isBugReport, true);
-                            if (request.isSuggestion()) typeQuery.or().eq(FeedbackEntity::isSuggestion, true);
-                            if (request.isConsultation()) typeQuery.or().eq(FeedbackEntity::isConsultation, true);
-                            if (request.isComplaint()) typeQuery.or().eq(FeedbackEntity::isComplaint, true);
-                            if (request.isOther()) typeQuery.or().eq(FeedbackEntity::isOther, true);
+                            request.getType().forEach(type ->
+                                    typeQuery.or().apply("FIND_IN_SET({0}, type) > 0", type.getValue()));
                         })
                         .eq(request.getStatus() != null, FeedbackEntity::getStatus, request.getStatus())
                         .eq(request.getUserId() != null, FeedbackEntity::getUserId, request.getUserId())

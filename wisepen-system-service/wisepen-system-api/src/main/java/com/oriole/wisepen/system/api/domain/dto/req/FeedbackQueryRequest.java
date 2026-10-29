@@ -1,15 +1,18 @@
 package com.oriole.wisepen.system.api.domain.dto.req;
 
 import com.oriole.wisepen.system.api.enums.FeedbackStatus;
+import com.oriole.wisepen.system.api.enums.FeedbackType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import lombok.Data;
 import org.springframework.format.annotation.DateTimeFormat;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 
 @Data
 public class FeedbackQueryRequest {
@@ -20,16 +23,8 @@ public class FeedbackQueryRequest {
     @Max(100)
     private int size = 20;
 
-    @Schema(description = "是否筛选问题报错；false 或不传时忽略", defaultValue = "false")
-    private boolean bugReport;
-    @Schema(description = "是否筛选功能建议；false 或不传时忽略", defaultValue = "false")
-    private boolean suggestion;
-    @Schema(description = "是否筛选使用咨询；false 或不传时忽略", defaultValue = "false")
-    private boolean consultation;
-    @Schema(description = "是否筛选投诉；false 或不传时忽略", defaultValue = "false")
-    private boolean complaint;
-    @Schema(description = "是否筛选其他类型；false 或不传时忽略", defaultValue = "false")
-    private boolean other;
+    @Schema(description = "反馈类型集合，命中任一类型即可；不传或空集合时不限类型")
+    private Set<@NotNull FeedbackType> type;
     private FeedbackStatus status;
 
     @Positive
