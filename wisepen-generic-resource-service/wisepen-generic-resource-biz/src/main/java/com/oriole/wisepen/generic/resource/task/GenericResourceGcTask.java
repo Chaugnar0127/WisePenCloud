@@ -8,6 +8,8 @@ import com.oriole.wisepen.generic.resource.repository.GenericResourceInfoReposit
 import com.oriole.wisepen.generic.resource.service.IGenericResourceService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -30,44 +32,72 @@ public class GenericResourceGcTask {
     public void detectStaleUploads() {
         long start = System.currentTimeMillis();
         log.info("generic resource gc started. task=staleUpload");
+        int processed = 0;
+        int timedOut = 0;
+        int recovered = 0;
+        int failed = 0;
         try {
-            List<GenericResourceInfoEntity> uploadingGenericResourceEntities =
-                    genericResourceInfoRepository.findByStatus(GenericResourceStatusEnum.UPLOADING);
-            if (uploadingGenericResourceEntities == null || uploadingGenericResourceEntities.isEmpty()) {
-                log.info("generic resource gc finished. task=staleUpload processed=0 timedOut=0 failed=0 costMs={}",
-                        System.currentTimeMillis() - start);
-                return;
-            }
-            log.debug("generic resource gc candidates found. task=staleUpload pending={}", uploadingGenericResourceEntities.size());
+            int batchSize = genericResourceProperties.getStaleCheck().getBatchSize();
             LocalDateTime now = LocalDateTime.now();
-            int timedOut = 0;
+            // 每轮限制上传检查和注册补偿各自的候选数量，避免积压时无限串行调用远程服务。
+            List<GenericResourceInfoEntity> uploadingGenericResourceEntities =
+                    genericResourceInfoRepository.findByStatus(GenericResourceStatusEnum.UPLOADING,
+                            PageRequest.of(0, batchSize, Sort.by("createTime", "_id")));
             for (GenericResourceInfoEntity entity : uploadingGenericResourceEntities) {
-                Long size = entity.getSize();
-                long timeoutMs = calculateTimeoutMs(size);
-                LocalDateTime deadline = entity.getCreateTime().plusNanos(timeoutMs * 1_000_000L);
-                if (now.isAfter(deadline)) {
-                    handleStaleGenericResource(entity);
-                    timedOut++;
+                processed++;
+                try {
+                    long timeoutMs = calculateTimeoutMs(entity.getSize());
+                    LocalDateTime deadline = entity.getCreateTime().plusNanos(timeoutMs * 1_000_000L);
+                    if (now.isAfter(deadline)) {
+                        GenericResourceStatus currentStatus = genericResourceService.refreshGenericResourceStatus(
+                                entity.getGenericResourceId(), entity.getUploaderId());
+                        if (currentStatus.getStatus() == GenericResourceStatusEnum.UPLOADING
+                                && genericResourceInfoRepository.updateStatusIfCurrent(entity.getGenericResourceId(),
+                                GenericResourceStatusEnum.UPLOADING, GenericResourceStatusEnum.TRANSFER_TIMEOUT) > 0) {
+                            timedOut++;
+                            log.debug("generic resource upload timed out. genericResourceId={} from={} to={}",
+                                    entity.getGenericResourceId(), GenericResourceStatusEnum.UPLOADING, GenericResourceStatusEnum.TRANSFER_TIMEOUT);
+                        } else if (currentStatus.getStatus() == GenericResourceStatusEnum.READY) {
+                            recovered++;
+                        }
+                    }
+                } catch (Exception e) {
+                    failed++;
+                    log.warn("generic resource gc upload candidate failed. genericResourceId={}", entity.getGenericResourceId(), e);
                 }
             }
-            log.info("generic resource gc finished. task=staleUpload processed={} timedOut={} failed=0 costMs={}",
-                    uploadingGenericResourceEntities.size(), timedOut, System.currentTimeMillis() - start);
-        } catch (Exception e) {
-            log.error("generic resource gc failed. task=staleUpload costMs={}", System.currentTimeMillis() - start, e);
-            if (e instanceof RuntimeException) {
-                throw (RuntimeException) e;
-            }
-            throw new IllegalStateException(e);
-        }
-    }
 
-    private void handleStaleGenericResource(GenericResourceInfoEntity entity) {
-        GenericResourceStatus currentStatus = genericResourceService.refreshGenericResourceStatus(
-                entity.getGenericResourceId(), entity.getUploaderId());
-        if (currentStatus.getStatus() == GenericResourceStatusEnum.UPLOADING) {
-            genericResourceService.updateStatus(
-                    entity.getGenericResourceId(), new GenericResourceStatus(GenericResourceStatusEnum.TRANSFER_TIMEOUT));
+            LocalDateTime registrationCutoff = now.minusNanos(
+                    genericResourceProperties.getStaleCheck().getRegistrationTimeoutMs() * 1_000_000L);
+            List<GenericResourceInfoEntity> registrations = genericResourceInfoRepository.findStaleByStatusIn(
+                    List.of(GenericResourceStatusEnum.REGISTERING_RES, GenericResourceStatusEnum.REGISTERING_RES_TIMEOUT),
+                    registrationCutoff, PageRequest.of(0, batchSize, Sort.by("updateTime", "_id")));
+            for (GenericResourceInfoEntity entity : registrations) {
+                processed++;
+                try {
+                    if (entity.getStatus() == GenericResourceStatusEnum.REGISTERING_RES) {
+                        if (genericResourceInfoRepository.expireRegistration(entity.getGenericResourceId(), registrationCutoff) == 0) {
+                            continue;
+                        }
+                        log.debug("generic resource registration expired. genericResourceId={} from={} to={}",
+                                entity.getGenericResourceId(), GenericResourceStatusEnum.REGISTERING_RES, GenericResourceStatusEnum.REGISTERING_RES_TIMEOUT);
+                    }
+                    GenericResourceStatus currentStatus = genericResourceService.refreshGenericResourceStatus(
+                            entity.getGenericResourceId(), entity.getUploaderId());
+                    if (currentStatus.getStatus() == GenericResourceStatusEnum.READY) {
+                        recovered++;
+                    }
+                } catch (Exception e) {
+                    failed++;
+                    log.warn("generic resource gc registration candidate failed. genericResourceId={}", entity.getGenericResourceId(), e);
+                }
+            }
+        } catch (Exception e) {
+            failed++;
+            log.error("generic resource gc aborted. task=staleUpload costMs={}", System.currentTimeMillis() - start, e);
         }
+        log.info("generic resource gc finished. task=staleUpload processed={} timedOut={} recovered={} failed={} costMs={}",
+                processed, timedOut, recovered, failed, System.currentTimeMillis() - start);
     }
 
     /**

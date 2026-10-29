@@ -35,7 +35,8 @@ import java.util.Map;
         unique = true,
         partialFilter = "{'objectKey': {'$exists': true, '$ne': null}}"
 )
-@CompoundIndex(name = "idx_resource_type", def = "{'resourceType': 1}")
+@CompoundIndex(name = "idx_status_create_time", def = "{'status': 1, 'createTime': 1, '_id': 1}")
+@CompoundIndex(name = "idx_status_update_time", def = "{'status': 1, 'updateTime': 1, '_id': 1}")
 public class GenericResourceInfoEntity implements Persistable<String> {
 
     @Id
@@ -46,7 +47,6 @@ public class GenericResourceInfoEntity implements Persistable<String> {
     private ResourceType resourceType;
     private String extension;
     private String objectKey;
-    private String md5;
     private Long size;
     private Long uploaderId;
     /** 首次注册资源时用于小组路径挂载权限判断的上传时角色快照。 */

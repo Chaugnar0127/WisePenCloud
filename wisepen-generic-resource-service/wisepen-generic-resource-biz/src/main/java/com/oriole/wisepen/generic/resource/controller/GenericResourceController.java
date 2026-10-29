@@ -56,7 +56,7 @@ public class GenericResourceController {
                     - 响应：返回 genericResourceId、objectKey、上传凭证、资源类型、是否秒传和当前上传状态；秒传成功时同时返回 resourceId。
                     """
     )
-    @Log(title = "初始化通用资源上传", businessType = BusinessType.INSERT)
+    @Log(title = "初始化通用资源上传", businessType = BusinessType.INSERT, isSaveResponseData = false)
     @PostMapping("/uploadGenericResource")
     public R<GenericResourceUploadInitResponse> uploadGenericResource(@Valid @RequestBody GenericResourceUploadInitRequest request) {
         return R.ok(genericResourceService.initUploadGenericResource(request, SecurityContextHolder.getUserId(), SecurityContextHolder.getGroupRoleMap()));
@@ -68,7 +68,7 @@ public class GenericResourceController {
                     - 用途：主动刷新当前用户发起的通用资源上传任务状态，并在存储状态已就绪但事件尚未消费时补偿注册资源。
                     - 请求：genericResourceId 指定待刷新的通用资源上传任务。
                     - 约束：当前用户必须是该上传任务创建者；目标上传任务必须存在。
-                    - 处理：读取上传任务状态；若任务尚未 READY，会查询文件存储记录，确认对象已就绪后注册资源并更新状态；不重新申请上传 URL，不重复上传文件。
+                    - 处理：已就绪或正在注册的任务直接返回当前状态；其他任务查询文件存储记录，确认对象已就绪后尝试注册资源；并发刷新只由成功领取注册任务的请求执行，不重新申请上传 URL，不重复上传文件。
                     - 失败：未登录 -> PermissionError.NOT_LOGIN；上传任务不存在 -> GenericResourceError.GENERIC_RESOURCE_UPLOAD_NOT_FOUND；当前用户不是上传者 -> GenericResourceError.GENERIC_RESOURCE_PERMISSION_DENIED；存储状态查询失败 -> GenericResourceError.GENERIC_RESOURCE_STORAGE_STATUS_GET_FAILED；资源注册失败 -> GenericResourceError.GENERIC_RESOURCE_REGISTER_FAILED。
                     - 响应：返回刷新后的通用资源状态。
                     """

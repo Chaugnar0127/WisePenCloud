@@ -1,6 +1,7 @@
 package com.oriole.wisepen.generic.resource.service.impl;
 
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.io.file.FileNameUtil;
 import cn.hutool.core.util.IdUtil;
 import com.oriole.wisepen.common.core.domain.enums.GroupRoleType;
 import com.oriole.wisepen.common.core.exception.ServiceException;
@@ -29,7 +30,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ContentDisposition;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.nio.charset.StandardCharsets;
@@ -39,7 +39,6 @@ import java.util.Map;
 import java.util.Objects;
 
 import static com.oriole.wisepen.common.core.util.LogIdUtils.summarizeIds;
-import static org.apache.poi.xdgf.util.Util.sanitizeFilename;
 
 @Slf4j
 @Service
@@ -52,7 +51,6 @@ public class GenericResourceServiceImpl implements IGenericResourceService {
     private final GenericResourceEventPublisher eventPublisher;
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public GenericResourceUploadInitResponse initUploadGenericResource(GenericResourceUploadInitRequest request, Long uploaderId, Map<Long, GroupRoleType> uploaderGroupRoles) {
         ResourceType resourceType = ResourceType.fromExtension(request.getExtension());
         if (resourceType == null) {
@@ -80,9 +78,7 @@ public class GenericResourceServiceImpl implements IGenericResourceService {
                     .isNeedCallback(true)
                     .build()).getData();
         } catch (Exception e) {
-            log.warn("generic resource upload init failed. genericResourceId={} dependency=storageService",
-                    genericResourceId, e);
-            throw new ServiceException(GenericResourceError.GENERIC_RESOURCE_UPLOAD_URL_APPLY_FAILED, e.getMessage());
+            throw new ServiceException(GenericResourceError.GENERIC_RESOURCE_UPLOAD_URL_APPLY_FAILED);
         }
         if (uploadInitRespDTO == null || !StringUtils.hasText(uploadInitRespDTO.getObjectKey())) {
             throw new ServiceException(GenericResourceError.GENERIC_RESOURCE_UPLOAD_URL_APPLY_FAILED);
@@ -94,7 +90,6 @@ public class GenericResourceServiceImpl implements IGenericResourceService {
                 .resourceType(resourceType)
                 .extension(extension)
                 .objectKey(uploadInitRespDTO.getObjectKey())
-                .md5(request.getMd5())
                 .size(request.getExpectedSize())
                 .uploaderId(uploaderId)
                 .uploaderGroupRoles(uploaderGroupRoles)
@@ -102,6 +97,8 @@ public class GenericResourceServiceImpl implements IGenericResourceService {
                 .status(GenericResourceStatusEnum.UPLOADING)
                 .build();
         entity = genericResourceInfoRepository.save(entity);
+        log.info("generic resource upload initialized. genericResourceId={} objectKey={} status={}",
+                genericResourceId, entity.getObjectKey(), entity.getStatus());
 
         if (Boolean.TRUE.equals(uploadInitRespDTO.getFlashUploaded())) {
             // 秒传事件可能早于本地上传任务落库被消费，因此秒传场景由当前请求同步补偿完成注册。
@@ -109,12 +106,12 @@ public class GenericResourceServiceImpl implements IGenericResourceService {
             try {
                 storageRecord = remoteStorageService.getFileRecord(entity.getObjectKey()).getData();
             } catch (Exception e) {
-                throw new ServiceException(GenericResourceError.GENERIC_RESOURCE_STORAGE_STATUS_GET_FAILED, e.getMessage());
+                throw new ServiceException(GenericResourceError.GENERIC_RESOURCE_STORAGE_STATUS_GET_FAILED);
             }
             if (storageRecord == null) {
                 throw new ServiceException(GenericResourceError.GENERIC_RESOURCE_STORAGE_STATUS_GET_FAILED);
             }
-            entity = finalizeToReady(entity, storageRecord.getMd5(), storageRecord.getSize());
+            entity = finalizeToReady(entity, storageRecord.getSize());
         }
 
         GenericResourceUploadInitResponse response = BeanUtil.copyProperties(uploadInitRespDTO, GenericResourceUploadInitResponse.class);
@@ -127,45 +124,39 @@ public class GenericResourceServiceImpl implements IGenericResourceService {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public GenericResourceStatus refreshGenericResourceStatus(String genericResourceId, Long operatorUserId) {
         GenericResourceInfoEntity entity = genericResourceInfoRepository.findById(genericResourceId)
                 .orElseThrow(() -> new ServiceException(GenericResourceError.GENERIC_RESOURCE_UPLOAD_NOT_FOUND));
         if (!Objects.equals(entity.getUploaderId(), operatorUserId)) {
             throw new ServiceException(GenericResourceError.GENERIC_RESOURCE_PERMISSION_DENIED);
         }
-        assertManagedType(entity);
+        if (!GenericResourceConstants.MANAGED_TYPES.contains(entity.getResourceType())) {
+            throw new ServiceException(GenericResourceError.CANNOT_SUPPORT_GENERIC_RESOURCE_TYPE);
+        }
 
-        if (entity.getStatus() != GenericResourceStatusEnum.READY) {
+        if (entity.getStatus() != GenericResourceStatusEnum.READY
+                && entity.getStatus() != GenericResourceStatusEnum.REGISTERING_RES) {
             // 主动刷新只做存储状态补偿；对象仍未上传完成时保持原状态返回。
             StorageRecordDTO storageRecord;
             try {
                 storageRecord = remoteStorageService.getFileRecord(entity.getObjectKey()).getData();
             } catch (Exception e) {
-                throw new ServiceException(GenericResourceError.GENERIC_RESOURCE_STORAGE_STATUS_GET_FAILED, e.getMessage());
+                throw new ServiceException(GenericResourceError.GENERIC_RESOURCE_STORAGE_STATUS_GET_FAILED);
             }
             if (storageRecord != null) {
-                entity = finalizeToReady(entity, storageRecord.getMd5(), storageRecord.getSize());
+                entity = finalizeToReady(entity, storageRecord.getSize());
             }
         }
         return new GenericResourceStatus(entity.getStatus());
     }
 
     @Override
-    public void updateStatus(String genericResourceId, GenericResourceStatus status) {
-        GenericResourceInfoEntity entity = genericResourceInfoRepository.findById(genericResourceId)
-                .orElseThrow(() -> new ServiceException(GenericResourceError.GENERIC_RESOURCE_NOT_FOUND));
-        GenericResourceStatusEnum from = entity.getStatus();
-        genericResourceInfoRepository.updateStatusById(genericResourceId, status.getStatus());
-        log.info("generic resource status changed. genericResourceId={} resourceId={} from={} to={}",
-                genericResourceId, entity.getResourceId(), from, status.getStatus());
-    }
-
-    @Override
     public GenericResourceInfoResponse getGenericResourceInfo(String resourceId) {
         GenericResourceInfoEntity entity = genericResourceInfoRepository.findByResourceId(resourceId)
                 .orElseThrow(() -> new ServiceException(GenericResourceError.GENERIC_RESOURCE_NOT_FOUND));
-        assertManagedType(entity);
+        if (!GenericResourceConstants.MANAGED_TYPES.contains(entity.getResourceType())) {
+            throw new ServiceException(GenericResourceError.CANNOT_SUPPORT_GENERIC_RESOURCE_TYPE);
+        }
         return GenericResourceInfoResponse.builder()
                 .resourceId(entity.getResourceId())
                 .resourceName(entity.getResourceName())
@@ -180,7 +171,9 @@ public class GenericResourceServiceImpl implements IGenericResourceService {
     public GenericResourceDownloadResponse getDownloadUrl(String resourceId, Long durationSeconds) {
         GenericResourceInfoEntity entity = genericResourceInfoRepository.findByResourceId(resourceId)
                 .orElseThrow(() -> new ServiceException(GenericResourceError.GENERIC_RESOURCE_NOT_FOUND));
-        assertManagedType(entity);
+        if (!GenericResourceConstants.MANAGED_TYPES.contains(entity.getResourceType())) {
+            throw new ServiceException(GenericResourceError.CANNOT_SUPPORT_GENERIC_RESOURCE_TYPE);
+        }
         if (entity.getStatus() != GenericResourceStatusEnum.READY || !StringUtils.hasText(entity.getObjectKey())) {
             throw new ServiceException(GenericResourceError.GENERIC_RESOURCE_NOT_READY);
         }
@@ -197,9 +190,10 @@ public class GenericResourceServiceImpl implements IGenericResourceService {
                 }
             }
         }
+        downloadFilename = FileNameUtil.cleanInvalid(downloadFilename).replaceAll("\\p{Cntrl}", "");
         String contentDisposition = StringUtils.hasText(downloadFilename)
                 ? ContentDisposition.attachment()
-                .filename(sanitizeFilename(downloadFilename), StandardCharsets.UTF_8)
+                .filename(downloadFilename, StandardCharsets.UTF_8)
                 .build().toString()
                 : ContentDisposition.attachment().build().toString();
 
@@ -207,9 +201,7 @@ public class GenericResourceServiceImpl implements IGenericResourceService {
         try {
             downloadUrl = remoteStorageService.getDownloadUrl(entity.getObjectKey(), durationSeconds, contentDisposition).getData();
         } catch (Exception e) {
-            log.warn("generic resource download url apply failed. resourceId={} objectKey={}",
-                    resourceId, entity.getObjectKey(), e);
-            throw new ServiceException(GenericResourceError.GENERIC_RESOURCE_DOWNLOAD_URL_APPLY_FAILED, e.getMessage());
+            throw new ServiceException(GenericResourceError.GENERIC_RESOURCE_DOWNLOAD_URL_APPLY_FAILED);
         }
         if (!StringUtils.hasText(downloadUrl)) {
             throw new ServiceException(GenericResourceError.GENERIC_RESOURCE_DOWNLOAD_URL_APPLY_FAILED);
@@ -226,42 +218,21 @@ public class GenericResourceServiceImpl implements IGenericResourceService {
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void handleFileUploaded(FileUploadedMessage message) {
-        if (message.getScene() != StorageSceneEnum.PRIVATE_GENERIC_RESOURCE) {
+        if (message.getScene() != StorageSceneEnum.PRIVATE_GENERIC_RESOURCE || Boolean.TRUE.equals(message.getFlashUploaded())) {
             return;
         }
 
         GenericResourceInfoEntity entity = genericResourceInfoRepository.findByObjectKey(message.getObjectKey()).orElse(null);
         if (entity == null) {
-            if (Boolean.TRUE.equals(message.getFlashUploaded())) {
-                // 秒传事件可能先于本地任务保存到达；同步 initUpload 流程会继续完成注册。
-                log.debug("generic resource flash upload event skipped. objectKey={} reason=\"upload task not persisted yet\"",
-                        message.getObjectKey());
-                return;
-            }
             eventPublisher.publishFileDeleteEvent(List.of(message.getObjectKey()));
             log.warn("generic resource upload compensated for missing task. objectKey={}", message.getObjectKey());
             return;
         }
-        if (entity.getStatus() == GenericResourceStatusEnum.READY) {
-            log.debug("generic resource upload event skipped. genericResourceId={} resourceId={} objectKey={} reason=\"already ready\"",
-                    entity.getGenericResourceId(), entity.getResourceId(), message.getObjectKey());
-            return;
-        }
-
-        GenericResourceInfoEntity completed = finalizeToReady(entity, message.getMd5(), message.getSize());
-        if (completed.getStatus() == GenericResourceStatusEnum.READY) {
-            log.info("generic resource upload handled. genericResourceId={} resourceId={} objectKey={} size={}",
-                    completed.getGenericResourceId(), completed.getResourceId(), message.getObjectKey(), message.getSize());
-        } else {
-            log.debug("generic resource upload event skipped. genericResourceId={} objectKey={} status={} reason=\"registration in progress\"",
-                    completed.getGenericResourceId(), message.getObjectKey(), completed.getStatus());
-        }
+        finalizeToReady(entity, message.getSize());
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void deleteGenericResources(List<String> resourceIds) {
         if (resourceIds == null || resourceIds.isEmpty()) {
             return;
@@ -285,17 +256,27 @@ public class GenericResourceServiceImpl implements IGenericResourceService {
                 entities.size(), summarizeIds(resourceIds));
     }
 
-    private GenericResourceInfoEntity finalizeToReady(GenericResourceInfoEntity entity, String actualMd5, Long actualSize) {
-        if (entity.getStatus() == GenericResourceStatusEnum.READY) {
+    private GenericResourceInfoEntity finalizeToReady(GenericResourceInfoEntity entity, Long actualSize) {
+        GenericResourceStatusEnum from = entity.getStatus();
+        if (from == GenericResourceStatusEnum.READY || from == GenericResourceStatusEnum.REGISTERING_RES) {
             return entity;
         }
 
-        entity.setStatus(GenericResourceStatusEnum.REGISTERING_RES);
-        genericResourceInfoRepository.save(entity);
+        String genericResourceId = entity.getGenericResourceId();
         Long resourceSize = actualSize != null ? actualSize : entity.getSize();
-        if (!StringUtils.hasText(entity.getResourceId())) {
+        // 先进入注册阶段；远程调用失败时保留 REGISTERING_RES_TIMEOUT 供重试。
+        if (genericResourceInfoRepository.updateStatusIfCurrent(
+                genericResourceId, from, GenericResourceStatusEnum.REGISTERING_RES) == 0) {
+            return genericResourceInfoRepository.findById(genericResourceId)
+                    .orElseThrow(() -> new ServiceException(GenericResourceError.GENERIC_RESOURCE_NOT_FOUND));
+        }
+        log.info("generic resource status changed. genericResourceId={} from={} to={}",
+                genericResourceId, from, GenericResourceStatusEnum.REGISTERING_RES);
+
+        String resourceId = entity.getResourceId();
+        if (!StringUtils.hasText(resourceId)) {
             try {
-                String resourceId = remoteResourceService.createResource(ResourceCreateReqDTO.builder()
+                resourceId = remoteResourceService.createResource(ResourceCreateReqDTO.builder()
                         .resourceName(entity.getResourceName())
                         .resourceType(entity.getResourceType())
                         .ownerId(entity.getUploaderId().toString())
@@ -303,34 +284,27 @@ public class GenericResourceServiceImpl implements IGenericResourceService {
                         .mountTargetTagId(entity.getMountTargetTagId())
                         .size(resourceSize)
                         .build()).getData();
-                if (!StringUtils.hasText(resourceId)) {
-                    throw new ServiceException(GenericResourceError.GENERIC_RESOURCE_REGISTER_FAILED);
-                }
-                entity.setResourceId(resourceId);
             } catch (Exception e) {
-                entity.setStatus(GenericResourceStatusEnum.REGISTERING_RES_TIMEOUT);
-                genericResourceInfoRepository.save(entity);
-                log.error("generic resource register failed. genericResourceId={} objectKey={}",
-                        entity.getGenericResourceId(), entity.getObjectKey(), e);
-                throw new ServiceException(GenericResourceError.GENERIC_RESOURCE_REGISTER_FAILED, e.getMessage());
+                if (genericResourceInfoRepository.updateStatusIfCurrent(
+                        genericResourceId, GenericResourceStatusEnum.REGISTERING_RES,
+                        GenericResourceStatusEnum.REGISTERING_RES_TIMEOUT) > 0) {
+                    log.info("generic resource status changed. genericResourceId={} from={} to={}",
+                            genericResourceId, GenericResourceStatusEnum.REGISTERING_RES, GenericResourceStatusEnum.REGISTERING_RES_TIMEOUT);
+                }
+                throw new ServiceException(GenericResourceError.GENERIC_RESOURCE_REGISTER_FAILED);
             }
         }
 
-        if (StringUtils.hasText(actualMd5)) {
-            entity.setMd5(actualMd5);
+        if (genericResourceInfoRepository.markReadyIfCurrent(
+                genericResourceId, GenericResourceStatusEnum.REGISTERING_RES, resourceId, resourceSize) == 0) {
+            return genericResourceInfoRepository.findById(genericResourceId)
+                    .orElseThrow(() -> new ServiceException(GenericResourceError.GENERIC_RESOURCE_NOT_FOUND));
         }
+        entity.setResourceId(resourceId);
         entity.setSize(resourceSize);
         entity.setStatus(GenericResourceStatusEnum.READY);
-        GenericResourceInfoEntity saved = genericResourceInfoRepository.save(entity);
-        log.info("generic resource registered. genericResourceId={} resourceId={} resourceType={} objectKey={}",
-                saved.getGenericResourceId(), saved.getResourceId(), saved.getResourceType(), saved.getObjectKey());
-        return saved;
+        log.info("generic resource status changed. genericResourceId={} resourceId={} from={} to={}",
+                genericResourceId, resourceId, GenericResourceStatusEnum.REGISTERING_RES, GenericResourceStatusEnum.READY);
+        return entity;
     }
-
-    private void assertManagedType(GenericResourceInfoEntity entity) {
-        if (!GenericResourceConstants.MANAGED_TYPES.contains(entity.getResourceType())) {
-            throw new ServiceException(GenericResourceError.CANNOT_SUPPORT_GENERIC_RESOURCE_TYPE);
-        }
-    }
-
 }

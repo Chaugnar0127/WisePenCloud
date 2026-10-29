@@ -35,8 +35,8 @@
       }
     },
     "generic-resource-stale-check-schedule": {
-      "name": "通用资源上传超时检查调度",
-      "description": "检测上传超时通用资源的任务执行间隔，发布后需要重启通用资源服务。",
+      "name": "通用资源上传检查与注册补偿",
+      "description": "控制上传超时检查和注册补偿的执行间隔、批量上限与注册超时时间，发布后需要重启通用资源服务。",
       "path": ["wisepen", "generic-resource", "stale-check"],
       "restartRequired": true,
       "schema": {
@@ -46,6 +46,19 @@
           "delay-ms": {
             "type": "integer",
             "title": "上传超时检测间隔（毫秒）",
+            "default": 300000,
+            "minimum": 1
+          },
+          "batch-size": {
+            "type": "integer",
+            "title": "上传检查和注册补偿每轮各自的处理上限",
+            "default": 100,
+            "minimum": 1,
+            "maximum": 1000
+          },
+          "registration-timeout-ms": {
+            "type": "integer",
+            "title": "注册任务超时及失败重试间隔（毫秒）",
             "default": 300000,
             "minimum": 1
           }
