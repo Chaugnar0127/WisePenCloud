@@ -25,7 +25,8 @@ public class SkillVersionBundleEntity extends VersionBundleBaseEntity<SkillVersi
                 .filter(asset -> ROOT_PATH.equals(asset.getPath()) && MAIN_SKILL_MD.equals(asset.getName()))
                 .findFirst().orElse(null);
         if (coreAsset == null || coreAsset.getObjectKey() == null || coreAsset.getObjectKey().isBlank()
-                || coreAsset.getUploadStatus() != AssetUploadStatus.AVAILABLE) {
+                || coreAsset.getUploadStatus() != AssetUploadStatus.AVAILABLE
+                || coreAsset.getPendingUpload() != null) {
             throw new ServiceException(AIResourceError.AI_RESOURCE_CORE_ASSET_NOT_FOUND);
         }
     }

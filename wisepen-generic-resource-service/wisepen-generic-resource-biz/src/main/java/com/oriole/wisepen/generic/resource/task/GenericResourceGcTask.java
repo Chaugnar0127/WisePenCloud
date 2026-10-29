@@ -26,7 +26,7 @@ public class GenericResourceGcTask {
     private final IGenericResourceService genericResourceService;
     private final GenericResourceProperties genericResourceProperties;
 
-    @Scheduled(fixedDelayString = "${wisepen.generic-resource.stale-check-delay-ms:300000}")
+    @Scheduled(fixedDelayString = "${wisepen.generic-resource.stale-check.delay-ms:300000}")
     public void detectStaleUploads() {
         long start = System.currentTimeMillis();
         log.info("generic resource gc started. task=staleUpload");
@@ -75,10 +75,10 @@ public class GenericResourceGcTask {
      */
     private long calculateTimeoutMs(Long size) {
         if (size == null || size <= 0) {
-            return genericResourceProperties.getBaseTimeoutMs();
+            return genericResourceProperties.getUploadTimeout().getBaseTimeoutMs();
         }
-        long sizeBasedMs = size * 1000L / genericResourceProperties.getAssumedSpeedBps();
-        return Math.max(genericResourceProperties.getBaseTimeoutMs(),
-                Math.min(genericResourceProperties.getMaxTimeoutMs(), sizeBasedMs));
+        long sizeBasedMs = size * 1000L / genericResourceProperties.getUploadTimeout().getAssumedSpeedBps();
+        return Math.max(genericResourceProperties.getUploadTimeout().getBaseTimeoutMs(),
+                Math.min(genericResourceProperties.getUploadTimeout().getMaxTimeoutMs(), sizeBasedMs));
     }
 }

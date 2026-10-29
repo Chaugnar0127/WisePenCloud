@@ -4,6 +4,7 @@ import com.oriole.wisepen.common.core.domain.R;
 import com.oriole.wisepen.common.core.domain.enums.BusinessType;
 import com.oriole.wisepen.common.log.annotation.Log;
 import com.oriole.wisepen.resource.domain.dto.*;
+import com.oriole.wisepen.resource.domain.dto.req.PersonalFolderEnsureReqDTO;
 import com.oriole.wisepen.resource.domain.dto.res.ResourceItemResponse;
 import com.oriole.wisepen.resource.feign.RemoteResourceService;
 import com.oriole.wisepen.resource.service.IGroupResService;
@@ -35,7 +36,7 @@ public class InternalResourceItemController implements RemoteResourceService {
                     - 用途：供文档、文件等业务服务在完成资源前置创建后登记资源中心记录。
                     - 请求：请求体携带资源 ID、所有者、资源类型、资源名称、可选路径标签和上传初始化时的小组角色快照等资源摘要字段。
                     - 约束：调用方必须通过内部服务调用边界；资源所有者和路径标签需要与业务上下文一致；小组路径标签必须在角色快照中存在对应成员身份。
-                    - 处理：创建资源记录；个人路径标签绑定到所有者个人空间，普通小组标签同时绑定到所有者个人 .Shared 与目标小组标签；初始化互动统计并同步资源搜索元数据；若标签绑定失败会回滚资源记录。
+                    - 处理：创建资源记录；未指定路径时普通资源挂载到个人根目录（SINGLE_HTML_PAGE 挂载到个人 .Page 系统目录，NOTE 挂载到个人 .Note 系统目录）；普通小组标签同时绑定到所有者个人 .Shared 与目标小组标签；初始化互动统计并同步资源搜索元数据；若标签绑定失败会回滚资源记录。
                     - 失败：个人标签根节点或指定路径标签不存在 -> ResourceError.TAG_NODE_NOT_FOUND；路径标签数量不唯一 -> ResourceError.CANNOT_BIND_RESOURCE_TO_MULTIPLE_PATH_NODES；路径标签未放在首位 -> ResourceError.CANNOT_PLACE_RESOURCE_PATH_TAG_AFTER_TAGS；搜索同步失败 -> ResourceError.RESOURCE_SEARCH_FAILED。
                     - 响应：返回新注册资源 ID。
                     """
@@ -114,6 +115,39 @@ public class InternalResourceItemController implements RemoteResourceService {
     public R<ResourceCheckPermissionResDTO> checkResPermission(@RequestBody ResourceCheckPermissionReqDTO dto) {
         ResourceCheckPermissionResDTO hasPermission = resourceService.checkPermission(dto);
         return R.ok(hasPermission);
+    }
+
+    @Override
+    @Operation(
+            summary = "内部查询资源 AI 计费审批小组",
+            description = """
+                    - 用途：供用户服务在 Token 结算时查询已经审批为目标资源承担 AI 费用的小组。
+                    - 请求：resourceId 指定目标 Agent 资源。
+                    - 约束：调用方必须通过内部服务调用边界。
+                    - 处理：读取资源的小组挂载关系，仅返回普通小组中 aiBillingApproved=true 的小组 ID；不判断用户角色、小组计费策略、钱包余额或用户偏好顺序。
+                    - 失败：底层资源查询发生未处理异常 -> CommonError.INTERNAL_ERROR；资源不存在、已删除或不是 Agent 时按空列表处理。
+                    - 响应：返回已审批小组 ID 列表。
+                    """
+    )
+    @PostMapping("/listAiBillingApprovedGroupIds")
+    public R<List<String>> listAiBillingApprovedGroupIds(@RequestParam("resourceId") String resourceId) {
+        return R.ok(resourceService.listAiBillingApprovedGroupIds(resourceId));
+    }
+
+    @Operation(
+            summary = "内部确保个人文件夹",
+            description = """
+                    - 用途：供内部流程按路径定位目标用户个人云盘文件夹，并按需补齐缺失目录。
+                    - 请求：targetUserId 指定个人空间；folderPath 按根目录向下给出路径片段；createIfAbsent 控制缺失目录是否创建。
+                    - 约束：调用方必须通过内部服务调用边界；路径片段不能为空，且不能使用系统保留名称；已存在节点必须是路径节点。
+                    - 处理：确保目标个人空间系统路径存在，从个人根节点逐层查找目录；允许创建时补齐缺失目录并返回末级标签 ID；不移动任何资源。
+                    - 失败：目录不存在且不允许创建 -> ResourceError.TAG_NODE_NOT_FOUND；同名节点不是路径节点 -> ResourceError.RESOURCE_TAG_TYPE_INVALID；路径使用系统保留名称 -> ResourceError.CANNOT_USE_RESERVED_TAG_PATH_NODE_NAME。
+                    - 响应：返回解析或创建后的末级路径标签 ID。
+                    """
+    )
+    @PostMapping("/ensurePersonalFolder")
+    public R<String> ensurePersonalFolder(@Validated @RequestBody PersonalFolderEnsureReqDTO dto) {
+        return R.ok(tagService.ensurePersonalPath(dto.getTargetUserId(), dto.getFolderPath(), dto.isCreateIfAbsent()));
     }
 
     // 小组解散：软删除 Tag 树与配置

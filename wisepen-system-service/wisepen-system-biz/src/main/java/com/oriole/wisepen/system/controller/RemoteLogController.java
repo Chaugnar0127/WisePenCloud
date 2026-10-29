@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 
 @Tag(name = "内部 - 日志", description = "供业务微服务写入系统操作日志")
 @RestController
-@RequestMapping("/system/log") // 注意这里的基础路径
+@RequestMapping("/internal/system/log") // 注意这里的基础路径
 public class RemoteLogController {
 
     @Autowired

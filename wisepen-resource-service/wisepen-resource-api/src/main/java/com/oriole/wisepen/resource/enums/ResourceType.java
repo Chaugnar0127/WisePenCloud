@@ -7,6 +7,7 @@ import lombok.Getter;
 
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -37,10 +38,13 @@ public enum ResourceType {
     /** 无扩展名的 Agent，由 AI资产 服务管理 */
     AGENT(32, "AGENT", "agent"),
 
+    /** 单文件 HTML 页面，由 Web App 服务管理 */
+    SINGLE_HTML_PAGE(41, "SINGLE_HTML_PAGE", "html"),
+
     /** 压缩包类文件，由通用资源服务管理 */
-    ARCHIVE(41, "ARCHIVE", "archive", "zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "xz"),
+    ARCHIVE(51, "ARCHIVE", "archive", "zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "xz"),
     /** 明确的二进制文件，由通用资源服务管理 */
-    BINARY(42, "BINARY", "binary", "bin", "dat"),
+    BINARY(52, "BINARY", "binary", "bin", "dat"),
 
     /** 未知资源，兜底 */
     UNKNOWN(99, "UNKNOWN", "unknown");
@@ -55,12 +59,13 @@ public enum ResourceType {
 
     private final Set<String> extensions;
 
-    private static final Map<String, ResourceType> EXT_MAP = new HashMap<>();
+    private static final Map<String, ResourceType> TYPE_MAP = new HashMap<>();
 
     static {
         for (ResourceType item : values()) {
+            TYPE_MAP.put(item.value.toLowerCase(Locale.ROOT), item);
             for (String extension : item.extensions) {
-                EXT_MAP.put(extension, item);
+                TYPE_MAP.put(extension, item);
             }
         }
     }
@@ -74,28 +79,28 @@ public enum ResourceType {
         if (aliases != null) {
             for (String alias : aliases) {
                 if (alias != null && !alias.isBlank()) {
-                    this.extensions.add(alias.trim().toLowerCase());
+                    this.extensions.add(alias.trim().toLowerCase(Locale.ROOT));
                 }
             }
         }
     }
 
     /**
-     * 根据扩展名（大小写不敏感）查找对应枚举值。
+     * 根据资源类型值或扩展名（大小写不敏感）查找对应枚举值。
      *
-     * @param ext 扩展名或类型标识字符串，如 "docx"、"PDF"、"note"
+     * @param value 资源类型值或扩展名，如 "SINGLE_HTML_PAGE"、"html"、"docx"
      * @return 对应枚举值
      */
     @JsonCreator
-    public static ResourceType fromExtension(String ext) {
-        if (ext == null) {
+    public static ResourceType fromExtension(String value) {
+        if (value == null) {
             return null;
         }
-        String normalized = ext.trim().toLowerCase();
+        String normalized = value.trim().toLowerCase(Locale.ROOT);
         while (normalized.startsWith(".")) {
             normalized = normalized.substring(1);
         }
-        return EXT_MAP.get(normalized);
+        return TYPE_MAP.get(normalized);
     }
 
 }

@@ -48,7 +48,7 @@ import static com.oriole.wisepen.document.exception.DocumentError.DOCUMENT_NOT_F
 import static org.apache.poi.xdgf.util.Util.sanitizeFilename;
 
 /**
- * 文档预览服务实现：O(1) 预埋 + Range Request 劫持模式。
+ * 文档预览服务实现：O(1) 预埋 + Range Request 劫持模式；资源所有者预览时仅返回无水印原始段。
  *
  * <h3>虚拟文件布局</h3>
  * <pre>
@@ -90,8 +90,9 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
                                      HttpServletResponse response,
                                      String resourceId,
                                      Integer targetVersion,
-                                     String userId) {
-        handleWatermarkPdfRequest(request, response, resourceId, targetVersion, userId, null, false);
+                                     String userId,
+                                     boolean watermarkRequired) {
+        handlePdfRequest(request, response, resourceId, targetVersion, userId, null, false, watermarkRequired);
     }
 
     @Override
@@ -119,17 +120,18 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
             handleOriginalDownloadRequest(response, resourceId, targetVersion, filename);
         } else {
             filename = filename + "-watermark.pdf";
-            handleWatermarkPdfRequest(request, response, resourceId, targetVersion, userId, filename, true);
+            handlePdfRequest(request, response, resourceId, targetVersion, userId, filename, true, true);
         }
     }
 
-    private void handleWatermarkPdfRequest(HttpServletRequest request,
-                                           HttpServletResponse response,
-                                           String resourceId,
-                                           Integer targetVersion,
-                                           String userId,
-                                           String downloadFilename,
-                                           boolean attachment) {
+    private void handlePdfRequest(HttpServletRequest request,
+                                  HttpServletResponse response,
+                                  String resourceId,
+                                  Integer targetVersion,
+                                  String userId,
+                                  String downloadFilename,
+                                  boolean attachment,
+                                  boolean watermarkRequired) {
         DocumentInfoEntity infoEntity = documentService.getDocumentInfo(resourceId);
         targetVersion = targetVersion != null ? targetVersion : infoEntity.getVersion();
         if (Integer.valueOf(0).equals(targetVersion)) {
@@ -146,7 +148,7 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
                 .orElseThrow(() -> new ServiceException(DocumentError.DOCUMENT_PREVIEW_META_NOT_FOUND));
 
         long originalSize = meta.getOriginalSize();
-        long totalSize = originalSize + meta.getAppendixSize();
+        long totalSize = watermarkRequired ? originalSize + meta.getAppendixSize() : originalSize;
 
         String ossUrl;
 
@@ -155,7 +157,7 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
                 .build().toString() : null;
         try {
             ossUrl = remoteStorageService.getDownloadUrl(
-                    versionEntity.getPreviewObjectKey(), documentProperties.getDownloadUrlDurationSeconds(), contentDisposition
+                    versionEntity.getPreviewObjectKey(), documentProperties.getDownload().getUrlDurationSeconds(), contentDisposition
             ).getData();
         } catch (Exception e) {
             log.warn("document {} url apply failed. resourceId={} objectKey={}",
@@ -164,7 +166,7 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
                     DocumentError.DOCUMENT_PREVIEW_FAILED);
         }
 
-        // 在时间戳确定之前生成附录，保证同一请求内明/暗水印时间一致
+        // 固定当前请求的水印时间，保证同一请求内明、暗水印时间一致。
         LocalDateTime previewTime = LocalDateTime.now();
 
         response.setContentType("application/pdf");
@@ -189,12 +191,14 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
         try {
             String rangeHeader = request.getHeader("Range");
             if (rangeHeader == null) {
-                // 全量请求：OSS 原始段 + 附录
+                // 全量请求：所有者预览只返回 OSS 原始段，其他场景在尾部追加水印附录。
                 response.setHeader("Content-Length", String.valueOf(totalSize));
                 response.setStatus(HttpStatus.OK.value());
                 ServletOutputStream out = response.getOutputStream();
                 pipeOssRange(ossUrl, 0, originalSize - 1, out);
-                out.write(WatermarkAppendixBuilder.build(meta, userId, previewTime, documentProperties.getWatermarkSecretKey()));
+                if (watermarkRequired) {
+                    out.write(WatermarkAppendixBuilder.build(meta, userId, previewTime, documentProperties.getWatermark().getSecretKey()));
+                }
             } else {
                 handleRangeRequest(rangeHeader, totalSize, originalSize,
                         ossUrl, meta, userId, previewTime, response);
@@ -233,7 +237,7 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
         try {
             ossUrl = remoteStorageService.getDownloadUrl(
                     versionEntity.getSourceObjectKey(),
-                    documentProperties.getDownloadUrlDurationSeconds(),
+                    documentProperties.getDownload().getUrlDurationSeconds(),
                     contentDisposition
             ).getData();
         } catch (Exception e) {
@@ -284,7 +288,7 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
 
         } else if (start >= originalSize) {
             // 情形 2：完全落在附录段 → 内存生成后切片
-            byte[] appendix = WatermarkAppendixBuilder.build(meta, userId, previewTime, documentProperties.getWatermarkSecretKey());
+            byte[] appendix = WatermarkAppendixBuilder.build(meta, userId, previewTime, documentProperties.getWatermark().getSecretKey());
             int offset = (int) (start - originalSize);
             int length = (int) (end - start + 1);
             out.write(appendix, offset, length);
@@ -292,7 +296,7 @@ public class DocumentPreviewServiceImpl implements IDocumentPreviewService {
         } else {
             // 情形 3：跨越两段边界 → OSS 尾部 + 附录头部
             pipeOssRange(ossUrl, start, originalSize - 1, out);
-            byte[] appendix = WatermarkAppendixBuilder.build(meta, userId, previewTime, documentProperties.getWatermarkSecretKey());
+            byte[] appendix = WatermarkAppendixBuilder.build(meta, userId, previewTime, documentProperties.getWatermark().getSecretKey());
             int lengthInAppendix = (int) (end - originalSize + 1);
             out.write(appendix, 0, lengthInAppendix);
         }

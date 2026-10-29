@@ -1,0 +1,50 @@
+server:
+  port: 19911
+
+spring:
+  application:
+    name: wisepen-web-app-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        username: ${NACOS_USERNAME:nacos}
+        password: ${NACOS_PASSWORD:nacos}
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}
+        username: ${NACOS_USERNAME:nacos}
+        password: ${NACOS_PASSWORD:nacos}
+        file-extension: yaml
+        group: DEFAULT_GROUP
+        shared-configs:
+          - data-id: wisepen-common-${spring.profiles.active}.yaml
+            group: DEFAULT_GROUP
+            refresh: true
+    inetutils:
+      ignored-interfaces:
+        - VMnet.*
+        - vEthernet.*
+        - docker0
+      preferred-networks:
+        - 10
+  profiles:
+    active: dev
+
+wisepen:
+  openapi:
+    title: Web App 服务 API
+    version: 1.0.0
+    description: WisePen Single HTML Page 创建、版本管理与内容访问接口
+
+springwolf:
+  plugin:
+    kafka:
+      scanner:
+        kafka-listener:
+          enabled: false
+  docket:
+    base-package: com.oriole.wisepen.web.app
+    info:
+      title: Web App 服务 Kafka Events
+      version: 1.0.0
+      description: Single HTML Page 文件上传完成与资源删除相关 Kafka 消息契约

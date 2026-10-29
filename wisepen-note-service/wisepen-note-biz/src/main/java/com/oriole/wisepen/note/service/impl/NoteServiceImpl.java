@@ -114,6 +114,7 @@ public class NoteServiceImpl implements INoteService {
                     .resourceName(request.getForkedResourceName())
                     .resourceType(sourceInfo.getResourceType())
                     .ownerId(forkedResourceOwnerId)
+                    .mountTargetTagId(request.getMountTargetTagId())
                     .build()
             ).getData();
         } catch (Exception e) {

@@ -8,6 +8,7 @@ import com.aliyun.oss.OSSException;
 import com.aliyun.oss.common.utils.BinaryUtil;
 import com.aliyun.oss.model.GeneratePresignedUrlRequest;
 import com.aliyun.oss.model.ObjectMetadata;
+import com.aliyun.oss.model.OSSObject;
 import com.aliyun.oss.model.ResponseHeaderOverrides;
 import com.aliyun.sts20150401.Client;
 import com.aliyun.sts20150401.models.AssumeRoleRequest;
@@ -20,13 +21,13 @@ import com.oriole.wisepen.file.storage.api.domain.base.StorageRecordBase;
 import com.oriole.wisepen.file.storage.api.domain.base.UploadUrlBase;
 import com.oriole.wisepen.file.storage.api.domain.dto.StsTokenDTO;
 import com.oriole.wisepen.file.storage.api.domain.dto.UploadInitRespDTO;
-import com.oriole.wisepen.file.storage.domain.entity.StorageConfigEntity;
+import com.oriole.wisepen.file.storage.config.StorageProperties;
 import com.oriole.wisepen.file.storage.exception.FileStorageError;
 import com.oriole.wisepen.file.storage.strategy.StorageProvider;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.multipart.MultipartFile;
 
 import jakarta.servlet.http.HttpServletRequest;
+import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -43,25 +44,27 @@ import java.util.Scanner;
 @Slf4j
 public class AliyunOssProvider implements StorageProvider {
 
-    private final StorageConfigEntity config;
+    private final String providerCode;
+    private final StorageProperties.Provider config;
     private final OSS ossClient;
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     // 构造器注入配置并初始化连接
-    public AliyunOssProvider(StorageConfigEntity config) {
+    public AliyunOssProvider(String providerCode, StorageProperties.Provider config) {
+        this.providerCode = providerCode;
         this.config = config;
         this.ossClient = new OSSClientBuilder().build(
                 config.getEndpoint(),
                 config.getAccessKeyId(),
                 config.getAccessKeySecret()
         );
-        log.info("aliyun oss client initialized. configId={} provider={} name={}",
-                config.getId(), config.getProvider(), config.getName());
+        log.info("aliyun oss client initialized. providerCode={} provider={} name={}",
+                providerCode, config.getProvider(), config.getName());
     }
 
     @Override
-    public Long getConfigId() {
-        return config.getId();
+    public String getProviderCode() {
+        return providerCode;
     }
 
     @Override
@@ -151,13 +154,29 @@ public class AliyunOssProvider implements StorageProvider {
     }
 
     @Override
-    public void uploadSmallFile(MultipartFile file, String objectKey) {
-        try (InputStream inputStream = file.getInputStream()) {
-            // 代理直传，适合图床等轻量级场景
+    public void uploadSmallFile(byte[] content, String objectKey) {
+        try (InputStream inputStream = new ByteArrayInputStream(content)) {
             ossClient.putObject(config.getBucketName(), objectKey, inputStream);
         } catch (Exception e) {
             log.error("aliyun oss small file upload failed. objectKey={}", objectKey, e);
             throw new ServiceException(FileStorageError.STORAGE_PROVIDER_UPLOAD_FILE_FAILED);
+        }
+    }
+
+    @Override
+    public byte[] getSmallFileContent(String objectKey, long maxSize) {
+        try (OSSObject object = ossClient.getObject(config.getBucketName(), objectKey);
+             InputStream inputStream = object.getObjectContent()) {
+            byte[] content = inputStream.readNBytes(Math.toIntExact(maxSize + 1));
+            if (content.length > maxSize) {
+                throw new ServiceException(FileStorageError.FILE_SIZE_ABOVE_UPPER_BOUND);
+            }
+            return content;
+        } catch (ServiceException e) {
+            throw e;
+        } catch (Exception e) {
+            log.error("aliyun oss small file read failed. objectKey={}", objectKey, e);
+            throw new ServiceException(FileStorageError.STORAGE_PROVIDER_READ_FILE_FAILED);
         }
     }
 
@@ -187,7 +206,7 @@ public class AliyunOssProvider implements StorageProvider {
 
             // 构建请求
             AssumeRoleRequest request = new AssumeRoleRequest()
-                    .setRoleArn(config.getRoleArn()) // 从数据库动态获取
+                    .setRoleArn(config.getRoleArn()) // 从 Nacos 业务配置读取
                     .setRoleSessionName("wisepen-" + IdUtil.fastSimpleUUID())
                     .setDurationSeconds(durationSeconds)
                     .setPolicy(policy);
@@ -204,8 +223,8 @@ public class AliyunOssProvider implements StorageProvider {
                     .build();
 
         } catch (Exception e) {
-            log.error("aliyun sts token generate failed. pathPrefix={} configId={}",
-                    pathPrefix, config.getId(), e);
+            log.error("aliyun sts token generate failed. pathPrefix={} providerCode={}",
+                    pathPrefix, providerCode, e);
             throw new ServiceException(FileStorageError.STORAGE_PROVIDER_GENERATE_STS_TOKEN_FAILED);
         }
     }

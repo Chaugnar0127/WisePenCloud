@@ -21,7 +21,7 @@ public enum ResourceError implements IResult {
     CANNOT_SET_TAG_NODE_VISIBILITY(5131, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.TAG_NODE, ErrorReason.NOT_ALLOWED), "不能设置个人标签节点的可见范围"),
 
     // Tag路径节点相关异常
-    CANNOT_USE_RESERVED_TAG_PATH_NODE_NAME(5211, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.TAG_PATH_NODE, ErrorReason.NOT_ALLOWED),"不能使用系统保留名称(/、.Trash 或 .Shared)作为路径节点名称"),
+    CANNOT_USE_RESERVED_TAG_PATH_NODE_NAME(5211, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.TAG_PATH_NODE, ErrorReason.NOT_ALLOWED),"不能使用系统保留名称(/、.Trash 或 .Shared 等)作为路径节点名称"),
     CANNOT_MODIFY_SYSTEM_TAG_PATH_NODE(5212, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.TAG_PATH_NODE, ErrorReason.NOT_ALLOWED), "不能修改系统路径节点"),
     CANNOT_MOVE_SYSTEM_TAG_PATH_NODE(5213, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.TAG_PATH_NODE, ErrorReason.NOT_ALLOWED), "不能移动系统路径节点"),
     CANNOT_DELETE_SYSTEM_TAG_PATH_NODE(5214, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.TAG_PATH_NODE, ErrorReason.NOT_ALLOWED),"不能删除系统路径节点"),
@@ -40,6 +40,7 @@ public enum ResourceError implements IResult {
     RESOURCE_PERMISSION_DENIED(5421, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.PERMISSION_DENIED),"无权访问或操作该资源"),
     SCORE_OUT_OF_RANGE(5431, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.INVALID), "评分必须在1到5之间"),
     RESOURCE_SEARCH_FAILED(5441, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.FAILED), "搜索资源失败"),
+    RESOURCE_AI_BILLING_APPROVAL_NOT_ALLOWED(5451, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE, ErrorReason.NOT_ALLOWED), "当前资源与小组关系不允许配置 AI 计费审批"),
 
     // 资源标签相关异常
     CANNOT_BIND_RESOURCE_TO_MULTIPLE_PATH_NODES(5511, new ResultKey(BusinessDomain.RESOURCE, ResourceSubject.RESOURCE_TAG, ErrorReason.NOT_ALLOWED),"不能为资源绑定多个路径节点"),

@@ -15,8 +15,8 @@ public interface VersionBundleBaseRepository<T extends VersionBundleBaseEntity<T
 
     List<T> findByResourceId(String resourceId);
 
-    @Query("{ 'assets.objectKey': ?0 }")
-    Optional<T> findFirstByAssetObjectKey(String objectKey);
+    @Query("{ '$or': [ { 'assets.objectKey': ?0 }, { 'assets.pendingUpload.objectKey': ?0 } ] }")
+    Optional<T> findFirstByAssetOrPendingObjectKey(String objectKey);
 
     void deleteByResourceIdIn(List<String> resourceIds);
 }

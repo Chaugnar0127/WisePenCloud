@@ -23,6 +23,7 @@ pipeline {
         booleanParam(name: 'DEPLOY_DOCUMENT_SERVICE', defaultValue: true, description: '构建并部署 document-service')
         booleanParam(name: 'DEPLOY_NOTE_SERVICE', defaultValue: true, description: '构建并部署 note-service')
         booleanParam(name: 'DEPLOY_AI_ASSET_SERVICE', defaultValue: true, description: '构建并部署 ai-asset-service')
+        booleanParam(name: 'DEPLOY_WEB_APP_SERVICE', defaultValue: true, description: '构建并部署 web-app-service')
         booleanParam(name: 'DEPLOY_FILE_STORAGE_SERVICE', defaultValue: true, description: '构建并部署 file-storage-service')
         booleanParam(name: 'DEPLOY_FUDAN_EXTENSION_SERVICE', defaultValue: true, description: '构建并部署 fudan-extension-service')
     }
@@ -60,6 +61,9 @@ pipeline {
                     }
                     if (params.DEPLOY_AI_ASSET_SERVICE) {
                         selectedServices << 'ai-asset-service'
+                    }
+                    if (params.DEPLOY_WEB_APP_SERVICE) {
+                        selectedServices << 'web-app-service'
                     }
                     if (params.DEPLOY_FILE_STORAGE_SERVICE) {
                         selectedServices << 'file-storage-service'
@@ -193,6 +197,16 @@ pipeline {
                     steps {
                         script {
                             sh "docker build -t ${DOCKER_REGISTRY}/${PROJECT_NAME}-ai-asset:${IMAGE_TAG} -f Dockerfile --build-arg MODULE_NAME=wisepen-ai-asset-service/wisepen-ai-asset-biz ."
+                        }
+                    }
+                }
+                stage('Web App Service') {
+                    when {
+                        expression { return params.DEPLOY_WEB_APP_SERVICE }
+                    }
+                    steps {
+                        script {
+                            sh "docker build -t ${DOCKER_REGISTRY}/${PROJECT_NAME}-web-app:${IMAGE_TAG} -f Dockerfile --build-arg MODULE_NAME=wisepen-web-app-service/wisepen-web-app-biz ."
                         }
                     }
                 }
