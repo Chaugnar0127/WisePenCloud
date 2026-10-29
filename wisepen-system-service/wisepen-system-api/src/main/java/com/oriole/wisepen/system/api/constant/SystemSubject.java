@@ -9,6 +9,7 @@ public enum SystemSubject implements IBusinessSubject {
     FEEDBACK,
     BATCH_TASK,
     BATCH_TASK_RESOURCE_FORK,
+    BUSINESS_CONFIG,
     ;
 
     @Override
