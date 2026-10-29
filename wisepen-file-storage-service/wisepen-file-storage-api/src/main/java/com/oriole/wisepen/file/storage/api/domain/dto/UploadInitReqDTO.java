@@ -22,7 +22,7 @@ public class UploadInitReqDTO implements Serializable {
      * 为空时由存储服务按 scene/bizTag/extension 自动生成。
      */
     private String targetObjectKey;
-    private Long configId;
+    private String providerCode;
     private Long expectedSize;
     private Boolean isNeedCallback = true;
 }

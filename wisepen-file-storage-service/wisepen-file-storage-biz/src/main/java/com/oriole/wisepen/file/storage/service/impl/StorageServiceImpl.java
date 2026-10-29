@@ -63,7 +63,7 @@ public class StorageServiceImpl implements IStorageService {
     @Transactional(rollbackFor = Exception.class)
     @WithSpan("storage.upload.initialize")
     public UploadInitRespDTO initUpload(UploadInitReqDTO req) {
-        StorageProvider provider = storageManager.getProvider(req.getConfigId());
+        StorageProvider provider = storageManager.getProvider(req.getProviderCode());
         String newObjectKey = resolveObjectKey(req.getScene(), req.getBizTag(), req.getExtension(), req.getTargetObjectKey());
         String domain = provider.getDomain();
 
@@ -96,7 +96,7 @@ public class StorageServiceImpl implements IStorageService {
         StorageRecordEntity existRecord = StrUtil.isBlank(req.getMd5()) ? null : storageRecordMapper.selectOne(
                 Wrappers.<StorageRecordEntity>lambdaQuery()
                         .eq(StorageRecordEntity::getMd5, req.getMd5())
-                        .eq(StorageRecordEntity::getConfigId, provider.getConfigId())
+                        .eq(StorageRecordEntity::getProviderCode, provider.getProviderCode())
                         .eq(StorageRecordEntity::getStatus, StorageStatusEnum.AVAILABLE)
                         .ne(StorageRecordEntity::getObjectKey, newObjectKey)
                         .last("LIMIT 1")
@@ -163,7 +163,7 @@ public class StorageServiceImpl implements IStorageService {
         StorageRecordEntity sourceRecord = getStorageRecordWithCompensateStatus(req.getSourceObjectKey());
 
         // 同源复制
-        StorageProvider provider = storageManager.getProvider(sourceRecord.getConfigId());
+        StorageProvider provider = storageManager.getProvider(sourceRecord.getProviderCode());
 
         // 根据请求的 Scene 和 BizTag 重新构建 ObjectKey
         String extension = FileUtil.extName(sourceRecord.getObjectKey()).toLowerCase();
@@ -174,7 +174,7 @@ public class StorageServiceImpl implements IStorageService {
 
             StorageRecordEntity targetRecord = StorageRecordEntity.builder()
                     .objectKey(targetObjectKey).scene(req.getScene())
-                    .md5(sourceRecord.getMd5()).size(sourceRecord.getSize()).configId(sourceRecord.getConfigId())
+                    .md5(sourceRecord.getMd5()).size(sourceRecord.getSize()).providerCode(sourceRecord.getProviderCode())
                     .status(StorageStatusEnum.AVAILABLE)
                     .build();
             storageRecordMapper.insert(targetRecord);
@@ -199,7 +199,7 @@ public class StorageServiceImpl implements IStorageService {
         record.setScene(req.getScene());
         record.setObjectKey(newObjectKey);
         record.setStatus(StorageStatusEnum.UPLOADING);
-        record.setConfigId(provider.getConfigId());
+        record.setProviderCode(provider.getProviderCode());
         record.setMd5(req.getMd5());
         record.setSize(req.getExpectedSize());
         if (existingRecord == null) {
@@ -248,7 +248,7 @@ public class StorageServiceImpl implements IStorageService {
                 .objectKey(objectKey)
                 .md5(DigestUtil.md5Hex(content))
                 .size((long) content.length)
-                .configId(provider.getConfigId())
+                .providerCode(provider.getProviderCode())
                 .status(StorageStatusEnum.AVAILABLE)
                 .build();
         storageRecordMapper.insert(newRecord);
@@ -267,7 +267,7 @@ public class StorageServiceImpl implements IStorageService {
         if (record.getSize() != null && record.getSize() > storageProperties.getUpload().getMaxSmallFileSize()) {
             throw new ServiceException(FileStorageError.FILE_SIZE_ABOVE_UPPER_BOUND);
         }
-        StorageProvider provider = storageManager.getProvider(record.getConfigId());
+        StorageProvider provider = storageManager.getProvider(record.getProviderCode());
         return provider.getSmallFileContent(objectKey, storageProperties.getUpload().getMaxSmallFileSize());
     }
 
@@ -275,7 +275,7 @@ public class StorageServiceImpl implements IStorageService {
     public String getDownloadUrl(String objectKey, Long durationSeconds, String contentDisposition) {
         StorageRecordEntity record = getStorageRecordWithCompensateStatus(objectKey);
 
-        StorageProvider provider = storageManager.getProvider(record.getConfigId());
+        StorageProvider provider = storageManager.getProvider(record.getProviderCode());
         return provider.generateDownloadUrl(objectKey, durationSeconds, contentDisposition);
     }
 
@@ -301,7 +301,7 @@ public class StorageServiceImpl implements IStorageService {
             if (record.getStatus() == StorageStatusEnum.UPLOADING && compensateStatus(record) == null) {
                 throw new ServiceException(FileStorageError.FILE_RECORD_NOT_FOUND);
             }
-            StorageProvider provider = storageManager.getProvider(record.getConfigId());
+            StorageProvider provider = storageManager.getProvider(record.getProviderCode());
             downloadUrls.put(objectKey, provider.generateDownloadUrl(objectKey, durationSeconds, null));
         }
         return downloadUrls;
@@ -324,7 +324,7 @@ public class StorageServiceImpl implements IStorageService {
     }
 
     @Override
-    public StsTokenDTO getStsToken(StorageSceneEnum scene, String bizTag, Long configId, Long durationSeconds) {
+    public StsTokenDTO getStsToken(StorageSceneEnum scene, String bizTag, String providerCode, Long durationSeconds) {
         String cleanBizTag = StrUtil.isNotBlank(bizTag)
                 ? bizTag.replaceAll("^/+", "").replaceAll("/+$", "")
                 : "";
@@ -333,8 +333,8 @@ public class StorageServiceImpl implements IStorageService {
             pathPrefix += "/" + cleanBizTag;
         }
         pathPrefix += "/*"; // 加上通配符，授予该目录及子目录下的读取权限
-        // 如果业务方不指定 configId，StorageManager 会自动降级使用 PrimaryProvider
-        StorageProvider provider = storageManager.getProvider(configId);
+        // 如果业务方不指定 providerCode，StorageManager 使用首要存储提供商
+        StorageProvider provider = storageManager.getProvider(providerCode);
         return provider.getStsToken(pathPrefix, durationSeconds);
     }
 
@@ -357,7 +357,7 @@ public class StorageServiceImpl implements IStorageService {
             throw new ServiceException(FileStorageError.FILE_RECORD_NOT_FOUND);
         }
 
-        StorageProvider provider = storageManager.getProvider(record.getConfigId());
+        StorageProvider provider = storageManager.getProvider(record.getProviderCode());
 
         if (!provider.verifyCallbackSignature(request, rawBody)) {
             throw new ServiceException(FileStorageError.STORAGE_PROVIDER_CALLBACK_SIGNATURE_INVALID);
@@ -424,7 +424,7 @@ public class StorageServiceImpl implements IStorageService {
             return null;
         }
 
-        StorageProvider provider = storageManager.getProvider(record.getConfigId());
+        StorageProvider provider = storageManager.getProvider(record.getProviderCode());
         if (StorageStatusEnum.AVAILABLE.equals(record.getStatus())) {
             StorageRecordDTO dto = BeanUtil.copyProperties(record, StorageRecordDTO.class);
             dto.setDomain(provider.getDomain());
@@ -435,7 +435,7 @@ public class StorageServiceImpl implements IStorageService {
 
     @Override
     public StorageRecordDTO compensateStatus(StorageRecordEntity record) {
-        StorageProvider provider = storageManager.getProvider(record.getConfigId());
+        StorageProvider provider = storageManager.getProvider(record.getProviderCode());
         log.warn("storage record recover started. objectKey={} domain={}",
                 record.getObjectKey(), provider.getDomain());
 

@@ -107,7 +107,7 @@ public class StorageGcTask {
         for (StorageRecordEntity trash : trashes) {
             try {
                 // 先删云端物理文件
-                StorageProvider provider = storageManager.getProvider(trash.getConfigId());
+                StorageProvider provider = storageManager.getProvider(trash.getProviderCode());
                 provider.deleteObject(trash.getObjectKey());
 
                 // 物理删除不抛异常，再硬删除数据库记录

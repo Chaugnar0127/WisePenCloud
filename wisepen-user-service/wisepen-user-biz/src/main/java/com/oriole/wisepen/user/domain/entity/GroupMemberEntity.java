@@ -15,7 +15,7 @@ import java.io.Serial;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-@TableName("sys_group_member")
+@TableName("group_member")
 public class GroupMemberEntity extends GroupMemberBase {
 
     @Serial

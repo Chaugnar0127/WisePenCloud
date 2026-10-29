@@ -87,6 +87,106 @@
           }
         }
       }
+    },
+    "storage-provider-config": {
+      "name": "存储提供商配置",
+      "description": "文件存储服务使用的提供商、首要提供商及访问凭据，发布后需要重启文件存储服务。",
+      "path": [
+        "wisepen",
+        "storage",
+        "providers"
+      ],
+      "restartRequired": true,
+      "schema": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "primary-code",
+          "items"
+        ],
+        "properties": {
+          "primary-code": {
+            "type": "string",
+            "title": "首要存储提供商编码",
+            "minLength": 1
+          },
+          "items": {
+            "type": "object",
+            "title": "存储提供商配置映射",
+            "minProperties": 1,
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "provider",
+                "region",
+                "endpoint",
+                "access-key-id",
+                "access-key-secret",
+                "bucket-name",
+                "domain",
+                "role-arn",
+                "enabled"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "title": "配置名称",
+                  "minLength": 1
+                },
+                "provider": {
+                  "type": "string",
+                  "title": "存储提供商",
+                  "enum": [
+                    "ALIYUN_OSS"
+                  ]
+                },
+                "region": {
+                  "type": "string",
+                  "title": "地域 (Region)",
+                  "minLength": 1
+                },
+                "endpoint": {
+                  "type": "string",
+                  "title": "Endpoint",
+                  "minLength": 1
+                },
+                "access-key-id": {
+                  "type": "string",
+                  "title": "AccessKey ID",
+                  "minLength": 1
+                },
+                "access-key-secret": {
+                  "type": "string",
+                  "title": "AccessKey Secret",
+                  "minLength": 1
+                },
+                "bucket-name": {
+                  "type": "string",
+                  "title": "Bucket 名称",
+                  "minLength": 1
+                },
+                "domain": {
+                  "type": "string",
+                  "title": "访问域名",
+                  "minLength": 1
+                },
+                "role-arn": {
+                  "type": "string",
+                  "title": "STS Role ARN",
+                  "minLength": 1
+                },
+                "enabled": {
+                  "type": "boolean",
+                  "title": "是否启用",
+                  "default": true
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
