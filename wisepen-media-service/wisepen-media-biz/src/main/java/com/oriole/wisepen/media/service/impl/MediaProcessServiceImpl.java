@@ -185,7 +185,7 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
         Path previewPath = null;
         try {
             String downloadUrl = remoteStorageService.getDownloadUrl(mediaInfo.getSourceObjectKey(), null, null).getData();
-            String sourceExtension = getSourceExtension(mediaInfo);
+            String sourceExtension = StrUtil.isNotBlank(mediaInfo.getSourceExtension()) ? mediaInfo.getSourceExtension() : FileUtil.extName(mediaInfo.getSourceObjectKey());
             sourceFile = downloadSourceFile(downloadUrl, mediaInfo.getMediaId(), sourceExtension);
             ImageSize imageSize = probeImage(sourceFile.toPath());
 
@@ -204,7 +204,9 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
                     imageSize.width(),
                     imageSize.height());
         } catch (Exception e) {
-            deleteProducedObjects(previewObjectKey);
+            if (StrUtil.isNotBlank(previewObjectKey)) {
+                eventPublisher.publishFileDeleteEvent(List.of(previewObjectKey));
+            }
             throw new ServiceException(MediaError.MEDIA_PROCESS_FAILED);
         } finally {
             // 清理本地缓存
@@ -238,7 +240,7 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
 
             // 把源视频下载到缓存目录
             String sourceUrl = remoteStorageService.getDownloadUrl(mediaInfo.getSourceObjectKey(), null, null).getData();
-            String sourceExtension = getSourceExtension(mediaInfo);
+            String sourceExtension = StrUtil.isNotBlank(mediaInfo.getSourceExtension()) ? mediaInfo.getSourceExtension() : FileUtil.extName(mediaInfo.getSourceObjectKey());
             sourceFile = downloadSourceFile(sourceUrl, mediaInfo.getMediaId(), sourceExtension);
             Path sourcePath = workDir.resolve(sourceFile.getName());
             Files.move(sourceFile.toPath(), sourcePath);
@@ -283,7 +285,9 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
                     probe.width(),
                     probe.height());
         } catch (Exception e) {
-            deleteProducedObjects(uploadedObjectKeys);
+            if (!uploadedObjectKeys.isEmpty()) {
+                eventPublisher.publishFileDeleteEvent(uploadedObjectKeys);
+            }
             throw new ServiceException(MediaError.MEDIA_PROCESS_FAILED);
         } finally {
             if (sourceFile != null) {
@@ -315,7 +319,7 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
         File sourceFile = null;
         try {
             String downloadUrl = remoteStorageService.getDownloadUrl(mediaInfo.getSourceObjectKey(), null, null).getData();
-            String sourceExtension = getSourceExtension(mediaInfo);
+            String sourceExtension = StrUtil.isNotBlank(mediaInfo.getSourceExtension()) ? mediaInfo.getSourceExtension() : FileUtil.extName(mediaInfo.getSourceObjectKey());
             sourceFile = downloadSourceFile(downloadUrl, mediaInfo.getMediaId(), sourceExtension);
             AudioProbe probe = probeAudio(sourceFile.toPath());
             return new MediaPackagingResult(
@@ -532,14 +536,6 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
         }
     }
 
-    private String getSourceExtension(MediaInfoEntity mediaInfo) {
-        // 优先使用上传时记录的扩展名；缺失时从 objectKey 兜底推导
-        if (StrUtil.isNotBlank(mediaInfo.getSourceExtension())) {
-            return mediaInfo.getSourceExtension();
-        }
-        return FileUtil.extName(mediaInfo.getSourceObjectKey());
-    }
-
     @Override
     public void finalizeToReady(String mediaId) {
         // finalize 可被正常处理和注册补偿重试共同调用，因此保持幂等
@@ -604,18 +600,6 @@ public class MediaProcessServiceImpl implements IMediaProcessService {
                     .resourceType(entity.getResourceType())
                     .build());
             log.info("media ready finalized. mediaId={} resourceId={}", mediaId, resourceId);
-        }
-    }
-
-    private void deleteProducedObjects(String objectKey) {
-        if (StrUtil.isNotBlank(objectKey)) {
-            eventPublisher.publishFileDeleteEvent(List.of(objectKey));
-        }
-    }
-
-    private void deleteProducedObjects(List<String> objectKeys) {
-        if (objectKeys != null && !objectKeys.isEmpty()) {
-            eventPublisher.publishFileDeleteEvent(objectKeys);
         }
     }
 
